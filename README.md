@@ -12,7 +12,7 @@
 
 [**安装**](#-安装) · [功能](#-功能) · [文件转换](#-文件转换) · [隐私](#-隐私) · [从源码构建](#️-从源码构建) · [使用说明](docs/使用说明.md)
 
-<img src="docs/images/editor-light.jpg" alt="浅色模式下的单页编辑与格式面板" width="49%"> <img src="docs/images/editor-dark.jpg" alt="深色模式下的双页：Markdown 原文与预览" width="49%">
+<img src="docs/images/demo.gif" alt="演示：单页输入时自动变格式，双页显示原文与预览，拖入 Word 一键转换" width="100%">
 
 </div>
 
@@ -20,6 +20,8 @@
 > 当前是测试版。有问题请在 Issues 里反馈。
 
 ## ✨ 功能
+
+<p align="center"><img src="docs/images/editor-light.jpg" alt="浅色模式下的单页编辑与格式面板" width="49%"> <img src="docs/images/editor-dark.jpg" alt="深色模式下的双页：Markdown 原文与预览" width="49%"></p>
 
 - **单页**：像 Pages / Word 一样直接排版，不用会写 Markdown，保存的仍是标准 Markdown 文件
 - **双页**：左边 Markdown 原文，右边实时预览，滚动同步
@@ -34,9 +36,31 @@
 
 1. 在 [Releases](../../releases) 下载 `DropMD-macOS-AppleSilicon.dmg`
 2. 打开后把 **DropMD** 拖到“应用程序”
-3. 第一次打开时如果提示无法验证开发者，在 **系统设置 → 隐私与安全性** 里点“仍要打开”
+3. 第一次打开会被系统拦下，按下面的方法打开一次，以后就不会再提示
 
 适用于 Apple 芯片的 Mac，macOS 14 及以上。以后的新版本在 App 里更新即可（**DropMD → 检查更新…**）。
+
+### 第一次打开：提示“无法验证开发者”怎么办
+
+DropMD 是免费的开源软件，没有购买苹果的开发者签名（每年 99 美元），所以 macOS 第一次打开时会提示“Apple 无法验证‘DropMD’是否包含恶意软件”。这不代表软件有问题：全部源码都在这个仓库里，安装包由 GitHub Actions 公开构建，每个版本都附带 `.sha256` 校验值。
+
+**方法一：在系统设置里放行（推荐）**
+
+1. 双击打开 DropMD，看到提示后点 **完成**（不要点“移到废纸篓”）
+2. 打开 **系统设置 → 隐私与安全性**，拉到最下面
+3. 在“安全性”一栏会看到“已阻止使用‘DropMD’”，点旁边的 **仍要打开**，输入开机密码
+4. 再次弹出提示时，点 **仍要打开**
+
+**方法二：在“终端”里运行一行命令**
+
+```bash
+xattr -dr com.apple.quarantine /Applications/DropMD.app
+```
+
+这行命令只是去掉系统给“从网上下载的文件”加的标记，之后双击就能直接打开。
+
+> [!NOTE]
+> 只需要做一次。之后在 App 内更新的新版本不会再被拦下。
 
 
 ## 🔄 文件转换
