@@ -35,7 +35,8 @@ pre code { background: none; padding: 0; font-size: .88em; }
 table { border-collapse: collapse; display: block; overflow-x: auto; max-width: 100%; }
 th, td { border: 1px solid var(--line); padding: 6px 12px; }
 th { background: var(--code-bg); font-weight: 600; }
-ul.contains-task-list { list-style: none; padding-left: 1.2em; }
+/* 只有待办项不显示圆点：同一个列表里的普通项仍显示圆点 */
+li.task-list-item { list-style: none; }
 .task-list-item input { margin: 0 .5em 0 -1.2em; vertical-align: middle; }
 mark { background: var(--mark); color: inherit; }
 /* 提示框 > [!NOTE] 等：左边线和标题用对应颜色 */
