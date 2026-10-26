@@ -529,9 +529,11 @@ final class RichTextView: NSTextView {
         }
         let selection = selectedRange()
         var shift = 0
+        var lastTarget = RichKind.body
         // 从后往前处理，前面段落的位置不受影响
         for p in paragraphs.reversed() {
             let old = RichBridge.kind(of: storage.attributes(at: p.location, effectiveRange: nil))
+            if p == paragraphs.last { lastTarget = map(old) }
             let delta = restyle(p, to: map(old), from: old)
             // 光标在段首时，段首新插入的待办方框也算在光标前面（输入的文字在方框之后）
             if p.location < selection.location || (delta > 0 && p.location == selection.location) { shift += delta }
@@ -539,6 +541,10 @@ final class RichTextView: NSTextView {
         let length = (string as NSString).length
         setSelectedRange(NSRange(location: max(0, min(selection.location + shift, length)),
                                  length: max(0, min(selection.length, length - min(selection.location + shift, length)))))
+        // 文末的空待办去掉方框后变成空段落，没有文字可以带样式，之后输入的文字直接用新样式
+        if selectedRange().location == length, paragraphRange(at: length).length == 0 {
+            typingAttributes = RichStyle.typingAttributes(for: lastTarget)
+        }
         refreshTypingAttributes()
     }
 

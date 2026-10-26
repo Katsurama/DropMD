@@ -49,6 +49,12 @@ MainActor.assumeIsolated {
         type(tv, "- a"); tv.insertNewline(nil); tv.insertNewline(nil); type(tv, "b")
         check("空列表项回车", md(tv), "- a\n\nb\n")
     }
+    // 空待办回车结束待办，之后的自动格式照常生效
+    do {
+        let tv = makeView("")
+        type(tv, "[] a"); tv.insertNewline(nil); tv.insertNewline(nil); type(tv, "> b")
+        check("空待办回车", md(tv), "- [ ] a\n\n> b\n")
+    }
     // 待办回车后新的一项未勾选
     do {
         let tv = makeView("- [x] a\n")
