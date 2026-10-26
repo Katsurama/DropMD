@@ -1,0 +1,5 @@
+# 打包工具（来自 PyPI 官方源）
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.8
+pip-licenses==5.5.5
+dmgbuild==1.6.7
