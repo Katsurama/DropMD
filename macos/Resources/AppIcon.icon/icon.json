@@ -1,0 +1,53 @@
+{
+  "fill": {
+    "automatic-gradient": "extended-srgb:0.12000,0.30000,0.72000,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "md.png",
+          "name": "md",
+          "fill-specializations": [
+            {
+              "appearance": "dark",
+              "value": {
+                "automatic-gradient": "extended-srgb:0.40000,0.60000,1.00000,1.00000"
+              }
+            }
+          ],
+          "glass": true
+        },
+        {
+          "image-name": "doc.png",
+          "name": "doc",
+          "fill-specializations": [
+            {
+              "appearance": "dark",
+              "value": {
+                "automatic-gradient": "extended-srgb:0.40000,0.60000,1.00000,1.00000"
+              }
+            }
+          ],
+          "glass": true
+        }
+      ],
+      "shadow": {
+        "kind": "layer-color",
+        "opacity": 0.6
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.6
+      },
+      "specular": true,
+      "lighting": "individual",
+      "blur-material": 0.6
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

@@ -1,0 +1,184 @@
+name: 构建 DropMD
+
+# 只在推送版本标签或手动触发时构建（macOS 分钟按 10 倍计费，避免每次推送都跑）
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "要发布的版本号（例如 v1.0.0）；留空则只构建、不发布"
+        required: false
+        default: ""
+
+# 同一分支/标签上有新的运行时，取消还没跑完的旧运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PANDOC_VERSION: "3.9.0.2"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  model-sizes:
+    name: 查询模型大小
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install huggingface_hub==1.33.0
+      - run: python tools/measure_model_sizes.py | tee -a "$GITHUB_STEP_SUMMARY"
+
+  macos:
+    name: 构建 macOS 版（Apple 芯片）
+    runs-on: macos-15
+    timeout-minutes: 30  # 正常约 10 分钟；卡住时尽早结束，少耗分钟
+    permissions:
+      contents: write  # 仅用于推送版本标签时创建 Release 并上传 .dmg
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 选择 Xcode（优先 Xcode 26，以启用 Liquid Glass）
+        run: |
+          ls -d /Applications/Xcode*.app || true
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)
+          if [ -n "$X" ]; then sudo xcode-select -s "$X/Contents/Developer"; fi
+          xcodebuild -version
+          swift --version
+
+      - name: Markdown 往返测试、单页编辑器按键测试、更新安装测试
+        run: |
+          tools/test_codec.sh
+          tools/test_editor.sh
+          tools/test_update.sh
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 安装依赖（PyPI）
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-build.txt
+          mkdir -p build
+          pip freeze --exclude-editable > build/requirements-frozen.txt
+
+      - name: 下载 Pandoc（官方 GitHub Releases，校验 SHA-256）
+        run: |
+          f="pandoc-${PANDOC_VERSION}-arm64-macOS.zip"
+          curl -fsSL -o "$f" "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/$f"
+          echo "6e9eca844076bcbb599bbeebbba78a70f93b5307782b85c2c272872812c88875  $f" | shasum -a 256 -c -
+          mkdir -p pandoc_x packaging/pandoc
+          unzip -q "$f" -d pandoc_x
+          cp pandoc_x/*/bin/pandoc packaging/pandoc/
+          chmod +x packaging/pandoc/pandoc
+
+      - name: 生成第三方许可证清单
+        run: bash tools/third_party.sh "macOS"
+
+      - name: PyInstaller 打包（转换引擎）
+        run: pyinstaller packaging/dropmd.spec --noconfirm
+
+      - name: 自检引擎（快速模式 + Pandoc + 网络防护 + JSON 接口）
+        run: |
+          dist/dropmd-engine/dropmd-engine --selftest st_fast
+          dist/dropmd-engine/dropmd-engine --engine status | python -c "import json,sys; d=json.load(sys.stdin); print(d); assert d['pandoc'] and 'vision' in d['ocr_engines']"
+
+      - name: 构建 SwiftUI 界面并组装 DropMD.app
+        run: macos/build_app.sh
+
+      - name: 启动测试与界面截图（单页 / 双页 × 浅色 / 深色）
+        run: |
+          mkdir -p shots
+          cp packaging/samples/editor_sample.md "$RUNNER_TEMP/示例.md"
+          # 跳过首次启动的“自动检查更新”询问，显示格式面板
+          defaults write io.github.dropmd.app askedAutoUpdate -bool true
+          defaults write io.github.dropmd.app showInspector -bool true
+          for appearance in Light Dark; do
+            # 用 App 自己的“外观”设置切换浅色 / 深色，不改系统设置
+            if [ "$appearance" = Dark ]; then
+              defaults write io.github.dropmd.app appearance dark
+            else
+              defaults write io.github.dropmd.app appearance light
+            fi
+            for mode in rich source; do
+              defaults write io.github.dropmd.app editorMode "$mode"
+              open -a "$PWD/dist/DropMD.app" "$RUNNER_TEMP/示例.md"
+              sleep 12
+              pgrep -x DropMD
+              screencapture -x "shots/${mode}-${appearance}.png" || true
+              pkill -x DropMD || true
+              sleep 2
+            done
+          done
+          defaults delete io.github.dropmd.app appearance || true
+          cp shots/rich-Light.png shot.png || true
+
+      - name: 生成 .dmg（dmgbuild：背景图、图标布局、拖到“应用程序”提示）
+        run: |
+          test -f dist/DropMD.app/Contents/Resources/preview/preview.html
+          test -f dist/DropMD.app/Contents/Resources/preview/vendor/katex/katex.min.js
+          mkdir -p build/dmg
+          swift macos/dmg/make_background.swift build/dmg
+          tiffutil -cathidpicheck build/dmg/background.png build/dmg/background@2x.png -out build/dmg/background.tiff
+          dmgbuild -s macos/dmg/settings.py \
+            -D app=dist/DropMD.app -D background=build/dmg/background.tiff \
+            "DropMD" DropMD-macOS-AppleSilicon.dmg
+          hdiutil verify DropMD-macOS-AppleSilicon.dmg
+          # App 内更新用的 zip（直接解压，不用挂载磁盘）
+          ditto -c -k --sequesterRsrc --keepParent dist/DropMD.app DropMD-macOS-AppleSilicon.zip
+          ls -la DropMD-*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DropMD-macOS-AppleSilicon
+          path: DropMD-macOS-AppleSilicon.dmg
+          retention-days: 30
+          compression-level: 0
+
+      - name: 用 App 内的下载器（URLSession）下载模型，并以此运行高精度自检
+        env:
+          DROPMD_DATA_DIR: ${{ runner.temp }}/dropmd-data
+        run: |
+          (cd macos && swift build -c release --product DownloadTest)
+          dist/dropmd-engine/dropmd-engine --engine status | "$(cd macos && swift build -c release --show-bin-path)/DownloadTest"
+          dist/dropmd-engine/dropmd-engine --selftest st_hq --hq
+          du -sh "$DROPMD_DATA_DIR/models"/* || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: selftest-macOS
+          path: |
+            st_fast/
+            st_hq/
+            shot.png
+            shots/
+            build/dmg/background.png
+            build/requirements-frozen.txt
+            THIRD_PARTY_LICENSES.md
+
+      - name: 创建 Release 并上传 .dmg 和 .zip（仅在指定了版本号且全部自检通过时）
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(inputs.release_tag, 'v'))
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.release_tag }}
+        run: |
+          shasum -a 256 DropMD-macOS-AppleSilicon.dmg | tee DropMD-macOS-AppleSilicon.dmg.sha256
+          shasum -a 256 DropMD-macOS-AppleSilicon.zip | tee DropMD-macOS-AppleSilicon.zip.sha256
+          # 版本号带“-”（如 v1.2.0-beta.1）时标记为预发布
+          PRE=""
+          case "$TAG" in *-*) PRE="--prerelease" ;; esac
+          gh release create "$TAG" $PRE \
+            DropMD-macOS-AppleSilicon.dmg DropMD-macOS-AppleSilicon.dmg.sha256 \
+            DropMD-macOS-AppleSilicon.zip DropMD-macOS-AppleSilicon.zip.sha256 \
+            --target "$GITHUB_SHA" \
+            --title "DropMD $TAG" \
+            --notes-file docs/发行说明.md

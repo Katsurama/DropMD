@@ -1,0 +1,10 @@
+# 转换引擎的运行时依赖（全部来自 PyPI 官方源）。版本固定，便于复现构建。
+markitdown[docx,xlsx,pptx,pdf]==0.1.8
+docling==2.138.0
+rapidocr==3.10.0
+onnxruntime==1.31.0
+huggingface_hub==1.33.0
+torch==2.14.1
+torchvision==0.29.1
+# macOS：通过 Apple Vision（实况文本的文字识别引擎）进行 OCR
+ocrmac==1.0.1 ; sys_platform == "darwin"
