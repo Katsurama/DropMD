@@ -98,9 +98,7 @@ echo "== 发布 $TAG"
 # 用 1Password 插件登录 gh 时，脚本里没有 gh 函数，改用 op plugin run
 GH=(gh)
 if command -v op >/dev/null && [ -f "$HOME/.config/op/plugins.sh" ]; then GH=(op plugin run -- gh); fi
-PRE=""
-case "$TAG" in *-*) PRE="--prerelease" ;; esac
-"${GH[@]}" release create "$TAG" $PRE \
+"${GH[@]}" release create "$TAG" \
   DropMD-macOS-AppleSilicon.dmg DropMD-macOS-AppleSilicon.dmg.sha256 \
   DropMD-macOS-AppleSilicon.zip DropMD-macOS-AppleSilicon.zip.sha256 \
   --target "$(git rev-parse HEAD)" \
