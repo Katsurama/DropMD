@@ -1,9 +1,7 @@
 name: 构建 DropMD
 
-# 只在推送版本标签或手动触发时构建（macOS 分钟按 10 倍计费，避免每次推送都跑）
+# 只在手动触发时构建（本机用 tools/build_local.sh 发布时会创建标签，不再重复构建）
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -41,7 +39,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 30  # 正常约 10 分钟；卡住时尽早结束，少耗分钟
     permissions:
-      contents: write  # 仅用于推送版本标签时创建 Release 并上传 .dmg
+      contents: write  # 仅用于填写了版本号时创建 Release 并上传 .dmg / .zip
     steps:
       - uses: actions/checkout@v4
 
@@ -166,10 +164,10 @@ jobs:
             THIRD_PARTY_LICENSES.md
 
       - name: 创建 Release 并上传 .dmg 和 .zip（仅在指定了版本号且全部自检通过时）
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(inputs.release_tag, 'v'))
+        if: startsWith(inputs.release_tag, 'v')
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.release_tag }}
+          TAG: ${{ inputs.release_tag }}
         run: |
           shasum -a 256 DropMD-macOS-AppleSilicon.dmg | tee DropMD-macOS-AppleSilicon.dmg.sha256
           shasum -a 256 DropMD-macOS-AppleSilicon.zip | tee DropMD-macOS-AppleSilicon.zip.sha256
