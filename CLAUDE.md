@@ -63,6 +63,6 @@ tools/build_local.sh vX.Y.Z-beta.N     # 构建后直接创建 GitHub Release（
 2. 在 `docs/发行说明.md` 最上面加本版说明（发布时整份文件作为 Release 说明）。
 3. **默认在 GitHub Actions 上构建**（公开仓库不计分钟数）：提交并推送后，先不带版本号触发构建、检查截图
    （`gh workflow run build.yml --repo Katsurama/DropMD --ref main`）；没问题再带版本号触发
-   （加 `-f release_tag=vX.Y.Z-beta.N`），构建完自动创建 Release。带 `-` 的版本自动标为预发布。
+   （加 `-f release_tag=vX.Y.Z-beta.N`），构建完自动创建 Release。不标“预发布”（用户的要求），所以 App 的“包括测试版”选项暂时不起作用。
    `tools/build_local.sh vX.Y.Z-beta.N` 只在 GitHub 上无法构建时使用。
 4. 用户希望直接发布新版、在 App 内升级，不需要单独发安装包（除非用户要求）。
