@@ -1,6 +1,6 @@
 import Foundation
 
-/// 支持的扩展名及显示名称（与 Python 端 plan.py 保持一致）
+/// 支持的扩展名及显示名称
 let supportedExtensions: [String: String] = [
     "docx": "Word", "xlsx": "Excel", "pptx": "PowerPoint",
     "html": "HTML", "htm": "HTML", "pdf": "PDF", "csv": "CSV",
