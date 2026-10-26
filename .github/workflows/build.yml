@@ -11,7 +11,8 @@ on:
 
 # 同一分支/标签上有新的运行时，取消还没跑完的旧运行
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # 发布按版本号分组，之后再运行的测试构建不会取消正在进行的发布
+  group: ${{ github.workflow }}-${{ inputs.release_tag || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -169,6 +170,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.release_tag }}
         run: |
+          # 版本号必须与 Info.plist 一致，否则 App 内更新会反复失败
+          have=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" macos/Resources/Info.plist)
+          [ "${TAG#v}" = "$have" ] || { echo "Info.plist 的版本是 $have，与 $TAG 不一致"; exit 1; }
           shasum -a 256 DropMD-macOS-AppleSilicon.dmg | tee DropMD-macOS-AppleSilicon.dmg.sha256
           shasum -a 256 DropMD-macOS-AppleSilicon.zip | tee DropMD-macOS-AppleSilicon.zip.sha256
           # 版本号带“-”（如 v1.2.0-beta.1）时标记为预发布
