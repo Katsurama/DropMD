@@ -83,7 +83,7 @@ final class UpdateChecker: ObservableObject {
         case downloading
         case installing          // 正在解开安装包、准备新版本
         case readyToRestart      // 新版本已放好，重启后生效
-        case downloaded(URL)     // 无法自动替换时：已打开安装包，由用户拖到“应用程序”
+        case downloaded(URL, String)  // 无法自动替换时：已打开安装包，由用户拖到“应用程序”；附原因
         case failed(String)
     }
 
@@ -222,6 +222,7 @@ final class UpdateChecker: ObservableObject {
                     }
                 }
                 try Task.checkCancellation()
+                var reason = "DropMD 所在的位置不能写入，无法自动替换。"
                 if let staged {
                     state = .installing
                     let expected = release.version?.description
@@ -233,11 +234,14 @@ final class UpdateChecker: ObservableObject {
                         state = .readyToRestart
                         return
                     } catch {
-                        // 自动准备失败时退回手动安装
+                        // 自动准备失败时退回手动安装，并告诉用户原因
+                        reason = error is AppUpdateInstaller.InstallError
+                            ? "安装包里的版本或标识与预期不符，无法自动替换。"
+                            : "无法自动替换：\(error.localizedDescription)"
                     }
                 }
                 let target = try moveToDownloads(file, name: package.name)
-                state = .downloaded(target)
+                state = .downloaded(target, reason)
                 NSWorkspace.shared.open(target)
             } catch is CancellationError {
                 state = .available

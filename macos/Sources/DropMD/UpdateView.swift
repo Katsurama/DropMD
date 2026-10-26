@@ -122,11 +122,14 @@ struct UpdateView: View {
                     Button("重新启动") { updater.restartToUpdate() }
                         .keyboardShortcut(.defaultAction)
                 }
-            case .downloaded(let file):
+            case .downloaded(let file, let reason):
                 HStack {
-                    Label("请把 DropMD 拖到“应用程序”。", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label("请把 DropMD 拖到“应用程序”。", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text(reason).font(.caption).foregroundStyle(.secondary)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
                     Spacer()
                     Button("在访达中显示") { NSWorkspace.shared.activateFileViewerSelecting([file]) }
                 }
