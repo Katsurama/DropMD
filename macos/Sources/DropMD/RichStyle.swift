@@ -275,11 +275,13 @@ enum RichStyle {
             if let c = MDCallout(header: r.text) {
                 a[.foregroundColor] = calloutColor(c)
                 a[.font] = setBold(font, true)
-            } else if r.text.hasPrefix("[^") && !r.text.hasSuffix(":") {
-                // 脚注编号：像 Word 一样显示为小号上标
+            } else if r.text.hasPrefix("[^") {
+                // 脚注编号：像 Word 一样显示为小号上标；文末说明行开头的“[^1]:”不作上标
                 a[.foregroundColor] = NSColor.linkColor
-                a[.superscript] = 1
-                a[.font] = scaled(font, 0.75)
+                if !r.text.hasSuffix(":") {
+                    a[.superscript] = 1
+                    a[.font] = scaled(font, 0.75)
+                }
             } else {
                 a[.foregroundColor] = NSColor.systemPurple
             }

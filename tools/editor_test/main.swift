@@ -51,6 +51,15 @@ MainActor.assumeIsolated {
         tv.insertNewline(nil); type(tv, "二")
         check("提示框标题后输入", md(tv), "> [!tip]\n> 二\n> 一\n")
     }
+    // 脚注：正文里的编号是上标，文末说明行开头的编号不是
+    do {
+        let tv = makeView("正文[^1]\n\n[^1]: 说明\n")
+        let s = tv.textStorage!, ns = tv.string as NSString
+        let sup = { (loc: Int) in (s.attribute(.superscript, at: loc, effectiveRange: nil) as? Int) ?? 0 }
+        check("脚注引用上标", "\(sup(2))", "1")
+        check("脚注说明不上标", "\(sup(ns.range(of: "[^1]", options: .backwards).location))", "0")
+        check("脚注往返", md(tv), "正文[^1]\n\n[^1]: 说明\n")
+    }
     // 空列表项回车结束列表
     do {
         let tv = makeView("")
