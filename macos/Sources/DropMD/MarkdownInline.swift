@@ -104,8 +104,9 @@ private struct InlineParser {
                 continue
             }
 
-            // 脚注引用 [^1]：原样保留
-            if ch == "[", i + 1 < hi, c[i + 1] == "^", let end = footnoteEnd(i, hi) {
+            // 脚注引用 [^1]：原样保留；行首的“[^1]:”是脚注说明，冒号一起保留，显示时不作上标
+            if ch == "[", i + 1 < hi, c[i + 1] == "^", var end = footnoteEnd(i, hi) {
+                if i == 0, end < hi, c[end] == ":" { end += 1 }
                 flush()
                 var r = MDRun(text: String(c[i..<end]))
                 r.literal = true
