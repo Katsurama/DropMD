@@ -43,6 +43,14 @@ MainActor.assumeIsolated {
         tv.insertCallout(.warning); type(tv, "二")
         check("插入提示框", md(tv), "> [!TIP]\n> 一\n\n> [!WARNING]\n> 二\n")
     }
+    // 提示框标题显示为中文，保存时写回原文；标题后输入的文字另起一段，不被吞掉
+    do {
+        let tv = makeView("> [!tip]\n> 一\n")
+        check("提示框标题显示", tv.string, "提示\n一\n")
+        tv.setSelectedRange(NSRange(location: 2, length: 0))
+        tv.insertNewline(nil); type(tv, "二")
+        check("提示框标题后输入", md(tv), "> [!tip]\n> 二\n> 一\n")
+    }
     // 空列表项回车结束列表
     do {
         let tv = makeView("")
