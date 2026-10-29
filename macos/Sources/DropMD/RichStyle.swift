@@ -19,6 +19,7 @@ enum DMKey {
     static let link = NSAttributedString.Key("dm.link")          // String：链接地址
     static let image = NSAttributedString.Key("dm.image")        // String：图片路径
     static let alt = NSAttributedString.Key("dm.alt")            // String：图片说明文字
+    static let callout = NSAttributedString.Key("dm.callout")    // String：提示框标题行的原文（如 [!TIP]），显示为“提示”等
 
     /// 段落类型相关的属性（切换段落样式时先全部清除）
     static let paragraphKeys = [heading, quote, code, task, list, depth, raw, rule, summary]
