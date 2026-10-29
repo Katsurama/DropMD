@@ -109,6 +109,11 @@ enum RichBridge {
         for r in runs {
             if let src = r.image {
                 s.append(imageString(path: src, alt: r.text, baseURL: baseURL))
+            } else if r.literal, let c = MDCallout(header: r.text) {
+                // 提示框标题行显示为中文标题，保存时写回原文
+                var a = RichStyle.attributes(for: r, kind: kind)
+                a[DMKey.callout] = r.text.trimmingCharacters(in: .whitespaces)
+                s.append(NSAttributedString(string: c.title, attributes: a))
             } else {
                 s.append(NSAttributedString(string: r.text, attributes: RichStyle.attributes(for: r, kind: kind)))
             }
@@ -283,7 +288,17 @@ enum RichBridge {
         let ns = storage.string as NSString
         var out: [MDRun] = []
         var lastImageRange: NSRange?
+        var lastCalloutEnd = -1
         storage.enumerateAttributes(in: range, options: []) { a, sub, _ in
+            if let header = a[DMKey.callout] as? String {
+                // 标题文字被拆成几段（如改了其中一个字的格式）时也只写一次
+                if lastCalloutEnd == sub.location, out.last?.text == header { lastCalloutEnd = NSMaxRange(sub); return }
+                var r = MDRun(text: header)
+                r.literal = true
+                out.append(r)
+                lastCalloutEnd = NSMaxRange(sub)
+                return
+            }
             if let src = a[DMKey.image] as? String {
                 // 同一张图片（或其占位文字）只写一次
                 if let prev = lastImageRange, NSMaxRange(prev) == sub.location, out.last?.image == src { return }

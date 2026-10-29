@@ -74,8 +74,7 @@ final class RichLayoutManager: NSLayoutManager {
             let kind = RichBridge.kind(of: attrs)
             if kind == .quote {
                 // 下一段是提示框的标题行时是新的引用块，不连在一起
-                let nextText = loc < ns.length ? ns.substring(with: ns.paragraphRange(for: NSRange(location: loc, length: 0))) : ""
-                let nextStartsCallout = MDCallout(header: nextText.trimmingCharacters(in: .newlines)) != nil
+                let nextStartsCallout = next[DMKey.callout] != nil
                 drawBar(para, origin: origin, x: shift + 4, color: .tertiaryLabelColor,
                         joinsNext: RichBridge.kind(of: next) == .quote && !nextStartsCallout)
             }
@@ -307,6 +306,18 @@ final class RichTextView: NSTextView {
         return SelectionState(kind: kind, active: active)
     }
 
+    /// 提示框标题整体保存为 [!TIP] 等：在它旁边输入的文字不接着用标题的样式，否则保存时会被吞掉
+    override var typingAttributes: [NSAttributedString.Key: Any] {
+        get { super.typingAttributes }
+        set {
+            guard newValue[DMKey.callout] != nil else { super.typingAttributes = newValue; return }
+            var a = RichStyle.typingAttributes(for: RichBridge.kind(of: newValue))
+            a[.paragraphStyle] = newValue[.paragraphStyle]
+            a[DMKey.inDetails] = newValue[DMKey.inDetails]
+            super.typingAttributes = a
+        }
+    }
+
     // MARK: - 粘贴：只保留 Markdown 能保存的格式
 
     override func paste(_ sender: Any?) {
@@ -318,7 +329,7 @@ final class RichTextView: NSTextView {
 
     private static let keptKeys: Set<NSAttributedString.Key> = [
         .font, .underlineStyle, .strikethroughStyle, .obliqueness, .link, .attachment, .superscript,
-        DMKey.inlineCode, DMKey.kbd, DMKey.highlight, DMKey.literal, DMKey.link, DMKey.image, DMKey.alt,
+        DMKey.inlineCode, DMKey.kbd, DMKey.highlight, DMKey.literal, DMKey.link, DMKey.image, DMKey.alt, DMKey.callout,
     ]
 
     /// 从网页、Word 等粘贴的文字：去掉颜色、字体、对齐等无法保存的格式，统一为编辑器的样式
@@ -711,7 +722,7 @@ final class RichTextView: NSTextView {
         let s = NSMutableAttributedString()
         s.append(RichBridge.paragraph(RichBridge.runsString([header], kind: .quote, baseURL: baseURL), kind: .quote))
         s.append(RichBridge.paragraph(RichBridge.runsString([MDRun(text: "内容")], kind: .quote, baseURL: baseURL), kind: .quote))
-        insertBlock(s, caretOffset: (type.header as NSString).length + 1)
+        insertBlock(s, caretOffset: (type.title as NSString).length + 1)
         setSelectedRange(NSRange(location: selectedRange().location, length: 2))
     }
 
