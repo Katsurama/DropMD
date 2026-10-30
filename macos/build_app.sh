@@ -48,6 +48,10 @@ cp -R Resources/preview "$APP/Contents/Resources/preview"
 cp "$ROOT/docs/使用说明.md" "$APP/Contents/Resources/使用说明.md"
 cp "$ROOT/THIRD_PARTY_LICENSES.md" "$APP/Contents/Resources/THIRD_PARTY_LICENSES.md"
 cp Resources/Credits.html "$APP/Contents/Resources/Credits.html"   # “关于 DropMD”中的开源致谢
+# MiSans 字体（构建时由 tools/fetch_fonts.sh 从小米官网下载，不在仓库中）
+[ -f "$ROOT/build/fonts/MiSans-Regular.otf" ] || { echo "错误：缺少 MiSans 字体，先运行 tools/fetch_fonts.sh" >&2; exit 1; }
+mkdir -p "$APP/Contents/Resources/fonts"
+cp "$ROOT"/build/fonts/*.otf "$APP/Contents/Resources/fonts/"
 
 # 本地临时签名（ad-hoc）。没有 Apple 开发者证书，首次打开需在“隐私与安全性”中允许。
 codesign --force --sign - "$APP"

@@ -52,11 +52,12 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Markdown 往返测试、单页编辑器按键测试、更新安装测试
+      - name: Markdown 往返测试、单页编辑器按键测试、更新安装测试、文件转换测试
         run: |
           tools/test_codec.sh
           tools/test_editor.sh
           tools/test_update.sh
+          tools/test_convert.sh
 
       - uses: actions/setup-python@v5
         with:
@@ -78,6 +79,9 @@ jobs:
           unzip -q "$f" -d pandoc_x
           cp pandoc_x/*/bin/pandoc packaging/pandoc/
           chmod +x packaging/pandoc/pandoc
+
+      - name: 下载 MiSans 字体（小米官网，校验 SHA-256）
+        run: tools/fetch_fonts.sh
 
       - name: 生成第三方许可证清单
         run: bash tools/third_party.sh "macOS"
@@ -124,6 +128,7 @@ jobs:
         run: |
           test -f dist/DropMD.app/Contents/Resources/preview/preview.html
           test -f dist/DropMD.app/Contents/Resources/preview/vendor/katex/katex.min.js
+          test -f dist/DropMD.app/Contents/Resources/fonts/MiSans-Regular.otf
           mkdir -p build/dmg
           swift macos/dmg/make_background.swift build/dmg
           tiffutil -cathidpicheck build/dmg/background.png build/dmg/background@2x.png -out build/dmg/background.tiff

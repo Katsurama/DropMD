@@ -18,15 +18,20 @@ enum DocLanguage: String, CaseIterable, Identifiable {
         }
     }
 
-    /// 正文字体（都是系统自带的字体）
+    /// 正文字体：中文用随 App 提供的 MiSans（简体 / 繁体）；日语、韩语用系统自带字体（MiSans 的日语汉字写法不对）
     var fontName: String {
         switch self {
-        case .auto, .zhCN: return "PingFangSC-Regular"
-        case .zhHK: return "PingFangHK-Regular"
-        case .zhTW: return "PingFangTC-Regular"
+        case .auto, .zhCN: return Self.bundled("MiSans-Regular") ?? "PingFangSC-Regular"
+        case .zhHK: return Self.bundled("MiSansTC") ?? "PingFangHK-Regular"
+        case .zhTW: return Self.bundled("MiSansTC") ?? "PingFangTC-Regular"
         case .ja: return "HiraginoSans-W3"
         case .ko: return "AppleSDGothicNeo-Regular"
         }
+    }
+
+    /// MiSans 在构建时下载并放进 App（tools/fetch_fonts.sh）；只用 swift run 开发时没有，退回苹方
+    private static func bundled(_ name: String) -> String? {
+        NSFont(name: name, size: 12) == nil ? nil : name
     }
 
     /// 网页的 lang 属性（预览、导出）
@@ -58,7 +63,7 @@ enum DocLanguage: String, CaseIterable, Identifiable {
 
     /// 中日韩字体：正文字体，以及系统为缺字的等宽字体临时换上的后备字体（换语言时也要换掉）
     private static func isCJK(_ family: String) -> Bool {
-        family.contains("PingFang") || family.contains("Hiragino") || family.contains("Apple SD Gothic")
+        family.contains("PingFang") || family.contains("MiSans") || family.contains("Hiragino") || family.contains("Apple SD Gothic")
     }
 
     /// 换成本语言的字形：中日韩字体换成本语言的字体；等宽等其他字体保留，缺字（汉字）时改用本语言的字体

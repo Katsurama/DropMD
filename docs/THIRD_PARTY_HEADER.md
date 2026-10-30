@@ -7,5 +7,6 @@ DropMD 本身以 MIT 许可证发布（见 LICENSE）。它使用了以下开源
 - KaTeX 0.18.9 — MIT — https://katex.org/ （编辑器预览中的数学公式，含字体文件）
 - markdown-it-mark 4.0.0 — MIT — https://github.com/markdown-it/markdown-it-mark （预览中的 ==高亮==）
 - markdown-it-footnote 4.0.0 — MIT — https://github.com/markdown-it/markdown-it-footnote （预览中的脚注）
+- MiSans、MiSans TC（正文、粗体）— 小米 MiSans 字体知识产权许可协议（免费商用；只能随软件嵌入使用，不得单独分发）— https://hyperos.mi.com/font/ 。中文显示用的字体，构建时从小米官网下载放进程序（位于程序内部的 fonts 文件夹），源码仓库中不包含字体文件。
 - RapidOCR 内置的 PP-OCRv6 模型 — Apache-2.0 — 随 PyPI 包 rapidocr 分发。
 - 高精度模式的识别模型不随程序分发，由用户同意后从模型作者的官方渠道下载，许可证见各模型页面。
