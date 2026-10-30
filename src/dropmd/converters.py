@@ -84,10 +84,19 @@ def fill_empty_table_headers(text: str) -> str:
     return _EMPTY_HEADER.sub(r"\3\n\2", text)
 
 
+_OUR_IMAGE = re.compile(r"image\d+\.[A-Za-z0-9.+-]+")
+
+
 def _save_images(text: str, dst: Path) -> str:
     """把内嵌在 Markdown 中的 data URI 图片存到“文件名_images”文件夹，改为相对路径引用。"""
     folder = images_dir_name(dst)
     count = 0
+    # 重新转换时先删掉上次导出的图片（只删本程序命名的 imageN.xxx），图片变少时不留多余文件
+    old = dst.parent / folder
+    if old.is_dir():
+        for p in old.iterdir():
+            if p.is_file() and _OUR_IMAGE.fullmatch(p.name):
+                p.unlink()
 
     def save(m: re.Match) -> str:
         nonlocal count

@@ -26,9 +26,14 @@ from pathlib import Path
 from dropmd.converters import _save_images
 with tempfile.TemporaryDirectory() as d:
     dst = Path(d) / "a b.md"
+    # 上次导出的多余图片会被删掉；用户自己放的文件不动
+    (Path(d) / "a_b_images").mkdir()
+    (Path(d) / "a_b_images/image7.png").write_bytes(b"old")
+    (Path(d) / "a_b_images/mine.png").write_bytes(b"keep")
     got = _save_images("前![图](data:image/png;base64,aGk=)后![](data:image/jpeg;base64,!!)", dst)
     want = "前![图](a_b_images/image1.png)后<!-- 图片无法读取 -->"
-    ok = got == want and (Path(d) / "a_b_images/image1.png").read_bytes() == b"hi"
+    ok = (got == want and (Path(d) / "a_b_images/image1.png").read_bytes() == b"hi"
+          and not (Path(d) / "a_b_images/image7.png").exists() and (Path(d) / "a_b_images/mine.png").exists())
     failed += not ok
     print("ok  " if ok else "FAIL", "导出图片", "" if ok else f"\n     got:  {got!r}")
 print("全部通过" if not failed else f"失败 {failed} 项")
