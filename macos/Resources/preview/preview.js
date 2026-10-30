@@ -232,16 +232,6 @@
     /** 导出为独立 HTML 文件的正文 */
     exportBody: function (text) {
       return exportMD.render(text || "");
-    },
-
-    /** 预览样式表内容（导出时内嵌） */
-    styleText: function () {
-      for (const sheet of document.styleSheets) {
-        if (sheet.href && sheet.href.endsWith("preview.css")) {
-          return Array.from(sheet.cssRules).map(function (r) { return r.cssText; }).join("\n");
-        }
-      }
-      return "";
     }
   };
 })();
