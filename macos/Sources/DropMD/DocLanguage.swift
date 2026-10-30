@@ -3,15 +3,14 @@ import AppKit
 /// 文档语言：决定汉字用哪种字形（中、日、韩的很多汉字共用同一个编码，写法不同），类似 Word 的“语言”。
 enum DocLanguage: String, CaseIterable, Identifiable {
     case auto
-    case zhCN = "zh-CN", zhSG = "zh-SG", zhHK = "zh-HK", zhTW = "zh-TW", ja, ko
+    case zhCN = "zh-CN", zhHK = "zh-HK", zhTW = "zh-TW", ja, ko
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .auto: return "自动"
-        case .zhCN: return "简体中文（中国大陆）"
-        case .zhSG: return "简体中文（新加坡）"
+        case .zhCN: return "简体中文"
         case .zhHK: return "繁体中文（香港）"
         case .zhTW: return "繁体中文（台湾）"
         case .ja: return "日语"
@@ -22,7 +21,7 @@ enum DocLanguage: String, CaseIterable, Identifiable {
     /// 正文字体（都是系统自带的字体）
     var fontName: String {
         switch self {
-        case .auto, .zhCN, .zhSG: return "PingFangSC-Regular"
+        case .auto, .zhCN: return "PingFangSC-Regular"
         case .zhHK: return "PingFangHK-Regular"
         case .zhTW: return "PingFangTC-Regular"
         case .ja: return "HiraginoSans-W3"
