@@ -27,6 +27,7 @@ tools/test_codec.sh
 tools/test_editor.sh
 tools/test_update.sh
 tools/test_convert.sh
+tools/test_preview.sh
 
 echo "== Python 依赖（.venv）"
 PY="${PYTHON:-/opt/homebrew/bin/python3.12}"

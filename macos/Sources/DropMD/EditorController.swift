@@ -513,8 +513,10 @@ final class EditorController: ObservableObject {
             do {
                 let body = try await webView.callAsyncJavaScript("return DropMD.exportBody(t)", arguments: ["t": text],
                                                                  in: nil, contentWorld: .page) as? String ?? ""
-                let css = try await webView.callAsyncJavaScript("return DropMD.styleText()", arguments: [:],
-                                                                in: nil, contentWorld: .page) as? String ?? ""
+                // 样式表直接从 App 里读：网页脚本不能读取本机样式表的内容（WebKit 的安全限制）
+                let css = Self.previewURL.flatMap {
+                    try? String(contentsOf: $0.deletingLastPathComponent().appendingPathComponent("preview.css"), encoding: .utf8)
+                } ?? ""
                 let html = """
                 <!doctype html>
                 <html lang="\(fonts.language.tag)">

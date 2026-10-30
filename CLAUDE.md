@@ -37,6 +37,7 @@ tools/test_codec.sh                    # Markdown 往返测试（改了 Markdown
 tools/test_editor.sh                   # 单页编辑器按键测试（改了 Rich*.swift 必须跑）
 tools/test_update.sh                   # 软件更新的安装测试（改了 AppUpdateInstaller.swift 必须跑）
 tools/test_convert.sh                  # 文件转换后处理测试（改了 converters.py 必须跑）
+tools/test_preview.sh                  # 预览页面测试（改了 Resources/preview 或调用它的 Swift 代码必须跑）
 cd macos && swift build                # 编译界面（本机需完整的 Xcode；Xcode 27 加 --build-system native，
                                        # 否则程序记录的 SDK 版本不对，Liquid Glass 不启用）
 cd macos && swift run DropMD           # 只看界面（没有转换引擎和预览资源）
