@@ -30,7 +30,12 @@ enum DocLanguage: String, CaseIterable, Identifiable {
     }
 
     /// 网页的 lang 属性（预览、导出）
-    var tag: String { self == .auto ? DocLanguage.zhCN.rawValue : rawValue }
+    var tag: String { rawValue }
+
+    /// 文件路径变了（打开、第一次保存、改名、移动）后该用的语言：有记录用记录，没有就保留当前选择
+    static func forPath(_ path: String, current: DocLanguage, saved: [String: String]) -> DocLanguage {
+        saved[path].flatMap(DocLanguage.init(rawValue:)) ?? current
+    }
 
     /// “自动”时的判断：有假名为日语，有谚文为韩语；都没有时按系统语言选简体或繁体。
     /// 不按系统语言选日语字体：中文文章用日语字体会混进别的字体，笔画粗细不一。
@@ -73,7 +78,9 @@ enum DocLanguage: String, CaseIterable, Identifiable {
 
 /// 文字有改动时，把改动处的字体换成文档语言的字体（单页和双页的原文共用）
 final class LanguageFontFixer: NSObject, NSTextStorageDelegate {
-    var language = DocLanguage.zhCN
+    var language = DocLanguage.zhCN { didSet { adapted.removeAll() } }
+    /// 换过的字体：双页原文每次停顿都整篇重新高亮，不必每次都重新造字体
+    private var adapted: [NSFont: NSFont] = [:]
 
     func textStorage(_ storage: NSTextStorage, willProcessEditing editedMask: NSTextStorageEditActions,
                      range editedRange: NSRange, changeInLength delta: Int) {
@@ -85,8 +92,9 @@ final class LanguageFontFixer: NSObject, NSTextStorageDelegate {
         guard range.length > 0, NSMaxRange(range) <= storage.length else { return }
         storage.enumerateAttribute(.font, in: range) { value, sub, _ in
             guard let font = value as? NSFont else { return }
-            let adapted = language.adapt(font)
-            if adapted != font { storage.addAttribute(.font, value: adapted, range: sub) }
+            let new = adapted[font] ?? language.adapt(font)
+            adapted[font] = new
+            if new != font { storage.addAttribute(.font, value: new, range: sub) }
         }
     }
 }

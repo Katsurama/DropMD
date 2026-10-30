@@ -84,6 +84,12 @@ MainActor.assumeIsolated {
         check("简体正文字体", (s.attribute(.font, at: 3, effectiveRange: nil) as! NSFont).familyName ?? "", "PingFang SC")
         check("换字体后保存不变", md(tv), "**今日**は晴れ `漢字`\n")
     }
+    // 按文件记住的语言：有记录用记录；没有记录（第一次保存、改名）时保留当前选择
+    do {
+        check("记住的语言", DocLanguage.forPath("/a.md", current: .auto, saved: ["/a.md": "ja"]).rawValue, "ja")
+        check("新路径保留选择", DocLanguage.forPath("/b.md", current: .ko, saved: ["/a.md": "ja"]).rawValue, "ko")
+        check("旧选项失效时保留选择", DocLanguage.forPath("/a.md", current: .auto, saved: ["/a.md": "zh-SG"]).rawValue, "auto")
+    }
     // 空列表项回车结束列表
     do {
         let tv = makeView("")
