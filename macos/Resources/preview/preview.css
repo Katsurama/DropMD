@@ -10,17 +10,22 @@
     --code-bg: rgba(255, 255, 255, .06); --accent: #4aa3ff; --quote: #c7c7cc; --mark: rgba(255, 214, 10, .24);
   }
 }
+/* 随 App 提供的 MiSans（在 App 包的 fonts 文件夹中；没有时退回苹方） */
+@font-face { font-family: "MiSans"; src: url("../fonts/MiSans-Regular.otf"); font-weight: 400; }
+@font-face { font-family: "MiSans"; src: url("../fonts/MiSans-Bold.otf"); font-weight: 700; }
+@font-face { font-family: "MiSans TC"; src: url("../fonts/MisansTC-Regular.otf"); font-weight: 400; }
+@font-face { font-family: "MiSans TC"; src: url("../fonts/MisansTC-Bold.otf"); font-weight: 700; }
 html { background: var(--bg); }
 body {
   margin: 0; color: var(--fg); background: var(--bg);
-  font: 15px/1.75 -apple-system, "PingFang SC", "Hiragino Sans", "Helvetica Neue", sans-serif;
+  font: 15px/1.75 "MiSans", -apple-system, "PingFang SC", "Hiragino Sans", "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 /* 文档语言决定汉字字形（同一个汉字在中、日、韩的写法不同） */
 html:lang(ja) body { font-family: -apple-system, "Hiragino Sans", sans-serif; }
 html:lang(ko) body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; }
-html:lang(zh-TW) body { font-family: -apple-system, "PingFang TC", sans-serif; }
-html:lang(zh-HK) body { font-family: -apple-system, "PingFang HK", sans-serif; }
+html:lang(zh-TW) body { font-family: "MiSans TC", -apple-system, "PingFang TC", sans-serif; }
+html:lang(zh-HK) body { font-family: "MiSans TC", -apple-system, "PingFang HK", sans-serif; }
 .markdown-body { max-width: 760px; margin: 0 auto; padding: 32px 40px 120px; word-wrap: break-word; }
 .markdown-body > :first-child { margin-top: 0; }
 h1, h2, h3, h4, h5, h6 { line-height: 1.3; margin: 1.6em 0 0.6em; font-weight: 650; }

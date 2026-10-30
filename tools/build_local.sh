@@ -26,6 +26,7 @@ echo "== 测试"
 tools/test_codec.sh
 tools/test_editor.sh
 tools/test_update.sh
+tools/test_convert.sh
 
 echo "== Python 依赖（.venv）"
 PY="${PYTHON:-/opt/homebrew/bin/python3.12}"
@@ -48,6 +49,9 @@ if [ ! -x packaging/pandoc/pandoc ] || ! packaging/pandoc/pandoc --version | gre
   cp build/pandoc_x/*/bin/pandoc packaging/pandoc/
   chmod +x packaging/pandoc/pandoc
 fi
+
+echo "== MiSans 字体"
+tools/fetch_fonts.sh
 
 echo "== 第三方许可证清单"
 bash tools/third_party.sh "macOS"

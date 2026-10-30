@@ -84,6 +84,27 @@ MainActor.assumeIsolated {
         check("简体正文字体", (s.attribute(.font, at: 3, effectiveRange: nil) as! NSFont).familyName ?? "", "PingFang SC")
         check("换字体后保存不变", md(tv), "**今日**は晴れ `漢字`\n")
     }
+    // 有 MiSans（tools/fetch_fonts.sh 下载过）时：简体、繁体换成 MiSans，粗体用 MiSans 粗体；日语仍用冠群
+    if let files = try? FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: "build/fonts"), includingPropertiesForKeys: nil),
+       !files.isEmpty {
+        CTFontManagerRegisterFontURLs(files as CFArray, .process, true, nil)
+        let tv = makeView("**今日**中文\n")
+        let fixer = LanguageFontFixer()
+        func fonts() -> String {
+            let s = tv.textStorage!
+            return ["\((s.attribute(.font, at: 3, effectiveRange: nil) as! NSFont).fontName)",
+                    "\((s.attribute(.font, at: 0, effectiveRange: nil) as! NSFont).fontName)"].joined(separator: " ")
+        }
+        fixer.language = .zhCN; fixer.apply(to: tv.textStorage!)
+        check("简体用 MiSans", fonts(), "MiSans-Regular MiSans-Bold")
+        fixer.language = .zhTW; fixer.apply(to: tv.textStorage!)
+        check("繁体用 MiSans TC", fonts(), "MiSansTC MiSansTC-Bold")
+        fixer.language = .ja; fixer.apply(to: tv.textStorage!)
+        check("日语不用 MiSans", fonts().hasPrefix("HiraginoSans") ? "冠群" : fonts(), "冠群")
+        check("MiSans 往返不变", md(tv), "**今日**中文\n")
+    } else {
+        print("跳过 MiSans 测试（没有 build/fonts，先运行 tools/fetch_fonts.sh）")
+    }
     // 按文件记住的语言：有记录用记录；没有记录（第一次保存、改名）时保留当前选择
     do {
         check("记住的语言", DocLanguage.forPath("/a.md", current: .auto, saved: ["/a.md": "ja"]).rawValue, "ja")

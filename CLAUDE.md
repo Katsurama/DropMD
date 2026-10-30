@@ -52,6 +52,12 @@ tools/build_local.sh vX.Y.Z-beta.N     # 构建后直接创建 GitHub Release（
 - 构建时直接复制编译好的图标，不在 GitHub 上编译：构建机上 Xcode 26 的 actool 编译这个图标会崩溃。
 - 预览各样式：`"/Applications/Xcode.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool" macos/Resources/AppIcon.icon --export-image --output-file out.png --platform macOS --rendition Dark --width 256 --height 256 --scale 1`（rendition：Default / Dark / ClearLight / TintedDark）。
 
+## 字体
+
+- 中文用 MiSans（简体）/ MiSans TC（繁体），日语、韩语用系统自带的冠群、Apple SD Gothic（`DocLanguage.swift`）。
+- MiSans 许可只允许随软件嵌入、不允许单独分发字体文件，所以**字体文件不进仓库**：构建时 `tools/fetch_fonts.sh` 从小米官网下载并校验 SHA-256，`build_app.sh` 放进 App 的 `Resources/fonts`。
+- 只用 `swift run` 时没有 MiSans，自动退回苹方。
+
 ## 验证界面
 
 - 本地：直接运行 App，用 `packaging/samples/editor_sample.md`（包含所有格式）检查单页 / 双页、浅色 / 深色。
