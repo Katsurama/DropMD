@@ -6,6 +6,14 @@ struct DropMDApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var converter = AppModel()
 
+    init() {
+        // 随 App 提供的 MiSans 字体：只在本 App 内使用，不安装到系统
+        if let dir = Bundle.main.resourceURL?.appendingPathComponent("fonts"),
+           let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
+            CTFontManagerRegisterFontURLs(files as CFArray, .process, true, nil)
+        }
+    }
+
     var body: some Scene {
         // 主功能：Markdown 编辑器（新建、打开、自动保存、版本历史由系统文档机制提供）
         DocumentGroup(newDocument: MarkdownDocument()) { file in
