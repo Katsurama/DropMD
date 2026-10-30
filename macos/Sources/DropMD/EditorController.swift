@@ -45,7 +45,8 @@ final class EditorController: ObservableObject {
 
     private func saveLanguage() {
         guard let path = fileURL?.path else { return }
-        var all = Self.savedLanguages
+        // 顺便去掉已经不存在的文件的记录，记录不会越积越多
+        var all = Self.savedLanguages.filter { FileManager.default.fileExists(atPath: $0.key) }
         all[path] = language == .auto ? nil : language.rawValue
         UserDefaults.standard.set(all, forKey: Self.languagesKey)
     }
@@ -498,26 +499,16 @@ final class EditorController: ObservableObject {
             .replacingOccurrences(of: "\"", with: "&quot;")
     }
 
+    /// 单页、双页都用预览页面生成 HTML（单页时预览也在后台加载），样式与预览一致
     func exportHTML() {
-        // Word 式编辑模式：直接由 Markdown 生成 HTML
-        if let r = rich, let storage = r.textStorage {
-            guard let url = savePanel(ext: "html", type: .html) else { return }
-            let title = url.deletingPathExtension().lastPathComponent
-            let html = MarkdownHTML.document(RichBridge.blocks(from: storage), title: title)
-            do {
-                try Data(html.utf8).write(to: url, options: .atomic)
-            } catch {
-                alert("导出 HTML 失败", error.localizedDescription)
-            }
-            return
-        }
         guard previewReady, let webView else {
-            alert("无法导出", "请先显示预览。")
+            alert("无法导出", "预览还在加载，请稍后再试。")
             return
         }
+        // 单页的修改停顿片刻才写回文档，这里直接取编辑区当前的内容
+        let text = rich?.textStorage.map(RichBridge.markdown(from:)) ?? pendingText
         guard let url = savePanel(ext: "html", type: .html) else { return }
         let title = url.deletingPathExtension().lastPathComponent
-        let text = pendingText
         Task { @MainActor in
             do {
                 let body = try await webView.callAsyncJavaScript("return DropMD.exportBody(t)", arguments: ["t": text],

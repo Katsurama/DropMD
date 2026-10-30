@@ -100,5 +100,13 @@ for _ in 0..<20 where !replaced {
 check(replaced, "进程退出后换成新版本")
 check(!fm.fileExists(atPath: staged.path) && !fm.fileExists(atPath: app.path + ".old"), "替换后不留临时文件")
 
+// 版本号比较：决定是否提示更新
+func newer(_ a: String, _ b: String) -> Bool { AppVersion(a)! > AppVersion(b)! }
+check(newer("0.1.0-beta.10", "0.1.0-beta.9"), "beta.10 比 beta.9 新")
+check(newer("1.0.0", "1.0.0-beta.3"), "正式版比同号测试版新")
+check(newer("0.2.0-beta.1", "0.1.9"), "大版本号优先")
+check(AppVersion("v1.2")! == AppVersion("1.2.0")!, "v1.2 与 1.2.0 相同")
+check(AppVersion("abc") == nil, "无效版本号")
+
 print(failures == 0 ? "全部通过" : "\(failures) 项失败")
 exit(failures == 0 ? 0 : 1)
