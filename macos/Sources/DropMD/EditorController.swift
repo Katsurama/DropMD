@@ -18,9 +18,9 @@ final class EditorController: ObservableObject {
     weak var webView: WKWebView?
     var fileURL: URL? {
         didSet {
-            guard fileURL != oldValue else { return }
-            let saved = (UserDefaults.standard.dictionary(forKey: Self.languagesKey) as? [String: String])?[fileURL?.path ?? ""]
-            language = saved.flatMap(DocLanguage.init(rawValue:)) ?? .auto
+            guard fileURL != oldValue, let path = fileURL?.path else { return }
+            language = DocLanguage.forPath(path, current: language, saved: Self.savedLanguages)
+            saveLanguage()
         }
     }
 
@@ -30,11 +30,7 @@ final class EditorController: ObservableObject {
     @Published var language = DocLanguage.auto {
         didSet {
             guard language != oldValue else { return }
-            if let path = fileURL?.path {
-                var all = (UserDefaults.standard.dictionary(forKey: Self.languagesKey) as? [String: String]) ?? [:]
-                all[path] = language == .auto ? nil : language.rawValue
-                UserDefaults.standard.set(all, forKey: Self.languagesKey)
-            }
+            saveLanguage()
             updateLanguage()
         }
     }
@@ -43,6 +39,16 @@ final class EditorController: ObservableObject {
     private let fonts = LanguageFontFixer()
     private var languageApplied = false
     private static let languagesKey = "documentLanguages"
+    private static var savedLanguages: [String: String] {
+        (UserDefaults.standard.dictionary(forKey: languagesKey) as? [String: String]) ?? [:]
+    }
+
+    private func saveLanguage() {
+        guard let path = fileURL?.path else { return }
+        var all = Self.savedLanguages
+        all[path] = language == .auto ? nil : language.rawValue
+        UserDefaults.standard.set(all, forKey: Self.languagesKey)
+    }
 
     private func updateLanguage() {
         let lang = language == .auto ? DocLanguage.detect(pendingText) : language
