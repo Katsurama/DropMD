@@ -52,12 +52,13 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Markdown 往返测试、单页编辑器按键测试、更新安装测试、文件转换测试
+      - name: Markdown 往返测试、单页编辑器按键测试、更新安装测试、文件转换测试、预览页面测试
         run: |
           tools/test_codec.sh
           tools/test_editor.sh
           tools/test_update.sh
           tools/test_convert.sh
+          tools/test_preview.sh
 
       - uses: actions/setup-python@v5
         with:
