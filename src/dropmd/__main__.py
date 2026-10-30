@@ -20,6 +20,8 @@ def _prepare_environment() -> None:
     # 关闭各依赖库可能存在的遥测/统计，并避免任何隐式联网
     for k, v in {
         "HF_HUB_DISABLE_TELEMETRY": "1",
+        # onnxruntime 内置的微软统计模块是 C++ 写的，netguard 挡不住，必须在加载前关掉
+        "ORT_DISABLE_TELEMETRY": "1",
         "HF_HUB_DISABLE_XET": "1",
         "HF_HUB_DISABLE_IMPLICIT_TOKEN": "1",
         "DO_NOT_TRACK": "1",

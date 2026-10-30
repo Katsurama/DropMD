@@ -104,17 +104,11 @@ enum RichStyle {
         isDark(a) ? NSColor(white: 1, alpha: 0.06) : NSColor(white: 0, alpha: 0.04)
     }
 
-    /// 正文字体：苹方（含日文假名）。用系统字体时，汉字由系统临时替换成苹方，
+    /// 正文字体：苹方。用系统字体时，汉字由系统临时替换成苹方，
     /// 标点有的被压成半宽、有的没有，顿号后面忽宽忽窄；直接用苹方，标点宽度一致。
-    /// 不按系统语言选冠宋体：它缺少简体字，中文会混入别的字体，笔画粗细不一。
-    private static let cjkFontName: String = {
-        let lang = Locale.preferredLanguages.first ?? ""
-        let traditional = lang.hasPrefix("zh-Hant") || lang.hasPrefix("zh-TW") || lang.hasPrefix("zh-HK")
-        return traditional ? "PingFangTC-Regular" : "PingFangSC-Regular"
-    }()
-
+    /// 编辑器显示时再按文档语言换成 MiSans、冠群等（DocLanguage.swift）。
     static func textFont(ofSize size: CGFloat) -> NSFont {
-        NSFont(name: cjkFontName, size: size) ?? .systemFont(ofSize: size)
+        NSFont(name: "PingFangSC-Regular", size: size) ?? .systemFont(ofSize: size)
     }
     static var headerBackground: NSColor { NSColor.quaternaryLabelColor.withAlphaComponent(0.12) }
     private static func isDark(_ a: NSAppearance) -> Bool {
