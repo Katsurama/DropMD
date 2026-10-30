@@ -13,10 +13,50 @@ final class SelectionModel: ObservableObject {
 
 @MainActor
 final class EditorController: ObservableObject {
-    weak var textView: NSTextView?
-    weak var richView: RichTextView?
+    weak var textView: NSTextView? { didSet { textView?.textStorage?.delegate = fonts } }
+    weak var richView: RichTextView? { didSet { richView?.textStorage?.delegate = fonts } }
     weak var webView: WKWebView?
-    var fileURL: URL?
+    var fileURL: URL? {
+        didSet {
+            guard fileURL != oldValue else { return }
+            let saved = (UserDefaults.standard.dictionary(forKey: Self.languagesKey) as? [String: String])?[fileURL?.path ?? ""]
+            language = saved.flatMap(DocLanguage.init(rawValue:)) ?? .auto
+        }
+    }
+
+    // MARK: 文档语言（状态栏左下角）
+
+    /// 用户选择的语言；手动选择按文件记住
+    @Published var language = DocLanguage.auto {
+        didSet {
+            guard language != oldValue else { return }
+            if let path = fileURL?.path {
+                var all = (UserDefaults.standard.dictionary(forKey: Self.languagesKey) as? [String: String]) ?? [:]
+                all[path] = language == .auto ? nil : language.rawValue
+                UserDefaults.standard.set(all, forKey: Self.languagesKey)
+            }
+            updateLanguage()
+        }
+    }
+    /// 实际使用的语言（“自动”时按文字判断）
+    @Published private(set) var effectiveLanguage = DocLanguage.detect("")
+    private let fonts = LanguageFontFixer()
+    private var languageApplied = false
+    private static let languagesKey = "documentLanguages"
+
+    private func updateLanguage() {
+        let lang = language == .auto ? DocLanguage.detect(pendingText) : language
+        guard lang != fonts.language || !languageApplied else { return }
+        languageApplied = true
+        fonts.language = lang
+        effectiveLanguage = lang
+        for storage in [richView?.textStorage, textView?.textStorage].compactMap({ $0 }) {
+            storage.beginEditing()
+            fonts.apply(to: storage)
+            storage.endEditing()
+        }
+        renderPreview()
+    }
     /// 当前是单页（true）还是双页（false）
     var isRichMode = true
 
@@ -46,6 +86,7 @@ final class EditorController: ObservableObject {
     func textChanged(_ text: String) {
         pendingText = text
         updateStats(text)
+        if language == .auto { updateLanguage() }
         // 单页时预览是隐藏的，不需要渲染
         guard !isRichMode else { return }
         renderWork?.cancel()
@@ -99,7 +140,8 @@ final class EditorController: ObservableObject {
 
     func renderPreview() {
         guard previewReady, let webView else { return }
-        webView.callAsyncJavaScript("DropMD.render(t, b)", arguments: ["t": pendingText, "b": baseHref],
+        webView.callAsyncJavaScript("DropMD.render(t, b, l)",
+                                    arguments: ["t": pendingText, "b": baseHref, "l": fonts.language.tag],
                                     in: nil, in: .page) { [weak self] _ in
             // WebKit 在主线程回调
             MainActor.assumeIsolated {
@@ -478,7 +520,7 @@ final class EditorController: ObservableObject {
                                                                 in: nil, contentWorld: .page) as? String ?? ""
                 let html = """
                 <!doctype html>
-                <html lang="zh-CN">
+                <html lang="\(fonts.language.tag)">
                 <head>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">

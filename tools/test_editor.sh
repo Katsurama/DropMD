@@ -7,5 +7,5 @@ S=macos/Sources/DropMD
 OUT="$(mktemp -d)"
 swiftc -O -o "$OUT/editor_test" tools/editor_test/main.swift \
   "$S/MarkdownCodec.swift" "$S/MarkdownInline.swift" "$S/MarkdownSerialize.swift" \
-  "$S/RichBridge.swift" "$S/RichStyle.swift" "$S/RichTextView.swift" "$S/EditorAction.swift"
+  "$S/RichBridge.swift" "$S/RichStyle.swift" "$S/RichTextView.swift" "$S/EditorAction.swift" "$S/DocLanguage.swift"
 "$OUT/editor_test"

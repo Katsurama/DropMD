@@ -259,6 +259,7 @@ struct EditorView: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .help(fileURL?.path ?? "")
+            languageMenu
             Spacer()
             Text(editor.stats)
                 .monospacedDigit()
@@ -269,6 +270,22 @@ struct EditorView: View {
         .padding(.vertical, 5)
         .background(.bar)
         .overlay(alignment: .top) { Rectangle().fill(Color(nsColor: RichStyle.lineColor).opacity(0.5)).frame(height: 1) }
+    }
+
+    /// 文档语言：决定汉字用中文、日文还是韩文的写法
+    private var languageMenu: some View {
+        Menu {
+            Picker("语言", selection: $editor.language) {
+                ForEach(DocLanguage.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            Text(editor.language == .auto ? "自动（\(editor.effectiveLanguage.title)）" : editor.language.title)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("文档语言：决定汉字用中文、日文还是韩文的写法")
     }
 
     // MARK: 工具栏（系统标准按钮，适配 Liquid Glass）
