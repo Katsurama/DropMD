@@ -107,6 +107,7 @@ def _selftest(out_dir: str, hq: bool) -> int:
 
     fast = Options(mode=MODE_FAST)
     run(samples / "sample.docx", fast, "docx_markitdown.md", "你好")
+    check("markitdown_images", any((out / "docx_markitdown_images").glob("*.png")))
     run(samples / "sample.xlsx", fast, "xlsx.md", "苹果")
     run(samples / "sample.pptx", fast, "pptx.md", "スライド")
     run(samples / "sample.html", fast, "html.md", "見出し")
