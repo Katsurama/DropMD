@@ -185,7 +185,7 @@ struct ContentView: View {
                     }
                 }
                 .labelsHidden()
-                .help("Pandoc 还原排版更好，并导出图片")
+                .help("Pandoc 还原排版更好；两种引擎都会导出图片")
             }
 
             if model.mode == .hq {
