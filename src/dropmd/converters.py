@@ -1,7 +1,8 @@
 """转换调度：根据文件类型和用户选择的模式调用相应的引擎。
 
-- 快速模式：MarkItDown（Word / Excel / PowerPoint / HTML / CSV / 文字型 PDF）
-- Word 可选 Pandoc：图片导出到单独文件夹并在 Markdown 中引用
+- 快速模式：MarkItDown（Word / Excel / PowerPoint / HTML / CSV / 文字型 PDF），
+  Word / PowerPoint 里的图片导出到单独文件夹并在 Markdown 中引用
+- Word 可选 Pandoc：还原排版更好，图片同样导出
 - 高精度模式（仅对 PDF 生效）：Docling + OCR（Apple Vision 或 RapidOCR），见 hq.py
 
 原始文件只会以只读方式打开，绝不会被修改。
@@ -9,6 +10,7 @@
 
 from __future__ import annotations
 
+import base64
 import re
 import subprocess
 import threading
@@ -73,17 +75,41 @@ def _check_paths(src: Path, dst: Path) -> None:
         pass
 
 
-_DATA_URI_IMG = re.compile(r"!\[([^\]]*)\]\(data:image/[^)]*\)")
+_DATA_URI_IMG = re.compile(r"!\[([^\]]*)\]\(data:image/([A-Za-z0-9.+-]+);base64,([^)\s]*)\)")
+# Word / HTML 表格没有标题行时，MarkItDown 会加一行空表头；把第一行内容提上来当表头
+_EMPTY_HEADER = re.compile(r"^(\|(?:[ \t]*\|)+)\n(\|(?:[ \t]*:?-+:?[ \t]*\|)+)\n(\|.*\|)$", re.M)
+
+
+def fill_empty_table_headers(text: str) -> str:
+    return _EMPTY_HEADER.sub(r"\3\n\2", text)
+
+
+def _save_images(text: str, dst: Path) -> str:
+    """把内嵌在 Markdown 中的 data URI 图片存到“文件名_images”文件夹，改为相对路径引用。"""
+    folder = images_dir_name(dst)
+    count = 0
+
+    def save(m: re.Match) -> str:
+        nonlocal count
+        alt, kind, data = m.groups()
+        try:
+            raw = base64.b64decode(data, validate=True)
+        except ValueError:
+            return f"<!-- 图片{('：' + alt) if alt else ''}无法读取 -->"
+        count += 1
+        ext = {"jpeg": "jpg", "svg+xml": "svg"}.get(kind.lower(), kind.lower())
+        name = f"image{count}.{ext}"
+        (dst.parent / folder).mkdir(parents=True, exist_ok=True)
+        (dst.parent / folder / name).write_bytes(raw)
+        return f"![{alt}]({folder}/{name})"
+
+    return _DATA_URI_IMG.sub(save, text)
 
 
 def convert_markitdown(src: Path, dst: Path) -> str:
-    result = _markitdown().convert_local(str(src))
-    text = (result.markdown or "").strip()
-    # MarkItDown 不导出图片，只留下截断的 data URI，这里换成说明性注释
-    text = _DATA_URI_IMG.sub(
-        lambda m: f"<!-- 图片{('：' + m.group(1)) if m.group(1) else ''}（快速模式不导出图片，需要图片请选择 Pandoc 引擎） -->",
-        text,
-    )
+    result = _markitdown().convert_local(str(src), keep_data_uris=True)
+    text = _save_images((result.markdown or "").strip(), dst)
+    text = fill_empty_table_headers(text)
     if src.suffix.lower() == ".pdf":
         text = text.replace("\t", " ")
     if not text:

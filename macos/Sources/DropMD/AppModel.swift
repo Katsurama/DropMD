@@ -46,7 +46,7 @@ enum ConvertMode: String, CaseIterable, Identifiable {
 enum WordEngine: String, CaseIterable, Identifiable {
     case markitdown, pandoc
     var id: String { rawValue }
-    var label: String { self == .markitdown ? "MarkItDown（快速）" : "Pandoc（导出图片）" }
+    var label: String { self == .markitdown ? "MarkItDown（快速）" : "Pandoc（还原排版更好）" }
 }
 
 let ocrEngineNames: [String: String] = [
