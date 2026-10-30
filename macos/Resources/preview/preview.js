@@ -201,9 +201,11 @@
   }
 
   window.DropMD = {
-    /** 渲染 Markdown。baseHref 为文档所在文件夹的 file:// 地址（以 / 结尾），用于相对路径图片 */
-    render: function (text, baseHref) {
+    /** 渲染 Markdown。baseHref 为文档所在文件夹的 file:// 地址（以 / 结尾），用于相对路径图片；lang 为文档语言 */
+    render: function (text, baseHref, lang) {
       setBase(baseHref);
+      // 文档语言决定汉字字形，见 preview.css
+      if (lang) document.documentElement.lang = lang;
       document.getElementById("content").innerHTML = previewMD.render(text || "");
       return true;
     },

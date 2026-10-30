@@ -60,6 +60,30 @@ MainActor.assumeIsolated {
         check("脚注说明不上标", "\(sup(ns.range(of: "[^1]", options: .backwards).location))", "0")
         check("脚注往返", md(tv), "正文[^1]\n\n[^1]: 说明\n")
     }
+    // 文档语言：自动判断；换成该语言的字体（正文换字体，等宽字体缺字时用该语言的字体）
+    do {
+        check("语言 日语", DocLanguage.detect("今日は晴れ").rawValue, "ja")
+        check("语言 韩语", DocLanguage.detect("한국어 문서").rawValue, "ko")
+        check("语言 中文里的・不算日语", DocLanguage.detect("汉字・中文").rawValue == "ja" ? "ja" : "zh", "zh")
+        let tv = makeView("**今日**は晴れ `漢字`\n")
+        let fixer = LanguageFontFixer()
+        fixer.language = .ja
+        fixer.apply(to: tv.textStorage!)
+        let s = tv.textStorage!
+        let body = s.attribute(.font, at: 3, effectiveRange: nil) as! NSFont
+        let bold = s.attribute(.font, at: 0, effectiveRange: nil) as! NSFont
+        let code = s.attribute(.font, at: (tv.string as NSString).range(of: "漢").location, effectiveRange: nil) as! NSFont
+        check("日语正文字体", body.familyName ?? "", "Hiragino Sans")
+        check("日语粗体", "\(bold.familyName ?? "") \(bold.fontDescriptor.symbolicTraits.contains(.bold))", "Hiragino Sans true")
+        // 等宽字体没有汉字：系统改用后备字体，后备字体应是冠群（日文写法）
+        check("日语代码里的汉字", (code.familyName ?? "").contains("Hiragino") ? "冠群" : code.familyName ?? "", "冠群")
+        fixer.language = .zhCN
+        fixer.apply(to: s)
+        let zhCode = s.attribute(.font, at: (tv.string as NSString).range(of: "漢").location, effectiveRange: nil) as! NSFont
+        check("简体代码里的汉字", (zhCode.familyName ?? "").contains("PingFang") ? "苹方" : zhCode.familyName ?? "", "苹方")
+        check("简体正文字体", (s.attribute(.font, at: 3, effectiveRange: nil) as! NSFont).familyName ?? "", "PingFang SC")
+        check("换字体后保存不变", md(tv), "**今日**は晴れ `漢字`\n")
+    }
     // 空列表项回车结束列表
     do {
         let tv = makeView("")
