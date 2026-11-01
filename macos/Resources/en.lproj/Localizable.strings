@@ -1,0 +1,315 @@
+/* DropMD 英文界面。键是源码中的中文原文（含 %@ / %lld 占位符），由 tools/test_l10n.sh 检查是否与源码一致 */
+
+/* AppModel.swift */
+"等待" = "Waiting";
+"转换中" = "Converting";
+"成功" = "Done";
+"失败" = "Failed";
+"已跳过" = "Skipped";
+"快速" = "Fast";
+"高精度" = "High Accuracy";
+"MarkItDown（快速）" = "MarkItDown (fast)";
+"Pandoc（还原排版更好）" = "Pandoc (better layout)";
+"RapidOCR（多语言混合）" = "RapidOCR (mixed languages)";
+"Apple Vision（实况文本）" = "Apple Vision (Live Text)";
+"简体中文" = "Simplified Chinese";
+"繁体中文" = "Traditional Chinese";
+"日文" = "Japanese";
+"准备就绪" = "Ready";
+"已添加 %lld 个文件" = "Files added: %lld";
+"，忽略了 %lld 个不支持的文件" = ", unsupported files skipped: %lld";
+"选择要转换的文件" = "Choose Files to Convert";
+"添加" = "Add";
+"选择文件夹（包含所有子文件夹）" = "Choose Folders (including all subfolders)";
+"选择输出文件夹" = "Choose Output Folder";
+"选择" = "Choose";
+"好" = "OK";
+"高精度模型" = "High-Accuracy Models";
+"当前设置所需的模型都已下载。" = "All models needed for the current settings are already downloaded.";
+"需要下载识别模型" = "Recognition Models Needed";
+"高精度模式需要先下载识别模型。这是 DropMD 唯一的联网行为，只下载模型文件，不会上传您的任何文件或信息。\n下载使用 macOS 系统网络（与 Safari 相同的网络和代理设置），每个文件都会校验完整性。\n\n%@\n\n合计约 %lld MB（实际大小可能略有出入）\n保存位置：%@\n\nOCR 使用程序内置的 RapidOCR 或系统自带的 Apple Vision，不需要下载。\n是否同意下载？" = "High Accuracy mode needs recognition models first. This is the only time DropMD goes online: it only downloads model files and never uploads your files or information.\nThe download uses the macOS system network (the same network and proxy settings as Safari), and every file is checked for integrity.\n\n%@\n\nTotal: about %lld MB (the actual size may differ slightly)\nSaved to: %@\n\nOCR uses the built-in RapidOCR or the system's Apple Vision, which need no download.\nDownload now?";
+"同意并下载" = "Agree and Download";
+"取消" = "Cancel";
+"正在连接 huggingface.co…" = "Connecting to huggingface.co…";
+"模型下载完成" = "Models downloaded";
+"无法检查模型" = "Can't Check Models";
+"模型下载未完成" = "Model download not finished";
+"下载未完成" = "Download Not Finished";
+"模型下载失败：%@\n\n已下载完成的文件会保留，重试时不会重复下载。" = "Model download failed: %@\n\nFiles already downloaded are kept and won't be downloaded again when you retry.";
+"• %@：约 %lld MB\n   来源：%@" = "• %@: about %lld MB\n   Source: %@";
+"正在下载 %@  %@ / %@ MB" = "Downloading %@  %@ / %@ MB";
+"“%@”已经存在" = "“%@” already exists";
+"位置：%@\n是否覆盖？" = "Location: %@\nReplace it?";
+"跳过" = "Skip";
+"覆盖" = "Replace";
+"取消转换" = "Cancel Conversion";
+"对其余同名文件执行相同操作" = "Do the same for the remaining files";
+"同名 .md 已存在，未覆盖" = "A .md file with the same name exists; not replaced";
+"提示" = "Tip";
+"请先选择输出文件夹。" = "Choose an output folder first.";
+"没有需要转换的文件" = "Nothing to convert";
+"正在转换… 0 / %lld" = "Converting… 0 / %lld";
+"已停止" = "Stopped";
+"引擎意外退出" = "The engine quit unexpectedly";
+"已停止。" = "Stopped. ";
+"完成：成功 %lld 个，失败 %lld 个" = "Finished: %lld succeeded, %lld failed";
+"转换完成" = "Conversion Finished";
+"成功 %lld 个，失败 %lld 个。\n失败原因请查看列表中的“说明”一栏。" = "%lld succeeded, %lld failed.\nSee the “Details” column in the list for the reasons.";
+"已取消" = "Canceled";
+"请先拖入或选择要转换的文件。" = "Drag in or choose the files to convert first.";
+"转换引擎出错" = "Conversion Engine Error";
+"正在转换… %lld / %lld" = "Converting… %lld / %lld";
+"正在停止…" = "Stopping…";
+
+/* ContentView.swift */
+"所有转换都在这台 Mac 上完成，文件不会上传。\n\n• 只在您同意时联网：下载识别模型、检查更新。\n• 没有统计或广告。\n• 不修改原始文件。" = "Everything is converted on this Mac. Your files are never uploaded.\n\n• Goes online only with your consent: to download recognition models and check for updates.\n• No analytics or ads.\n• Never changes your original files.";
+"隐私说明" = "Privacy";
+"本机离线处理" = "Works Offline on This Mac";
+"拖入文件或文件夹" = "Drag Files or Folders Here";
+"Word · Excel · PowerPoint · HTML · PDF · CSV" = "Word · Excel · PowerPoint · HTML · PDF · CSV";
+"选择文件…" = "Choose Files…";
+"选择文件夹…" = "Choose Folders…";
+"文件" = "Files";
+"%lld 个" = "%lld";
+"移除所选" = "Remove Selected";
+"清空" = "Clear";
+"尚未添加文件" = "No Files Yet";
+"转换完成后，双击列表中的文件即可用编辑器打开" = "After converting, double-click a file in the list to open it in the editor";
+"名称" = "Name";
+"状态" = "Status";
+"说明" = "Details";
+"用编辑器打开" = "Open in Editor";
+"在访达中显示" = "Show in Finder";
+"从列表中移除" = "Remove from List";
+"转换设置" = "Settings";
+"适合论文、扫描版 PDF。只对 PDF 生效。" = "For papers and scanned PDFs. Applies to PDF files only.";
+"速度快，适合大多数文件。" = "Quick, and good for most files.";
+"中日文混合时请用 RapidOCR。" = "Use RapidOCR for mixed Chinese and Japanese.";
+"中日英混合识别，无需下载。" = "Reads mixed Chinese, Japanese and English. No download needed.";
+"输出到指定文件夹（拖入文件夹时保留子目录结构）" = "Saved to the chosen folder (subfolders are kept when you drag in a folder)";
+"保存在原文件旁边，文件名相同，扩展名为 .md" = "Saved next to the original file, with the same name and a .md extension";
+"模式" = "Mode";
+"Word 引擎" = "Word";
+"OCR 引擎" = "OCR";
+"主要语言" = "Language";
+"输出位置" = "Save To";
+"Pandoc 还原排版更好；两种引擎都会导出图片" = "Pandoc keeps the layout better; both engines export images";
+"识别数学公式" = "Recognize Math Formulas";
+"较慢，需下载模型" = "Slower; needs a model download";
+"原文件夹" = "Original Folder";
+"指定文件夹" = "Chosen Folder";
+"选择…" = "Choose…";
+"（未选择）" = "(None chosen)";
+"停止" = "Stop";
+"开始转换" = "Convert";
+
+/* DocLanguage.swift */
+"自动" = "Automatic";
+"繁体中文（香港）" = "Traditional Chinese (Hong Kong)";
+"繁体中文（台湾）" = "Traditional Chinese (Taiwan)";
+"日语" = "Japanese";
+"韩语" = "Korean";
+
+/* DropMDApp.swift */
+"转换为 Markdown" = "Convert to Markdown";
+"软件更新" = "Software Update";
+"高精度识别模型" = "High-Accuracy Recognition Models";
+"下载当前设置所需的模型…" = "Download Models for Current Settings…";
+"打开模型文件夹" = "Open Models Folder";
+"使用说明" = "DropMD Help";
+"开源许可" = "Open Source Licenses";
+"使用说明.md" = "User Guide.md";
+"DropMD（MIT 许可证）" = "DropMD (MIT License)";
+"第三方组件" = "Third-Party Components";
+"DropMD 许可证.md" = "DropMD License.md";
+"跟随系统" = "Use System Setting";
+"浅色" = "Light";
+"深色" = "Dark";
+"外观" = "Appearance";
+"检查更新…" = "Check for Updates…";
+"转换文件为 Markdown…" = "Convert Files to Markdown…";
+"格式" = "Format";
+"插入" = "Insert";
+"单页" = "Page";
+"双页" = "Split";
+"格式面板" = "Format Panel";
+"更多文字样式" = "More Text Styles";
+"段落样式" = "Paragraph Style";
+"代码块" = "Code Block";
+"提示框" = "Callout";
+
+/* EditorAction.swift */
+"粗体" = "Bold";
+"斜体" = "Italic";
+"下划线" = "Underline";
+"删除线" = "Strikethrough";
+"高亮" = "Highlight";
+"行内代码" = "Inline Code";
+"上标" = "Superscript";
+"下标" = "Subscript";
+"键盘按键" = "Keyboard Key";
+"正文" = "Body";
+"标题 1" = "Heading 1";
+"标题 2" = "Heading 2";
+"标题 3" = "Heading 3";
+"标题 4" = "Heading 4";
+"标题 5" = "Heading 5";
+"标题 6" = "Heading 6";
+"引用" = "Quote";
+"项目符号" = "Bulleted List";
+"编号" = "Numbered List";
+"待办" = "Checklist";
+"减少缩进" = "Decrease Indent";
+"增加缩进" = "Increase Indent";
+"链接" = "Link";
+"图片" = "Image";
+"表格" = "Table";
+"分隔线" = "Divider";
+"折叠块" = "Collapsible Section";
+"今天的日期" = "Today's Date";
+"表情与符号" = "Emoji & Symbols";
+"脚注" = "Footnote";
+"行内公式" = "Inline Formula";
+"公式块" = "Formula Block";
+"换行（不分段）" = "Line Break (Same Paragraph)";
+"导出 PDF…" = "Export PDF…";
+"导出 HTML…" = "Export HTML…";
+
+/* EditorController.swift */
+"> %@\n> 内容" = "> %@\n> Content";
+"内容" = "Content";
+"```%@\n代码\n```" = "```%@\ncode\n```";
+"代码" = "code";
+"%lld 字 · %lld 行" = "%lld chars · %lld lines";
+"粗体文字" = "bold text";
+"斜体文字" = "italic text";
+"下划线文字" = "underlined text";
+"删除线文字" = "strikethrough text";
+"高亮文字" = "highlighted text";
+"添加链接" = "Add Link";
+"修改链接" = "Edit Link";
+"网址或文件路径。留空则去掉链接。" = "A web address or file path. Leave empty to remove the link.";
+"链接文字" = "link text";
+"选择图片" = "Choose Image";
+"| 列 1 | 列 2 | 列 3 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |" = "| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n| Content | Content | Content |";
+"列 1" = "Column 1";
+"<details>\n<summary>点击展开</summary>\n\n折叠的内容\n\n</details>" = "<details>\n<summary>Click to expand</summary>\n\nHidden content\n\n</details>";
+"点击展开" = "Click to expand";
+"插入脚注" = "Insert Footnote";
+"说明文字放在文档末尾。" = "The note goes at the end of the document.";
+"脚注说明" = "footnote text";
+"插入行内公式" = "Insert Inline Formula";
+"LaTeX 格式，例如 E=mc^2" = "LaTeX, for example E=mc^2";
+"插入公式块" = "Insert Formula Block";
+"LaTeX 格式" = "LaTeX";
+"无法导出" = "Can't Export";
+"请先显示预览，再导出 PDF。" = "Show the preview first, then export the PDF.";
+"预览还在加载，请稍后再试。" = "The preview is still loading. Try again in a moment.";
+"导出为 %@" = "Export as %@";
+"网络图片未加载（隐私保护）" = "Web image not loaded (privacy protection)";
+"：" = ": ";
+"导出" = "Export";
+"未命名" = "Untitled";
+
+/* EditorViews.swift */
+"尚未保存" = "Not Saved";
+"文档语言：决定汉字用中文、日文还是韩文的写法" = "Document language: decides whether Chinese characters use Chinese, Japanese or Korean glyph shapes";
+"语言" = "Language";
+"自动（%@）" = "Automatic (%@)";
+"显示方式" = "View";
+"单页（⌘1） / 双页（⌘2）" = "Page (⌘1) / Split (⌘2)";
+"导出 PDF / HTML" = "Export PDF / HTML";
+"格式面板（⌥⌘I）" = "Format Panel (⌥⌘I)";
+"转换文件" = "Convert Files";
+"（%@）" = " (%@)";
+"纯文本" = "Plain Text";
+
+/* Engine.swift */
+"转换引擎没有正常响应。" = "The conversion engine didn't respond properly.";
+"找不到转换引擎，程序可能不完整，请重新下载安装。" = "Can't find the conversion engine. The app may be incomplete; please download and install it again.";
+
+/* FormatInspector.swift */
+"文字" = "Text";
+"列表与缩进" = "Lists & Indent";
+"样式" = "Style";
+
+/* MarkdownCodec.swift */
+"注意" = "Note";
+"重要" = "Important";
+"警告" = "Warning";
+"小心" = "Caution";
+
+/* ModelDownloader.swift */
+"正在获取文件清单：%@" = "Getting the file list: %@";
+"已取消下载。" = "Download canceled.";
+"没有连接到互联网，请检查网络。" = "Not connected to the internet. Check your network.";
+"无法解析 huggingface.co 的地址（DNS 失败）。请检查网络连接或 DNS 设置。" = "Can't look up the address of huggingface.co (DNS failed). Check your network connection or DNS settings.";
+"无法连接到 huggingface.co，所在网络可能限制了访问。" = "Can't connect to huggingface.co. Your network may block it.";
+"连接超时，网络较慢或无法访问 huggingface.co。" = "The connection timed out. The network is slow or can't reach huggingface.co.";
+"网络连接中断，请重试（已下载完成的文件不会重复下载）。" = "The network connection was lost. Please retry (files already downloaded won't be downloaded again).";
+"安全连接（SSL 证书）验证失败。可能是网络中有拦截 HTTPS 的设备或安全软件。" = "The secure connection (SSL certificate) couldn't be verified. A device or security software on your network may be intercepting HTTPS.";
+"当前网络不允许使用数据连接。" = "The current network doesn't allow data connections.";
+"网络错误：%@（代码 %lld）" = "Network error: %@ (code %lld)";
+"磁盘空间不足，请清理空间后重试。" = "Not enough disk space. Free up some space and try again.";
+"服务器拒绝访问（HTTP %lld）：%@" = "The server refused access (HTTP %lld): %@";
+"服务器上找不到文件（HTTP 404）：%@" = "File not found on the server (HTTP 404): %@";
+"请求过于频繁（HTTP 429），请稍后再试。" = "Too many requests (HTTP 429). Please try again later.";
+"Hugging Face 服务器暂时出错（HTTP %lld），请稍后再试。" = "The Hugging Face server has a temporary problem (HTTP %lld). Please try again later.";
+"下载失败（HTTP %lld）：%@" = "Download failed (HTTP %lld): %@";
+"文件校验失败，可能下载不完整：%@。请重试。" = "File check failed; the download may be incomplete: %@. Please retry.";
+"%@ 下载后缺少必要文件，请重试。" = "%@ is missing required files after downloading. Please retry.";
+"服务器返回了无法识别的数据：%@" = "The server returned data that couldn't be read: %@";
+
+/* RichBridge.swift */
+"［图片：%@］" = "[Image: %@]";
+
+/* RichTextView.swift */
+"标题 %lld" = "Column %lld";
+"折叠的内容" = "Hidden content";
+
+/* UpdateChecker.swift */
+"是否自动检查更新？" = "Check for Updates Automatically?";
+"每天最多查询一次，不发送任何文件或个人信息。可随时在“检查更新…”中更改。" = "DropMD checks at most once a day and never sends any files or personal information. You can change this anytime in “Check for Updates…”.";
+"自动检查" = "Check Automatically";
+"暂不" = "Not Now";
+"此版本没有配置更新来源。" = "This version has no update source.";
+"DropMD 有新版本：%@" = "A new version of DropMD is available: %@";
+"当前版本：%@" = "Current version: %@";
+"查看" = "View";
+"以后再说" = "Later";
+"GitHub 暂时拒绝了访问，请稍后再试。" = "GitHub refused access for now. Please try again later.";
+"找不到发布页面。" = "Can't find the release page.";
+"服务器返回错误（%lld）。" = "The server returned an error (%lld).";
+"安装包校验失败，请重新下载。" = "The download failed its check. Please download it again.";
+"没有连接到互联网。" = "Not connected to the internet.";
+"连接超时。" = "The connection timed out.";
+"无法解析服务器地址。" = "Can't look up the server address.";
+"无法连接到服务器。" = "Can't connect to the server.";
+"无法读取版本信息。" = "Can't read the version information.";
+"DropMD 所在的位置不能写入，无法自动替换。" = "DropMD's location can't be written to, so it can't be replaced automatically.";
+"安装包里的版本或标识与预期不符，无法自动替换。" = "The version or identifier in the download doesn't match, so it can't be replaced automatically.";
+"无法自动替换：%@" = "Can't replace automatically: %@";
+"新版本文件不见了，请重新下载。" = "The new version's file is missing. Please download it again.";
+"无法启动更新：%@" = "Can't start the update: %@";
+
+/* UpdateView.swift */
+"检查更新只向 GitHub 查询版本信息，不发送任何文件或个人信息。" = "Checking for updates only asks GitHub for version information and never sends any files or personal information.";
+"自动检查更新（每天最多一次）" = "Check for updates automatically (at most once a day)";
+"包括测试版（beta）" = "Include beta versions";
+"立即检查" = "Check Now";
+"上次检查：%@" = "Last checked: %@";
+"此版本没有更新来源。" = "This version has no update source.";
+"尚未检查。" = "Not checked yet.";
+"已是最新版本。" = "DropMD is up to date.";
+"检查或下载失败：%@" = "Check or download failed: %@";
+"正在检查…" = "Checking…";
+"测试版" = "Beta";
+"新版本：%@" = "New version: %@";
+"在浏览器中查看" = "View in Browser";
+"正在准备新版本…" = "Preparing the new version…";
+"新版本已准备好。" = "The new version is ready.";
+"重新启动" = "Restart";
+"请把 DropMD 拖到“应用程序”。" = "Drag DropMD to “Applications”.";
+"前往下载页面" = "Go to Download Page";
+"下载并更新" = "Download and Update";
+"（没有更新说明）" = "(No release notes)";

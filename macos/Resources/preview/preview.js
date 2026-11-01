@@ -118,7 +118,9 @@
   }
 
   // ---------------------------------------------------------------- 提示框 > [!NOTE]（GitHub 写法）
-  const calloutTitles = { NOTE: "注意", TIP: "提示", IMPORTANT: "重要", WARNING: "警告", CAUTION: "小心" };
+  // 界面文字：默认中文，App 每次渲染时传入界面语言的文字（render 的 ui 参数）
+  const ui = { NOTE: "注意", TIP: "提示", IMPORTANT: "重要", WARNING: "警告", CAUTION: "小心",
+               blockedImage: "网络图片未加载（隐私保护）", colon: "：" };
   function calloutPlugin(md) {
     md.core.ruler.after("inline", "callout", function (state) {
       const tokens = state.tokens;
@@ -138,7 +140,7 @@
         }
         while (t.children.length && /^(softbreak|hardbreak)$/.test(t.children[0].type)) t.children.shift();
         const title = new state.Token("html_inline", "", 0);
-        title.content = '<span class="callout-title">' + calloutTitles[type] + "</span>";
+        title.content = '<span class="callout-title">' + ui[type] + "</span>";
         t.children.unshift(title);
         tokens[i].attrJoin("class", "callout callout-" + type.toLowerCase());
       }
@@ -170,8 +172,8 @@
       const src = tokens[idx].attrGet("src") || "";
       if (/^(https?:)?\/\//i.test(src)) {
         const alt = md.utils.escapeHtml(tokens[idx].content || "");
-        return '<span class="blocked-image" title="' + md.utils.escapeHtml(src) + '">网络图片未加载（隐私保护）' +
-          (alt ? "：" + alt : "") + "</span>";
+        return '<span class="blocked-image" title="' + md.utils.escapeHtml(src) + '">' + md.utils.escapeHtml(ui.blockedImage) +
+          (alt ? md.utils.escapeHtml(ui.colon) + alt : "") + "</span>";
       }
       return image(tokens, idx, options, env, self);
     };
@@ -201,9 +203,11 @@
   }
 
   window.DropMD = {
-    /** 渲染 Markdown。baseHref 为文档所在文件夹的 file:// 地址（以 / 结尾），用于相对路径图片；lang 为文档语言 */
-    render: function (text, baseHref, lang) {
+    /** 渲染 Markdown。baseHref 为文档所在文件夹的 file:// 地址（以 / 结尾），用于相对路径图片；lang 为文档语言；
+        uiText 为界面语言的文字（键同 ui） */
+    render: function (text, baseHref, lang, uiText) {
       setBase(baseHref);
+      if (uiText) Object.assign(ui, uiText);
       // 文档语言决定汉字字形，见 preview.css
       if (lang) document.documentElement.lang = lang;
       document.getElementById("content").innerHTML = previewMD.render(text || "");

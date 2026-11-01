@@ -26,11 +26,11 @@ enum MDCallout: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .note: return "注意"
-        case .tip: return "提示"
-        case .important: return "重要"
-        case .warning: return "警告"
-        case .caution: return "小心"
+        case .note: return String(localized: "注意")
+        case .tip: return String(localized: "提示")
+        case .important: return String(localized: "重要")
+        case .warning: return String(localized: "警告")
+        case .caution: return String(localized: "小心")
         }
     }
 

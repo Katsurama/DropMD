@@ -40,14 +40,14 @@ final class ModelDownloader: @unchecked Sendable {
         var errorDescription: String? {
             switch self {
             case .http(let code, let what):
-                if code == 401 || code == 403 { return "服务器拒绝访问（HTTP \(code)）：\(what)" }
-                if code == 404 { return "服务器上找不到文件（HTTP 404）：\(what)" }
-                if code == 429 { return "请求过于频繁（HTTP 429），请稍后再试。" }
-                if code >= 500 { return "Hugging Face 服务器暂时出错（HTTP \(code)），请稍后再试。" }
-                return "下载失败（HTTP \(code)）：\(what)"
-            case .integrity(let f): return "文件校验失败，可能下载不完整：\(f)。请重试。"
-            case .missingMarker(let t): return "\(t) 下载后缺少必要文件，请重试。"
-            case .badResponse(let what): return "服务器返回了无法识别的数据：\(what)"
+                if code == 401 || code == 403 { return String(localized: "服务器拒绝访问（HTTP \(code)）：\(what)") }
+                if code == 404 { return String(localized: "服务器上找不到文件（HTTP 404）：\(what)") }
+                if code == 429 { return String(localized: "请求过于频繁（HTTP 429），请稍后再试。") }
+                if code >= 500 { return String(localized: "Hugging Face 服务器暂时出错（HTTP \(code)），请稍后再试。") }
+                return String(localized: "下载失败（HTTP \(code)）：\(what)")
+            case .integrity(let f): return String(localized: "文件校验失败，可能下载不完整：\(f)。请重试。")
+            case .missingMarker(let t): return String(localized: "\(t) 下载后缺少必要文件，请重试。")
+            case .badResponse(let what): return String(localized: "服务器返回了无法识别的数据：\(what)")
             }
         }
     }
@@ -188,7 +188,7 @@ final class ModelDownloader: @unchecked Sendable {
                             lfs: f.sha256.map { Sibling.LFS(sha256: $0, size: f.size) })
                 }))
             } else {
-                progress(0, 0, "正在获取文件清单：\(c.title)")
+                progress(0, 0, String(localized: "正在获取文件清单：\(c.title)"))
                 let info = try await withRetry(c.repoId) { try await fetchInfo(repo: c.repoId, revision: c.revision) }
                 plans.append((c, info.siblings.filter { !$0.rfilename.hasPrefix(".") }))
             }
@@ -232,23 +232,23 @@ final class ModelDownloader: @unchecked Sendable {
 
     /// 把网络错误转换为中文说明
     static func describe(_ error: Error) -> String {
-        if error is CancellationError { return "已取消下载。" }
+        if error is CancellationError { return String(localized: "已取消下载。") }
         if let e = error as? URLError {
             switch e.code {
-            case .cancelled: return "已取消下载。"
-            case .notConnectedToInternet: return "没有连接到互联网，请检查网络。"
-            case .cannotFindHost, .dnsLookupFailed: return "无法解析 huggingface.co 的地址（DNS 失败）。请检查网络连接或 DNS 设置。"
-            case .cannotConnectToHost: return "无法连接到 huggingface.co，所在网络可能限制了访问。"
-            case .timedOut: return "连接超时，网络较慢或无法访问 huggingface.co。"
-            case .networkConnectionLost: return "网络连接中断，请重试（已下载完成的文件不会重复下载）。"
+            case .cancelled: return String(localized: "已取消下载。")
+            case .notConnectedToInternet: return String(localized: "没有连接到互联网，请检查网络。")
+            case .cannotFindHost, .dnsLookupFailed: return String(localized: "无法解析 huggingface.co 的地址（DNS 失败）。请检查网络连接或 DNS 设置。")
+            case .cannotConnectToHost: return String(localized: "无法连接到 huggingface.co，所在网络可能限制了访问。")
+            case .timedOut: return String(localized: "连接超时，网络较慢或无法访问 huggingface.co。")
+            case .networkConnectionLost: return String(localized: "网络连接中断，请重试（已下载完成的文件不会重复下载）。")
             case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate,
                  .serverCertificateNotYetValid, .serverCertificateHasUnknownRoot, .clientCertificateRejected:
-                return "安全连接（SSL 证书）验证失败。可能是网络中有拦截 HTTPS 的设备或安全软件。"
-            case .internationalRoamingOff, .dataNotAllowed: return "当前网络不允许使用数据连接。"
-            default: return "网络错误：\(e.localizedDescription)（代码 \(e.code.rawValue)）"
+                return String(localized: "安全连接（SSL 证书）验证失败。可能是网络中有拦截 HTTPS 的设备或安全软件。")
+            case .internationalRoamingOff, .dataNotAllowed: return String(localized: "当前网络不允许使用数据连接。")
+            default: return String(localized: "网络错误：\(e.localizedDescription)（代码 \(e.code.rawValue)）")
             }
         }
-        if let e = error as? CocoaError, e.code == .fileWriteOutOfSpace { return "磁盘空间不足，请清理空间后重试。" }
+        if let e = error as? CocoaError, e.code == .fileWriteOutOfSpace { return String(localized: "磁盘空间不足，请清理空间后重试。") }
         return error.localizedDescription
     }
 }

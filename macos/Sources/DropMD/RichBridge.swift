@@ -166,7 +166,7 @@ enum RichBridge {
             var a = RichStyle.attributes(for: MDRun(), kind: .body)
             a[.foregroundColor] = NSColor.secondaryLabelColor
             for (k, v) in marks { a[k] = v }
-            return NSAttributedString(string: "［图片：\(alt.isEmpty ? path : alt)］", attributes: a)
+            return NSAttributedString(string: String(localized: "［图片：\(alt.isEmpty ? path : alt)］"), attributes: a)
         }
         let attachment = NSTextAttachment()
         attachment.image = loaded

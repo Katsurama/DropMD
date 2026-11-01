@@ -670,7 +670,7 @@ final class RichTextView: NSTextView {
         let s = NSMutableAttributedString()
         for r in 0..<rows {
             for c in 0..<columns {
-                let runs = r == 0 ? [MDRun(text: "标题 \(c + 1)")] : []
+                let runs = r == 0 ? [MDRun(text: String(localized: "标题 \(c + 1)"))] : []
                 s.append(RichBridge.cellParagraph(table: table, row: r, column: c, runs: runs, baseURL: baseURL))
             }
         }
@@ -685,11 +685,11 @@ final class RichTextView: NSTextView {
     /// 插入折叠块：标题 + 内容
     func insertDetails() {
         let s = NSMutableAttributedString()
-        let title = "点击展开"
+        let title = String(localized: "点击展开")
         s.append(RichBridge.paragraph(NSAttributedString(string: title, attributes: RichStyle.attributes(for: MDRun(), kind: .summary)),
                                       kind: .summary))
         let body = NSMutableAttributedString(attributedString: RichBridge.paragraph(
-            NSAttributedString(string: "折叠的内容", attributes: RichStyle.attributes(for: MDRun(), kind: .body)), kind: .body))
+            NSAttributedString(string: String(localized: "折叠的内容"), attributes: RichStyle.attributes(for: MDRun(), kind: .body)), kind: .body))
         RichBridge.markInDetails(body)
         s.append(body)
         insertBlock(s, caretOffset: 0)
@@ -721,7 +721,7 @@ final class RichTextView: NSTextView {
         header.literal = true
         let s = NSMutableAttributedString()
         s.append(RichBridge.paragraph(RichBridge.runsString([header], kind: .quote, baseURL: baseURL), kind: .quote))
-        s.append(RichBridge.paragraph(RichBridge.runsString([MDRun(text: "内容")], kind: .quote, baseURL: baseURL), kind: .quote))
+        s.append(RichBridge.paragraph(RichBridge.runsString([MDRun(text: String(localized: "内容"))], kind: .quote, baseURL: baseURL), kind: .quote))
         insertBlock(s, caretOffset: (type.title as NSString).length + 1)
         setSelectedRange(NSRange(location: selectedRange().location, length: 2))
     }

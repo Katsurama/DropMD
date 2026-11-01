@@ -59,6 +59,7 @@ jobs:
           tools/test_update.sh
           tools/test_convert.sh
           tools/test_preview.sh
+          tools/test_l10n.sh
 
       - uses: actions/setup-python@v5
         with:
