@@ -312,3 +312,13 @@
 "前往下载页面" = "Go to Download Page";
 "下载并更新" = "Download and Update";
 "（没有更新说明）" = "(No release notes)";
+
+/* DefaultApp.swift */
+"无法设为默认" = "Can't Set as Default";
+"用 DropMD 打开 Markdown 文件？" = "Open Markdown Files with DropMD?";
+"设为默认后，在访达中双击 .md 文件会用 DropMD 打开。以后可以在“设置”中更改。" = "When DropMD is the default, double-clicking a .md file in Finder opens it in DropMD. You can change this later in Settings.";
+"设为默认" = "Set as Default";
+"Markdown 文件" = "Markdown Files";
+"DropMD 是默认打开程序" = "DropMD is the default app";
+"将 DropMD 设为默认" = "Make DropMD the Default";
+"在访达中双击 .md 文件时，用默认打开程序打开。" = "Double-clicking a .md file in Finder opens it in the default app.";
