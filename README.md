@@ -42,7 +42,7 @@
 ## 📦 安装
 
 1. 在 [Releases](../../releases) 下载 `DropMD-macOS-AppleSilicon.dmg`
-2. 打开后把 **DropMD** 拖到“应用程序”
+2. 打开后把 **DropMD** 拖到右边的 **Applications**（应用程序）文件夹
 3. 第一次打开会被系统拦下，按下面的方法打开一次，以后就不会再提示
 
 适用于 Apple 芯片的 Mac，macOS 14 及以上。以后的新版本在 App 里更新即可（**DropMD → 检查更新…**）。
