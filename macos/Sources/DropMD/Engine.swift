@@ -9,7 +9,7 @@ final class Engine: @unchecked Sendable {
 
         var errorDescription: String? {
             switch self {
-            case .notFound: return "找不到转换引擎，程序可能不完整，请重新下载安装。"
+            case .notFound: return String(localized: "找不到转换引擎，程序可能不完整，请重新下载安装。")
             case .failed(let m): return m
             }
         }
@@ -99,6 +99,9 @@ final class Engine: @unchecked Sendable {
         let p = Process()
         p.executableURL = exe
         p.arguments = ["--engine"] + args
+        // 引擎给用户看的文字（转换结果说明、错误原因）与界面语言一致
+        let english = Bundle.main.localizations.contains("en") && Bundle.main.preferredLocalizations.first == "en"
+        p.environment = ProcessInfo.processInfo.environment.merging(["DROPMD_LANG": english ? "en" : "zh"]) { $1 }
         let out = Pipe()
         let inp = Pipe()
         p.standardOutput = out
@@ -123,7 +126,7 @@ final class Engine: @unchecked Sendable {
         try await run(["status"] + (formulas ? ["--formula"] : [])) { data in
             if let s = try? Engine.decoder.decode(Status.self, from: data) { box.value = s }
         }
-        guard let s = box.value else { throw EngineError.failed("转换引擎没有正常响应。") }
+        guard let s = box.value else { throw EngineError.failed(String(localized: "转换引擎没有正常响应。")) }
         return s
     }
 

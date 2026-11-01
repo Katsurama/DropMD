@@ -32,43 +32,43 @@ enum EditorAction: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .bold: return "粗体"
-        case .italic: return "斜体"
-        case .underline: return "下划线"
-        case .strike: return "删除线"
-        case .highlight: return "高亮"
-        case .inlineCode: return "行内代码"
-        case .superscriptText: return "上标"
-        case .subscriptText: return "下标"
-        case .kbd: return "键盘按键"
-        case .body: return "正文"
-        case .heading1: return "标题 1"
-        case .heading2: return "标题 2"
-        case .heading3: return "标题 3"
-        case .heading4: return "标题 4"
-        case .heading5: return "标题 5"
-        case .heading6: return "标题 6"
-        case .quote: return "引用"
-        case .codeBlock: return "代码块"
-        case .bullet: return "项目符号"
-        case .numbered: return "编号"
-        case .task: return "待办"
-        case .outdent: return "减少缩进"
-        case .indent: return "增加缩进"
-        case .link: return "链接"
-        case .image: return "图片"
-        case .table: return "表格"
-        case .rule: return "分隔线"
-        case .details: return "折叠块"
-        case .callout: return "提示框"
-        case .date: return "今天的日期"
-        case .emoji: return "表情与符号"
-        case .footnote: return "脚注"
-        case .inlineMath: return "行内公式"
-        case .mathBlock: return "公式块"
-        case .lineBreak: return "换行（不分段）"
-        case .exportPDF: return "导出 PDF…"
-        case .exportHTML: return "导出 HTML…"
+        case .bold: return String(localized: "粗体")
+        case .italic: return String(localized: "斜体")
+        case .underline: return String(localized: "下划线")
+        case .strike: return String(localized: "删除线")
+        case .highlight: return String(localized: "高亮")
+        case .inlineCode: return String(localized: "行内代码")
+        case .superscriptText: return String(localized: "上标")
+        case .subscriptText: return String(localized: "下标")
+        case .kbd: return String(localized: "键盘按键")
+        case .body: return String(localized: "正文")
+        case .heading1: return String(localized: "标题 1")
+        case .heading2: return String(localized: "标题 2")
+        case .heading3: return String(localized: "标题 3")
+        case .heading4: return String(localized: "标题 4")
+        case .heading5: return String(localized: "标题 5")
+        case .heading6: return String(localized: "标题 6")
+        case .quote: return String(localized: "引用")
+        case .codeBlock: return String(localized: "代码块")
+        case .bullet: return String(localized: "项目符号")
+        case .numbered: return String(localized: "编号")
+        case .task: return String(localized: "待办")
+        case .outdent: return String(localized: "减少缩进")
+        case .indent: return String(localized: "增加缩进")
+        case .link: return String(localized: "链接")
+        case .image: return String(localized: "图片")
+        case .table: return String(localized: "表格")
+        case .rule: return String(localized: "分隔线")
+        case .details: return String(localized: "折叠块")
+        case .callout: return String(localized: "提示框")
+        case .date: return String(localized: "今天的日期")
+        case .emoji: return String(localized: "表情与符号")
+        case .footnote: return String(localized: "脚注")
+        case .inlineMath: return String(localized: "行内公式")
+        case .mathBlock: return String(localized: "公式块")
+        case .lineBreak: return String(localized: "换行（不分段）")
+        case .exportPDF: return String(localized: "导出 PDF…")
+        case .exportHTML: return String(localized: "导出 HTML…")
         }
     }
 

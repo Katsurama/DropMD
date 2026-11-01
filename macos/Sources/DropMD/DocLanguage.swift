@@ -9,12 +9,12 @@ enum DocLanguage: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .auto: return "自动"
-        case .zhCN: return "简体中文"
-        case .zhHK: return "繁体中文（香港）"
-        case .zhTW: return "繁体中文（台湾）"
-        case .ja: return "日语"
-        case .ko: return "韩语"
+        case .auto: return String(localized: "自动")
+        case .zhCN: return String(localized: "简体中文")
+        case .zhHK: return String(localized: "繁体中文（香港）")
+        case .zhTW: return String(localized: "繁体中文（台湾）")
+        case .ja: return String(localized: "日语")
+        case .ko: return String(localized: "韩语")
         }
     }
 
