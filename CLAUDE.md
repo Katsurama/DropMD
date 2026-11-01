@@ -69,7 +69,7 @@ tools/build_local.sh vX.Y.Z-beta.N     # 构建后直接创建 GitHub Release（
 
 ## 验证界面
 
-- 本地：直接运行 App，用 `packaging/samples/editor_sample.md`（包含所有格式）检查单页 / 双页、浅色 / 深色。
+- 本地：直接运行 App，用 `packaging/samples/editor_sample.md`（包含所有格式；英文界面用 `editor_sample.en.md`）检查单页 / 双页、浅色 / 深色。
 - 菜单“显示 → 外观”可强制浅色 / 深色。
 - GitHub Actions 构建会自动截图 `shots/{rich,source}-{Light,Dark}.png`，在构件 `selftest-macOS` 中。
 
