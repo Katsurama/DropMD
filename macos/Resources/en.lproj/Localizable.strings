@@ -215,7 +215,6 @@
 "尚未保存" = "Not Saved";
 "文档语言：决定汉字用中文、日文还是韩文的写法" = "Document language: decides whether Chinese characters use Chinese, Japanese or Korean glyph shapes";
 "语言" = "Language";
-"自动（%@）" = "Automatic (%@)";
 "显示方式" = "View";
 "单页（⌘1） / 双页（⌘2）" = "Page (⌘1) / Split (⌘2)";
 "导出 PDF / HTML" = "Export PDF / HTML";
