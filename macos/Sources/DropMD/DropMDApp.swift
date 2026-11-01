@@ -71,6 +71,11 @@ struct DropMDApp: App {
             UpdateView(updater: UpdateChecker.shared)
         }
         .windowResizability(.contentSize)
+
+        // 设置（菜单“DropMD → 设置…”，⌘,）
+        Settings {
+            SettingsView()
+        }
     }
 }
 
@@ -114,9 +119,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // 等文档窗口出现后再检查，避免与“打开文件”面板同时弹出
+        // 等文档窗口出现后再询问、检查，避免与“打开文件”面板同时弹出
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            MainActor.assumeIsolated { UpdateChecker.shared.launchCheck() }
+            MainActor.assumeIsolated {
+                DefaultApp.askOnFirstLaunch()
+                UpdateChecker.shared.launchCheck()
+            }
         }
     }
 }

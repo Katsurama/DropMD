@@ -103,8 +103,9 @@ jobs:
         run: |
           mkdir -p shots
           cp packaging/samples/editor_sample.md "$RUNNER_TEMP/示例.md"
-          # 跳过首次启动的“自动检查更新”询问，显示格式面板
+          # 跳过首次启动的询问（默认打开程序、自动检查更新），显示格式面板
           defaults write io.github.dropmd.app askedAutoUpdate -bool true
+          defaults write io.github.dropmd.app askedDefaultApp -bool true
           defaults write io.github.dropmd.app showInspector -bool true
           # 构建机的系统语言是英文；截图固定用中文界面（只改本 App 的语言，同“系统设置 → 语言与地区 → App”）
           defaults write io.github.dropmd.app AppleLanguages -array zh-Hans

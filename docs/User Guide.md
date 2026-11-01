@@ -28,7 +28,7 @@ You don't need to install Python or type any commands.
 
 ## 2. The editor
 
-Create or open a Markdown file from the File menu (New / Open), or drag a .md file onto the DropMD icon in the Dock. You can also right-click a .md file in Finder and choose Open With → DropMD. DropMD doesn't make itself the default app for .md files.
+Create or open a Markdown file from the File menu (New / Open), or drag a .md file onto the DropMD icon in the Dock. The first time you open DropMD, it asks whether to make itself the default app for Markdown files; then double-clicking a .md file in Finder opens it in DropMD. You can change this later in DropMD → Settings… (⌘,). Without that, right-click a .md file in Finder and choose Open With → DropMD.
 
 The “Page / Split” buttons at the left of the toolbar switch between two views (or press ⌘1 / ⌘2, or use the View menu):
 
