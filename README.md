@@ -1,3 +1,5 @@
+<p align="right">🌐 <b>简体中文</b> | <a href="README.en.md">English</a></p>
+
 <div align="center">
 
 <img src="docs/images/icon.png" width="112" alt="DropMD 图标">
@@ -10,9 +12,11 @@
 
 [![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-安装) [![版本](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.1.0--beta.3-0a84ff?style=flat-square)](docs/发行说明.md) [![界面](https://img.shields.io/badge/%E7%95%8C%E9%9D%A2-SwiftUI%20%C2%B7%20Liquid%20Glass-f05138?style=flat-square&logo=swift&logoColor=white)](macos) [![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-3b82f6?style=flat-square)](LICENSE)
 
-**简体中文** · [English](README.en.md)
+<br>
 
-[**安装**](#-安装) · [功能](#-功能) · [文件转换](#-文件转换) · [隐私](#-隐私) · [从源码构建](#️-从源码构建) · [使用说明](docs/使用说明.md)
+📦 [**安装**](#-安装) &nbsp;·&nbsp; ✨ [功能](#-功能) &nbsp;·&nbsp; 🔄 [文件转换](#-文件转换) &nbsp;·&nbsp; 🔒 [隐私](#-隐私) &nbsp;·&nbsp; 🛠️ [从源码构建](#️-从源码构建) &nbsp;·&nbsp; 📖 [使用说明](docs/使用说明.md)
+
+<br>
 
 <img src="docs/images/demo.gif" alt="演示：单页输入时自动变格式，双页显示原文与预览，拖入 Word 一键转换" width="100%">
 
