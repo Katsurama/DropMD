@@ -34,8 +34,6 @@ final class EditorController: ObservableObject {
             updateLanguage()
         }
     }
-    /// 实际使用的语言（“自动”时按文字判断）
-    @Published private(set) var effectiveLanguage = DocLanguage.detect("")
     private let fonts = LanguageFontFixer()
     private var languageApplied = false
     private static let languagesKey = "documentLanguages"
@@ -56,7 +54,6 @@ final class EditorController: ObservableObject {
         guard lang != fonts.language || !languageApplied else { return }
         languageApplied = true
         fonts.language = lang
-        effectiveLanguage = lang
         for storage in [richView?.textStorage, textView?.textStorage].compactMap({ $0 }) {
             storage.beginEditing()
             fonts.apply(to: storage)

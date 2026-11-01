@@ -281,7 +281,7 @@ struct EditorView: View {
             .pickerStyle(.inline)
             .labelsHidden()
         } label: {
-            Text(editor.language == .auto ? String(localized: "自动（\(editor.effectiveLanguage.title)）") : editor.language.title)
+            Text(editor.language.title)
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
