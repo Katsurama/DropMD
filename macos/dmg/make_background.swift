@@ -1,6 +1,7 @@
 // 生成 DMG 窗口背景图（660×420 点），同时输出 1x 与 2x（Retina）两种分辨率。
 // 用法：swift make_background.swift 输出目录
-// 图标位置需与 settings.py 保持一致：App 在 (170, 200)，“应用程序”在 (490, 200)。
+// 图标位置需与 settings.py 保持一致：App 在 (170, 200)，Applications 在 (490, 200)。
+// 文字用英文：安装盘的背景是一张图片，不能随系统语言变化。
 import AppKit
 
 let W: CGFloat = 660, H: CGFloat = 420
@@ -40,9 +41,9 @@ func render(scale: CGFloat) -> Data {
     }
 
     text("DropMD", size: 24, weight: .bold, color: NSColor(white: 0.12, alpha: 1), top: 34)
-    text("离线 Markdown 编辑器 · 文件转换", size: 12.5, weight: .regular, color: NSColor(white: 0.42, alpha: 1), top: 68)
+    text("Offline Markdown editor · File conversion", size: 12.5, weight: .regular, color: NSColor(white: 0.42, alpha: 1), top: 68)
 
-    // 箭头：从 App 图标指向“应用程序”文件夹
+    // 箭头：从 App 图标指向 Applications 文件夹
     let arrow = NSBezierPath()
     arrow.move(to: NSPoint(x: 258, y: y(200)))
     arrow.curve(to: NSPoint(x: 398, y: y(200)),
@@ -63,11 +64,11 @@ func render(scale: CGFloat) -> Data {
     head.lineJoinStyle = .round
     head.stroke()
 
-    text("将 DropMD 拖到“应用程序”文件夹即可完成安装", size: 14, weight: .medium,
+    text("Drag DropMD to the Applications folder to install", size: 14, weight: .medium,
          color: NSColor(white: 0.20, alpha: 1), top: 318)
-    text("首次打开若提示无法验证开发者：系统设置 → 隐私与安全性 → 仍要打开", size: 11,
+    text("If macOS can't verify the developer: System Settings → Privacy & Security → Open Anyway", size: 11,
          color: NSColor(white: 0.45, alpha: 1), top: 346)
-    text("所有转换均在本机完成，不上传任何文件", size: 11, weight: .regular,
+    text("Everything stays on your Mac. No files are uploaded.", size: 11, weight: .regular,
          color: NSColor(red: 0.15, green: 0.55, blue: 0.30, alpha: 1), top: 366)
 
     NSGraphicsContext.restoreGraphicsState()
