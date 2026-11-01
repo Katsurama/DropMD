@@ -14,7 +14,7 @@ filesystem = "HFS+"
 size = None
 
 files = [app]
-symlinks = {"应用程序": "/Applications"}
+symlinks = {"Applications": "/Applications"}
 hide_extension = [app_name]
 
 # 磁盘卷图标使用 App 自身的图标
@@ -38,5 +38,5 @@ grid_spacing = 100
 label_pos = "bottom"
 icon_locations = {
     app_name: (170, 200),
-    "应用程序": (490, 200),
+    "Applications": (490, 200),
 }
