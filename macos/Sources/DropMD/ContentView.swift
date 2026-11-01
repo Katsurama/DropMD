@@ -1,13 +1,13 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-let privacyText = """
+let privacyText = String(localized: """
 所有转换都在这台 Mac 上完成，文件不会上传。
 
 • 只在您同意时联网：下载识别模型、检查更新。
 • 没有统计或广告。
 • 不修改原始文件。
-"""
+""")
 
 struct ContentView: View {
     @EnvironmentObject var model: AppModel
@@ -171,8 +171,8 @@ struct ContentView: View {
                 .labelsHidden()
             }
             Text(model.mode == .hq
-                 ? "适合论文、扫描版 PDF。只对 PDF 生效。"
-                 : "速度快，适合大多数文件。")
+                 ? String(localized: "适合论文、扫描版 PDF。只对 PDF 生效。")
+                 : String(localized: "速度快，适合大多数文件。"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -234,7 +234,7 @@ struct ContentView: View {
             }
             if model.outputCustom {
                 HStack(spacing: 6) {
-                    Text(model.customDir?.path ?? "（未选择）")
+                    Text(model.customDir?.path ?? String(localized: "（未选择）"))
                         .lineLimit(1)
                         .truncationMode(.head)
                         .foregroundStyle(.secondary)
@@ -247,8 +247,8 @@ struct ContentView: View {
                         .buttonStyle(.borderless)
                 }
             }
-            Text(model.outputCustom ? "输出到指定文件夹（拖入文件夹时保留子目录结构）"
-                                    : "保存在原文件旁边，文件名相同，扩展名为 .md")
+            Text(model.outputCustom ? String(localized: "输出到指定文件夹（拖入文件夹时保留子目录结构）")
+                                    : String(localized: "保存在原文件旁边，文件名相同，扩展名为 .md"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
@@ -262,7 +262,7 @@ struct ContentView: View {
         .animation(.smooth(duration: 0.2), value: model.ocrEngine)
     }
 
-    private func row<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+    private func row<C: View>(_ title: LocalizedStringKey, @ViewBuilder _ content: () -> C) -> some View {
         HStack {
             Text(title).foregroundStyle(.secondary)
                 .frame(width: 72, alignment: .leading)

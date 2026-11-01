@@ -124,7 +124,7 @@ final class EditorController: ObservableObject {
                 chars += 1
             }
         }
-        stats = "\(chars) 字 · \(lines) 行"
+        stats = String(localized: "\(chars) 字 · \(lines) 行")
     }
 
     // MARK: - 预览
@@ -145,10 +145,14 @@ final class EditorController: ObservableObject {
         return s.hasSuffix("/") ? s : s + "/"
     }
 
+    /// 预览页面中的界面文字（提示框标题等），随界面语言
+    private static let previewText: [String: String] = Dictionary(uniqueKeysWithValues: MDCallout.allCases.map { ($0.rawValue, $0.title) })
+        .merging(["blockedImage": String(localized: "网络图片未加载（隐私保护）"), "colon": String(localized: "：")]) { a, _ in a }
+
     func renderPreview() {
         guard previewReady, let webView else { return }
-        webView.callAsyncJavaScript("DropMD.render(t, b, l)",
-                                    arguments: ["t": pendingText, "b": baseHref, "l": fonts.language.tag],
+        webView.callAsyncJavaScript("DropMD.render(t, b, l, u)",
+                                    arguments: ["t": pendingText, "b": baseHref, "l": fonts.language.tag, "u": Self.previewText],
                                     in: nil, in: .page) { [weak self] _ in
             // WebKit 在主线程回调
             MainActor.assumeIsolated {
@@ -282,8 +286,8 @@ final class EditorController: ObservableObject {
         case .strike: strikethrough()
         case .highlight: highlight()
         case .inlineCode: inlineCode()
-        case .superscriptText: if let r = rich { r.toggle(.sup) } else { wrap("<sup>", "</sup>", placeholder: "上标") }
-        case .subscriptText: if let r = rich { r.toggle(.sub) } else { wrap("<sub>", "</sub>", placeholder: "下标") }
+        case .superscriptText: if let r = rich { r.toggle(.sup) } else { wrap("<sup>", "</sup>", placeholder: String(localized: "上标")) }
+        case .subscriptText: if let r = rich { r.toggle(.sub) } else { wrap("<sub>", "</sub>", placeholder: String(localized: "下标")) }
         case .kbd: if let r = rich { r.toggle(.kbd) } else { wrap("<kbd>", "</kbd>", placeholder: "⌘") }
         case .lineBreak: if let r = rich { r.insertSoftBreak() } else { replaceSelection(with: "<br>\n") }
         case .body: heading(0)
@@ -324,12 +328,12 @@ final class EditorController: ObservableObject {
         if state != selection.state { selection.state = state }
     }
 
-    func bold() { if let r = rich { r.toggle(.bold) } else { wrap("**", placeholder: "粗体文字") } }
-    func italic() { if let r = rich { r.toggle(.italic) } else { wrap("*", placeholder: "斜体文字") } }
-    func underline() { if let r = rich { r.toggle(.underline) } else { wrap("<u>", "</u>", placeholder: "下划线文字") } }
-    func strikethrough() { if let r = rich { r.toggle(.strike) } else { wrap("~~", placeholder: "删除线文字") } }
-    func highlight() { if let r = rich { r.toggle(.highlight) } else { wrap("==", placeholder: "高亮文字") } }
-    func inlineCode() { if let r = rich { r.toggleInlineCode() } else { wrap("`", placeholder: "代码") } }
+    func bold() { if let r = rich { r.toggle(.bold) } else { wrap("**", placeholder: String(localized: "粗体文字")) } }
+    func italic() { if let r = rich { r.toggle(.italic) } else { wrap("*", placeholder: String(localized: "斜体文字")) } }
+    func underline() { if let r = rich { r.toggle(.underline) } else { wrap("<u>", "</u>", placeholder: String(localized: "下划线文字")) } }
+    func strikethrough() { if let r = rich { r.toggle(.strike) } else { wrap("~~", placeholder: String(localized: "删除线文字")) } }
+    func highlight() { if let r = rich { r.toggle(.highlight) } else { wrap("==", placeholder: String(localized: "高亮文字")) } }
+    func inlineCode() { if let r = rich { r.toggleInlineCode() } else { wrap("`", placeholder: String(localized: "代码")) } }
 
     func heading(_ level: Int) {
         if let r = rich { r.setKind(level > 0 ? .heading(level) : .body) } else { sourceHeading(level) }
@@ -341,17 +345,17 @@ final class EditorController: ObservableObject {
     func indent() { rich?.changeDepth(1) }
     func outdent() { rich?.changeDepth(-1) }
     func horizontalRule() { if let r = rich { r.insertRule() } else { insertBlock("---") } }
-    func table() { if let r = rich { r.insertTable() } else { insertBlock("| 列 1 | 列 2 | 列 3 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |", selectPlaceholder: "列 1") } }
+    func table() { if let r = rich { r.insertTable() } else { insertBlock(String(localized: "| 列 1 | 列 2 | 列 3 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |"), selectPlaceholder: String(localized: "列 1")) } }
     func details() {
         if let r = rich {
             r.insertDetails()
         } else {
-            insertBlock("<details>\n<summary>点击展开</summary>\n\n折叠的内容\n\n</details>", selectPlaceholder: "点击展开")
+            insertBlock(String(localized: "<details>\n<summary>点击展开</summary>\n\n折叠的内容\n\n</details>"), selectPlaceholder: String(localized: "点击展开"))
         }
     }
 
     func callout(_ type: MDCallout) {
-        if let r = rich { r.insertCallout(type) } else { insertBlock("> \(type.header)\n> 内容", selectPlaceholder: "内容") }
+        if let r = rich { r.insertCallout(type) } else { insertBlock(String(localized: "> \(type.header)\n> 内容"), selectPlaceholder: String(localized: "内容")) }
     }
 
     /// 插入今天的日期（按系统语言的长格式，例如 2026年10月26日）
@@ -365,18 +369,18 @@ final class EditorController: ObservableObject {
         if let r = rich {
             r.setKind(.code(lang), toggle: lang.isEmpty)
         } else {
-            insertBlock("```\(lang)\n代码\n```", selectPlaceholder: "代码")
+            insertBlock(String(localized: "```\(lang)\n代码\n```"), selectPlaceholder: String(localized: "代码"))
         }
     }
 
     func inlineMath() {
-        guard let formula = askText("插入行内公式", info: "LaTeX 格式，例如 E=mc^2",
+        guard let formula = askText(String(localized: "插入行内公式"), info: String(localized: "LaTeX 格式，例如 E=mc^2"),
                                     placeholder: "E=mc^2") else { return }
         if let r = rich { r.insertLiteral("$\(formula)$") } else { replaceSelection(with: "$\(formula)$") }
     }
 
     func mathBlock() {
-        guard let formula = askText("插入公式块", info: "LaTeX 格式",
+        guard let formula = askText(String(localized: "插入公式块"), info: String(localized: "LaTeX 格式"),
                                     placeholder: "\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}") else { return }
         if let r = rich { r.insertMathBlock(formula) } else { insertBlock("$$\n\(formula)\n$$") }
     }
@@ -386,7 +390,7 @@ final class EditorController: ObservableObject {
         let text = currentMarkdown
         var n = 1
         while text.contains("[^\(n)]") { n += 1 }
-        guard let note = askText("插入脚注", info: "说明文字放在文档末尾。", placeholder: "脚注说明") else { return }
+        guard let note = askText(String(localized: "插入脚注"), info: String(localized: "说明文字放在文档末尾。"), placeholder: String(localized: "脚注说明")) else { return }
         if let r = rich {
             r.insertFootnote(label: "\(n)", note: note)
         } else {
@@ -402,8 +406,8 @@ final class EditorController: ObservableObject {
         if let r = rich {
             let range = r.selectedRange()
             let existing = range.length > 0 ? r.textStorage?.attribute(DMKey.link, at: range.location, effectiveRange: nil) as? String : nil
-            guard let url = askText(existing == nil ? "添加链接" : "修改链接",
-                                    info: "网址或文件路径。留空则去掉链接。",
+            guard let url = askText(existing == nil ? String(localized: "添加链接") : String(localized: "修改链接"),
+                                    info: String(localized: "网址或文件路径。留空则去掉链接。"),
                                     placeholder: "https://", initial: existing ?? "", allowEmpty: true) else { return }
             r.setLink(url.isEmpty ? nil : url)
             return
@@ -411,7 +415,7 @@ final class EditorController: ObservableObject {
         guard let tv = textView else { return }
         let sel = tv.selectedRange()
         let ns = tv.string as NSString
-        let label = sel.length > 0 ? ns.substring(with: sel) : "链接文字"
+        let label = sel.length > 0 ? ns.substring(with: sel) : String(localized: "链接文字")
         let s = "[\(label)](https://)"
         let urlStart = sel.location + ("[\(label)](" as NSString).length
         replace(sel, with: s, select: NSRange(location: urlStart, length: ("https://" as NSString).length))
@@ -420,8 +424,8 @@ final class EditorController: ObservableObject {
     /// 插入图片：选择本机图片文件，尽量使用相对于文档的路径
     func image() {
         let p = NSOpenPanel()
-        p.title = "选择图片"
-        p.prompt = "插入"
+        p.title = String(localized: "选择图片")
+        p.prompt = String(localized: "插入")
         p.allowedContentTypes = [.image]
         p.allowsMultipleSelection = false
         guard p.runModal() == .OK, let url = p.url else { return }
@@ -456,8 +460,8 @@ final class EditorController: ObservableObject {
         let a = NSAlert()
         a.messageText = title
         a.informativeText = info
-        a.addButton(withTitle: "好")
-        a.addButton(withTitle: "取消")
+        a.addButton(withTitle: String(localized: "好"))
+        a.addButton(withTitle: String(localized: "取消"))
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
         field.placeholderString = placeholder
         field.stringValue = initial
@@ -476,17 +480,17 @@ final class EditorController: ObservableObject {
         a.alertStyle = .warning
         a.messageText = title
         a.informativeText = text
-        a.addButton(withTitle: "好")
+        a.addButton(withTitle: String(localized: "好"))
         a.runModal()
     }
 
     private func savePanel(ext: String, type: UTType) -> URL? {
         let p = NSSavePanel()
-        p.title = "导出为 \(ext.uppercased())"
-        p.prompt = "导出"
+        p.title = String(localized: "导出为 \(ext.uppercased())")
+        p.prompt = String(localized: "导出")
         p.allowedContentTypes = [type]
         p.canCreateDirectories = true
-        let base = fileURL?.deletingPathExtension().lastPathComponent ?? "未命名"
+        let base = fileURL?.deletingPathExtension().lastPathComponent ?? String(localized: "未命名")
         p.nameFieldStringValue = "\(base).\(ext)"
         if let dir = fileURL?.deletingLastPathComponent() { p.directoryURL = dir }
         return p.runModal() == .OK ? p.url : nil
@@ -502,7 +506,7 @@ final class EditorController: ObservableObject {
     /// 单页、双页都用预览页面生成 HTML（单页时预览也在后台加载），样式与预览一致
     func exportHTML() {
         guard previewReady, let webView else {
-            alert("无法导出", "预览还在加载，请稍后再试。")
+            alert(String(localized: "无法导出"), String(localized: "预览还在加载，请稍后再试。"))
             return
         }
         // 单页的修改停顿片刻才写回文档，这里直接取编辑区当前的内容
@@ -578,7 +582,7 @@ final class EditorController: ObservableObject {
             view = webView
             window = w
         } else {
-            alert("无法导出", "请先显示预览，再导出 PDF。")
+            alert(String(localized: "无法导出"), String(localized: "请先显示预览，再导出 PDF。"))
             return
         }
         guard let url = savePanel(ext: "pdf", type: .pdf) else { return }

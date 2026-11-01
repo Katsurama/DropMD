@@ -255,7 +255,7 @@ struct EditorView: View {
     private var statusBar: some View {
         // 只显示文件名和字数；鼠标停在文件名上显示完整路径
         HStack(spacing: 10) {
-            Text(fileURL?.lastPathComponent ?? "尚未保存")
+            Text(fileURL?.lastPathComponent ?? String(localized: "尚未保存"))
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .help(fileURL?.path ?? "")
@@ -281,7 +281,7 @@ struct EditorView: View {
             .pickerStyle(.inline)
             .labelsHidden()
         } label: {
-            Text(editor.language == .auto ? "自动（\(editor.effectiveLanguage.title)）" : editor.language.title)
+            Text(editor.language == .auto ? String(localized: "自动（\(editor.effectiveLanguage.title)）") : editor.language.title)
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
@@ -335,7 +335,7 @@ struct EditorView: View {
         ControlGroup {
             ForEach(actions) { action in
                 Button { editor.perform(action) } label: { Label(action.title, systemImage: action.symbol) }
-                    .help(action.title + (action.shortcut.map { "（\($0.displayText)）" } ?? ""))
+                    .help(action.title + (action.shortcut.map { String(localized: "（\($0.displayText)）") } ?? ""))
             }
         }
         .controlGroupStyle(.navigation)

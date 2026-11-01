@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import netguard
+from .errors import tr
 from .paths import models_dir
 
 
@@ -37,7 +38,7 @@ COMPONENTS: dict[str, Component] = {
     c.key: c
     for c in [
         Component(
-            "layout", "版面分析模型（Docling Heron）",
+            "layout", tr("版面分析模型（Docling Heron）", "Layout analysis model (Docling Heron)"),
             "https://huggingface.co/docling-project/docling-layout-heron",
             size_mb=172,
             repo_id="docling-project/docling-layout-heron",
@@ -45,7 +46,7 @@ COMPONENTS: dict[str, Component] = {
             marker="docling-project--docling-layout-heron/config.json",
         ),
         Component(
-            "table", "表格结构识别模型（TableFormer）",
+            "table", tr("表格结构识别模型（TableFormer）", "Table structure model (TableFormer)"),
             "https://huggingface.co/docling-project/docling-models",
             size_mb=358,
             repo_id="docling-project/docling-models",
@@ -53,7 +54,7 @@ COMPONENTS: dict[str, Component] = {
             marker="docling-project--docling-models/model_artifacts/tableformer/accurate/tm_config.json",
         ),
         Component(
-            "formula", "数学公式识别模型（CodeFormulaV2）",
+            "formula", tr("数学公式识别模型（CodeFormulaV2）", "Math formula model (CodeFormulaV2)"),
             "https://huggingface.co/docling-project/CodeFormulaV2",
             size_mb=640,
             repo_id="docling-project/CodeFormulaV2",
@@ -129,6 +130,6 @@ def download(
                 shutil.rmtree(final)
             tmp.rename(final)
             if not is_installed(c.key):
-                raise RuntimeError(f"{c.title} 下载后未找到预期文件，请重试。")
+                raise RuntimeError(tr(f"{c.title} 下载后未找到预期文件，请重试。", f"{c.title} is missing expected files after downloading. Please retry."))
     if on_progress:
         on_progress(len(todo), len(todo), "")

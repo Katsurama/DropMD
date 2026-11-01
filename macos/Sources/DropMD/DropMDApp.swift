@@ -46,9 +46,9 @@ struct DropMDApp: App {
                 Button("使用说明") { HelpDocs.openGuide() }
                 Button("隐私说明") {
                     let a = NSAlert()
-                    a.messageText = "隐私说明"
+                    a.messageText = String(localized: "隐私说明")
                     a.informativeText = privacyText
-                    a.addButton(withTitle: "好")
+                    a.addButton(withTitle: String(localized: "好"))
                     a.runModal()
                 }
                 Divider()
@@ -80,9 +80,9 @@ enum AppAppearance: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .system: return "跟随系统"
-        case .light: return "浅色"
-        case .dark: return "深色"
+        case .system: return String(localized: "跟随系统")
+        case .light: return String(localized: "浅色")
+        case .dark: return String(localized: "深色")
         }
     }
 
@@ -225,7 +225,8 @@ enum HelpDocs {
         NSDocumentController.shared.openDocument(withContentsOf: dst, display: true) { _, _, _ in }
     }
 
-    static func openGuide() { openCopy(of: "使用说明.md") }
+    // 文件名也随界面语言：英文界面打开英文版使用说明（App 包中的 User Guide.md）
+    static func openGuide() { openCopy(of: String(localized: "使用说明.md")) }
     static func openLicenses() { openCopy(of: "THIRD_PARTY_LICENSES.md") }
-    static func openAppLicense() { openCopy(of: "LICENSE", as: "DropMD 许可证.md") }
+    static func openAppLicense() { openCopy(of: "LICENSE", as: String(localized: "DropMD 许可证.md")) }
 }

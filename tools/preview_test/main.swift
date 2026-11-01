@@ -7,6 +7,13 @@ let calls = [
     "return DropMD.render('# 日本語\\n\\n今日は **晴れ** $x^2$', '', 'ja')",
     "return DropMD.scrollToLine(2)",
     "return DropMD.exportBody('> [!TIP]\\n> 提示')",
+    // 英文界面：提示框标题和网络图片说明用 App 传入的文字
+    """
+    DropMD.render('> [!TIP]\\n> x\\n\\n![a](https://example.com/a.png)', '', 'en', {TIP: 'Tip', blockedImage: 'Web image', colon: ': '});
+    const h = document.getElementById('content').innerHTML;
+    if (!h.includes('>Tip<') || !h.includes('Web image: a')) throw new Error('界面文字没有生效');
+    return true
+    """,
 ]
 
 final class Runner: NSObject, WKNavigationDelegate {

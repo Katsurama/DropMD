@@ -130,12 +130,12 @@ final class UpdateChecker: ObservableObject {
         if !defaults.bool(forKey: "askedAutoUpdate") {
             defaults.set(true, forKey: "askedAutoUpdate")
             let a = NSAlert()
-            a.messageText = "是否自动检查更新？"
-            a.informativeText = """
+            a.messageText = String(localized: "是否自动检查更新？")
+            a.informativeText = String(localized: """
             每天最多查询一次，不发送任何文件或个人信息。可随时在“检查更新…”中更改。
-            """
-            a.addButton(withTitle: "自动检查")
-            a.addButton(withTitle: "暂不")
+            """)
+            a.addButton(withTitle: String(localized: "自动检查"))
+            a.addButton(withTitle: String(localized: "暂不"))
             autoCheck = a.runModal() == .alertFirstButtonReturn
         }
         guard autoCheck else { return }
@@ -150,10 +150,10 @@ final class UpdateChecker: ObservableObject {
 
     private func notifyAvailable(_ release: ReleaseInfo) {
         let a = NSAlert()
-        a.messageText = "DropMD 有新版本：\(release.version?.description ?? release.tagName)"
-        a.informativeText = "当前版本：\(Self.currentVersionText)"
-        a.addButton(withTitle: "查看")
-        a.addButton(withTitle: "以后再说")
+        a.messageText = String(localized: "DropMD 有新版本：\(release.version?.description ?? release.tagName)")
+        a.informativeText = String(localized: "当前版本：\(Self.currentVersionText)")
+        a.addButton(withTitle: String(localized: "查看"))
+        a.addButton(withTitle: String(localized: "以后再说"))
         if a.runModal() == .alertFirstButtonReturn {
             NotificationCenter.default.post(name: .showUpdates, object: nil)
         }
@@ -163,7 +163,7 @@ final class UpdateChecker: ObservableObject {
 
     func check() async {
         guard let repo = Self.repository else {
-            state = .failed("此版本没有配置更新来源。")
+            state = .failed(String(localized: "此版本没有配置更新来源。"))
             return
         }
         guard state != .checking && state != .downloading && state != .installing && state != .readyToRestart else { return }
@@ -222,7 +222,7 @@ final class UpdateChecker: ObservableObject {
                     }
                 }
                 try Task.checkCancellation()
-                var reason = "DropMD 所在的位置不能写入，无法自动替换。"
+                var reason = String(localized: "DropMD 所在的位置不能写入，无法自动替换。")
                 if let staged {
                     state = .installing
                     let expected = release.version?.description
@@ -236,8 +236,8 @@ final class UpdateChecker: ObservableObject {
                     } catch {
                         // 自动准备失败时退回手动安装，并告诉用户原因
                         reason = error is AppUpdateInstaller.InstallError
-                            ? "安装包里的版本或标识与预期不符，无法自动替换。"
-                            : "无法自动替换：\(error.localizedDescription)"
+                            ? String(localized: "安装包里的版本或标识与预期不符，无法自动替换。")
+                            : String(localized: "无法自动替换：\(error.localizedDescription)")
                     }
                 }
                 let target = try moveToDownloads(file, name: package.name)
@@ -271,14 +271,14 @@ final class UpdateChecker: ObservableObject {
     /// 有未保存的文档时，系统会先询问是否保存；用户取消退出则不替换。
     func restartToUpdate() {
         guard let staged = Self.stagingURL, FileManager.default.fileExists(atPath: staged.path) else {
-            state = .failed("新版本文件不见了，请重新下载。")
+            state = .failed(String(localized: "新版本文件不见了，请重新下载。"))
             return
         }
         do {
             try AppUpdateInstaller.replaceAfterExit(pid: ProcessInfo.processInfo.processIdentifier,
                                                     app: Self.appURL, staged: staged, relaunch: true)
         } catch {
-            state = .failed("无法启动更新：\(error.localizedDescription)")
+            state = .failed(String(localized: "无法启动更新：\(error.localizedDescription)"))
             return
         }
         NSApp.terminate(nil)
@@ -393,22 +393,22 @@ final class UpdateChecker: ObservableObject {
     static func describe(_ error: Error) -> String {
         if let e = error as? UpdateError {
             switch e {
-            case .http(403), .http(429): return "GitHub 暂时拒绝了访问，请稍后再试。"
-            case .http(404): return "找不到发布页面。"
-            case .http(let code): return "服务器返回错误（\(code)）。"
-            case .checksum: return "安装包校验失败，请重新下载。"
+            case .http(403), .http(429): return String(localized: "GitHub 暂时拒绝了访问，请稍后再试。")
+            case .http(404): return String(localized: "找不到发布页面。")
+            case .http(let code): return String(localized: "服务器返回错误（\(code)）。")
+            case .checksum: return String(localized: "安装包校验失败，请重新下载。")
             }
         }
         if let e = error as? URLError {
             switch e.code {
-            case .notConnectedToInternet: return "没有连接到互联网。"
-            case .timedOut: return "连接超时。"
-            case .cannotFindHost, .dnsLookupFailed: return "无法解析服务器地址。"
-            case .cannotConnectToHost: return "无法连接到服务器。"
+            case .notConnectedToInternet: return String(localized: "没有连接到互联网。")
+            case .timedOut: return String(localized: "连接超时。")
+            case .cannotFindHost, .dnsLookupFailed: return String(localized: "无法解析服务器地址。")
+            case .cannotConnectToHost: return String(localized: "无法连接到服务器。")
             default: return e.localizedDescription
             }
         }
-        if error is DecodingError { return "无法读取版本信息。" }
+        if error is DecodingError { return String(localized: "无法读取版本信息。") }
         return error.localizedDescription
     }
 }

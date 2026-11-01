@@ -38,6 +38,7 @@ tools/test_editor.sh                   # 单页编辑器按键测试（改了 Ri
 tools/test_update.sh                   # 软件更新的安装测试（改了 AppUpdateInstaller.swift 必须跑）
 tools/test_convert.sh                  # 文件转换后处理测试（改了 converters.py 必须跑）
 tools/test_preview.sh                  # 预览页面测试（改了 Resources/preview 或调用它的 Swift 代码必须跑）
+tools/test_l10n.sh                     # 英文界面测试（改了界面文字必须跑）
 cd macos && swift build                # 编译界面（本机需完整的 Xcode；Xcode 27 加 --build-system native，
                                        # 否则程序记录的 SDK 版本不对，Liquid Glass 不启用）
 cd macos && swift run DropMD           # 只看界面（没有转换引擎和预览资源）
@@ -46,6 +47,13 @@ cd macos && swift run DropMD           # 只看界面（没有转换引擎和预
 tools/build_local.sh                   # 本机完整构建：测试、引擎、App、.dmg、.zip（需要 brew 的 python@3.12）
 tools/build_local.sh vX.Y.Z-beta.N     # 构建后直接创建 GitHub Release（gh 通过 1Password 插件登录，会弹 Touch ID）
 ```
+
+## 界面语言
+
+- 中文和英文，跟随系统语言（都不是时用英文）。源码里写中文原文：SwiftUI 的 `Text("…")`、`Button("…")` 等自动翻译，其他地方用 `String(localized: "…")`。
+- 英文译文在 `macos/Resources/en.lproj/Localizable.strings`，键就是中文原文；改了界面文字要同步改这里，`tools/test_l10n.sh` 会检查。
+- 中文的翻译表在构建时生成（原文 = 原文），否则系统会退回英文。
+- 转换引擎的提示用 `errors.tr(中文, 英文)`，App 启动引擎时传 `DROPMD_LANG`。使用说明有中文版和英文版（`docs/User Guide.md`）。
 
 ## 图标
 
@@ -67,7 +75,7 @@ tools/build_local.sh vX.Y.Z-beta.N     # 构建后直接创建 GitHub Release（
 
 ## 发布新版本
 
-1. 改版本号：`macos/Resources/Info.plist`（CFBundleShortVersionString、CFBundleVersion）、`src/dropmd/__init__.py`、`README.md`。
+1. 改版本号：`macos/Resources/Info.plist`（CFBundleShortVersionString、CFBundleVersion）、`src/dropmd/__init__.py`、`README.md`、`README.en.md`。
 2. 在 `docs/发行说明.md` 最上面加本版说明（发布时整份文件作为 Release 说明）。
 3. **默认在 GitHub Actions 上构建**（公开仓库不计分钟数）：提交并推送后，先不带版本号触发构建、检查截图
    （`gh workflow run build.yml --repo Katsurama/DropMD --ref main`）；没问题再带版本号触发

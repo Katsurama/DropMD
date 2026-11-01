@@ -41,7 +41,7 @@ struct FormatInspector: View {
 
     // MARK: 组件
 
-    private func section<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+    private func section<Content: View>(_ title: LocalizedStringKey, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.subheadline.weight(.semibold))
@@ -103,7 +103,7 @@ struct FormatInspector: View {
         }
         .toggleStyle(.button)
         .controlSize(.large)
-        .help(action.title + (action.shortcut.map { "（\($0.displayText)）" } ?? ""))
+        .help(action.title + (action.shortcut.map { String(localized: "（\($0.displayText)）") } ?? ""))
         .accessibilityLabel(action.title)
     }
 
@@ -168,8 +168,8 @@ struct ParagraphStyleMenu: View {
     }
 
     private var currentTitle: String {
-        guard isRich else { return "样式" }
+        guard isRich else { return String(localized: "样式") }
         if case .code = selection.state.kind { return EditorAction.codeBlock.title }
-        return EditorAction.paragraphStyles.first { $0.paragraphKind == selection.state.kind }?.title ?? "正文"
+        return EditorAction.paragraphStyles.first { $0.paragraphKind == selection.state.kind }?.title ?? String(localized: "正文")
     }
 }

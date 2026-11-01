@@ -136,7 +136,7 @@ struct UpdateView: View {
             default:
                 HStack {
                     Spacer()
-                    Button(release.dmg == nil ? "前往下载页面" : "下载并更新") { updater.downloadLatest() }
+                    Button(release.dmg == nil ? String(localized: "前往下载页面") : String(localized: "下载并更新")) { updater.downloadLatest() }
                         .keyboardShortcut(.defaultAction)
                 }
             }
@@ -144,7 +144,7 @@ struct UpdateView: View {
     }
 
     private func notes(_ release: ReleaseInfo) -> AttributedString {
-        let body = release.body ?? "（没有更新说明）"
+        let body = release.body ?? String(localized: "（没有更新说明）")
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         return (try? AttributedString(markdown: body, options: options)) ?? AttributedString(body)
     }
