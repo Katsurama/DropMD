@@ -106,6 +106,8 @@ jobs:
           # 跳过首次启动的“自动检查更新”询问，显示格式面板
           defaults write io.github.dropmd.app askedAutoUpdate -bool true
           defaults write io.github.dropmd.app showInspector -bool true
+          # 构建机的系统语言是英文；截图固定用中文界面（只改本 App 的语言，同“系统设置 → 语言与地区 → App”）
+          defaults write io.github.dropmd.app AppleLanguages -array zh-Hans
           for appearance in Light Dark; do
             # 用 App 自己的“外观”设置切换浅色 / 深色，不改系统设置
             if [ "$appearance" = Dark ]; then
@@ -124,6 +126,7 @@ jobs:
             done
           done
           defaults delete io.github.dropmd.app appearance || true
+          defaults delete io.github.dropmd.app AppleLanguages || true
           cp shots/rich-Light.png shot.png || true
 
       - name: 生成 .dmg（dmgbuild：背景图、图标布局、拖到“应用程序”提示）
