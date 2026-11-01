@@ -18,17 +18,17 @@ It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all o
 
 <br>
 
-<img src="docs/images/demo.gif" alt="Demo: formatting as you type in Page view, source and preview side by side in Split view, and converting a Word file by dragging it in" width="100%">
+<img src="docs/images/demo.en.gif" alt="Demo: formatting as you type in Page view, source and preview side by side in Split view, and converting a Word file by dragging it in" width="100%">
 
 </div>
 
 > [!NOTE]
 > DropMD is in beta. Please report problems in Issues.
-> The interface follows your Mac's language: English or Chinese. The screenshots below show the Chinese interface.
+> The interface follows your Mac's language: English or Chinese.
 
 ## ✨ Features
 
-<p align="center"><img src="docs/images/editor-light.jpg" alt="Page view with the Format panel in light mode" width="49%"> <img src="docs/images/editor-dark.jpg" alt="Split view in dark mode: Markdown source and preview" width="49%"></p>
+<p align="center"><img src="docs/images/editor-light.en.jpg" alt="Page view with the Format panel in light mode" width="49%"> <img src="docs/images/editor-dark.en.jpg" alt="Split view in dark mode: Markdown source and preview" width="49%"></p>
 
 - **Page view**: edit the formatted document directly, like in Pages or Word. You don't need to know Markdown, and the file is still saved as standard Markdown
 - **Split view**: Markdown source on the left, live preview on the right, scrolling together
