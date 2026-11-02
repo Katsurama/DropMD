@@ -230,6 +230,14 @@ MainActor.assumeIsolated {
         tv.insertMathBlock("z")
         check("插入公式", md(tv), "前$x+1$\n\n$$\nz\n$$\n")
     }
+    // 光标在公式后（打字属性取自公式这个字符）：输入的文字不能变成公式
+    do {
+        let tv = makeView("甲 $x^2$\n")
+        tv.setSelectedRange(NSRange(location: 3, length: 0))
+        tv.typingAttributes = tv.textStorage!.attributes(at: 2, effectiveRange: nil)
+        type(tv, "乙")
+        check("公式后输入", md(tv), "甲 $x^2$乙\n")
+    }
     // 点击标题左边的三角：收起 / 展开；点击标题文字只是放光标
     do {
         let tv = makeView("<details>\n<summary>标题</summary>\n\n内容\n\n</details>\n")
