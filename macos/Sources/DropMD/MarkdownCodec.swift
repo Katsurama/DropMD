@@ -85,7 +85,7 @@ enum MDBlock: Equatable {
     case code(lang: String, lines: [String])
     case table([[[MDRun]]])   // 行 → 单元格 → 文字；第一行为表头
     case rule
-    case details(summary: String, body: [MDBlock])   // 折叠块 <details>
+    case details(summary: String, body: [MDBlock], open: Bool)   // 折叠块 <details>；open：<details open>，默认展开
     case raw(String)          // 编辑器不支持的内容（HTML、公式块等），原样保存
 }
 
@@ -231,7 +231,9 @@ enum MarkdownCodec {
     /// 解析 <details><summary>标题</summary>内容</details>
     private static func details(_ text: String) -> MDBlock {
         var inner = text
+        var open = false
         if let r = inner.range(of: #"^\s*<details[^>]*>"#, options: [.regularExpression, .caseInsensitive]) {
+            open = inner[r].range(of: #"\sopen\b"#, options: [.regularExpression, .caseInsensitive]) != nil
             inner.removeSubrange(r)
         }
         if let r = inner.range(of: #"</details>\s*$"#, options: [.regularExpression, .caseInsensitive]) {
@@ -248,7 +250,7 @@ enum MarkdownCodec {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             inner.removeSubrange(r)
         }
-        return .details(summary: summary, body: parse(inner))
+        return .details(summary: summary, body: parse(inner), open: open)
     }
 
     // MARK: - 块级语法的识别

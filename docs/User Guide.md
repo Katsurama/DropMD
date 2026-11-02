@@ -44,7 +44,7 @@ You can switch at any time; the content stays in sync. The Format panel on the r
 - **Lists**: bulleted, numbered and **checklists** (click the box to tick it). Press Tab in a list to indent and ⇧Tab to outdent; press Return on an empty item to end the list.
 - **Insert** (toolbar, Format panel or the Insert menu):
   - **Link** (⌘K), **Image** (choose an image on your Mac), **Table** (Tab in the last cell adds a row; Return moves to the next cell) and **Divider**;
-  - **Collapsible Section** (⇧⌘D): an area that can be clicked open and closed. Write the title after ▸ and the content in the area with the bar below it. Press Return on the title to go into the content; press Return on an empty line of the content to leave the section. It opens and closes when you export to HTML or view the file on GitHub;
+  - **Collapsible Section** (⇧⌘D): an area that can be clicked open and closed. Write the title after ▸ and the content in the area with the bar below it. Click the ▸ / ▾ before the title to close or open it (this only changes the view, not the file; like a browser, sections start closed when a file is opened). Press Return on the title to go into the content; press Return on an empty line of the content to leave the section. It opens and closes when you export to HTML or view the file on GitHub;
   - **Callout**: Note, Tip, Important, Warning and Caution. The first line shows the callout's name; write the content below it. In the Split preview, on GitHub and in Obsidian it appears as a colored box;
   - **Footnote** (⌥⌘F): inserts a number like [^1] at the cursor and puts the note at the end of the document;
   - **Today's Date** and **Emoji & Symbols** (the system emoji picker);
@@ -151,7 +151,7 @@ DropMD is open source under the **MIT License** (see the `LICENSE` file): you ar
 - **Editor**: very large files (several MB) make syntax highlighting and the preview slower. The preview doesn't load images or fonts from the web.
 - **Page view** keeps only formatting Markdown can store: fonts, font sizes, text colors, alignment and so on can't be saved (which is why the toolbar has no buttons for them). Text pasted from web pages or Word keeps bold, italic, links and so on; other formatting is removed when saving.
 - Markdown that Page view doesn't support (for example general HTML code or nested collapsible sections) is shown as monospaced text and **saved exactly as it was**, so nothing is lost.
-- In Page view, collapsible sections are always open and formulas are shown as text; see the Split preview or an exported file for the rendered result.
+- In Page view, formulas are shown as text; see the Split preview or an exported file for the rendered result.
 - The app is fairly large (see the actual build), mostly because of components such as PyTorch needed by High Accuracy mode.
 - The app isn't signed with an Apple developer certificate, so the first launch needs the manual step described above.
 - Intel Macs aren't supported (PyTorch, which High Accuracy mode depends on, no longer provides builds for Intel Macs).
