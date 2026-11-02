@@ -1,7 +1,6 @@
-"""高精度模式所需识别模型的管理与下载。
+"""高精度模式所需识别模型的清单与检查。
 
-这是 DropMD 中唯一会联网的代码。只有在用户于弹窗中明确同意后才会调用
-``download()``，并且仅在 ``netguard.allow_network()`` 的范围内放行网络。
+模型由 macOS 界面（ModelDownloader.swift）在用户同意后下载，引擎本身不联网。
 
 模型来源：Hugging Face 上 Docling 官方账号 docling-project。
 OCR 不需要下载：macOS 使用系统自带的 Apple Vision；RapidOCR 的 PP-OCRv6
@@ -12,13 +11,8 @@ OCR 不需要下载：macOS 使用系统自带的 Apple Vision；RapidOCR 的 PP
 
 from __future__ import annotations
 
-import os
-import shutil
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Callable
 
-from . import netguard
 from .errors import tr
 from .paths import models_dir
 
@@ -79,57 +73,3 @@ def is_installed(key: str) -> bool:
 def missing_components(keys: list[str]) -> list[Component]:
     return [COMPONENTS[k] for k in keys if not is_installed(k)]
 
-
-def _system_proxies() -> dict[str, str]:
-    """读取 macOS 系统代理设置（“系统设置 → 网络 → 代理”中手动填写的 HTTP/HTTPS/SOCKS 代理）。"""
-    import urllib.request
-
-    try:
-        return {k: v for k, v in urllib.request.getproxies().items() if k in ("http", "https", "all", "no")}
-    except Exception:  # noqa: BLE001
-        return {}
-
-
-def _download_hf(c: Component, dest: Path) -> None:
-    import sys
-
-    from huggingface_hub import snapshot_download
-
-    proxies = _system_proxies()
-    # 图形界面启动的程序拿不到终端里的代理环境变量，这里把系统代理显式传给下载组件
-    for scheme, url in proxies.items():
-        if scheme == "no":
-            os.environ.setdefault("NO_PROXY", url)
-        else:
-            os.environ.setdefault(f"{scheme.upper()}_PROXY", url)
-    print(f"下载 {c.repo_id}@{c.revision}，代理：{proxies or '无'}", file=sys.stderr, flush=True)
-    snapshot_download(repo_id=c.repo_id, revision=c.revision, local_dir=dest)
-
-
-def download(
-    keys: list[str],
-    on_progress: Callable[[int, int, str], None] | None = None,
-    cancelled: Callable[[], bool] = lambda: False,
-) -> None:
-    """下载指定的模型组件。调用前必须已经取得用户同意。"""
-    # Hugging Face 客户端的遥测默认关闭，这里再次显式关闭。
-    os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
-    os.environ["DO_NOT_TRACK"] = "1"
-    base = models_dir()
-    todo = [COMPONENTS[k] for k in keys if not is_installed(k)]
-    with netguard.allow_network():
-        for i, c in enumerate(todo):
-            if cancelled():
-                raise InterruptedError("已取消下载")
-            if on_progress:
-                on_progress(i, len(todo), c.title)
-            tmp = base / (c.repo_id.replace("/", "--") + ".partial")
-            final = base / c.repo_id.replace("/", "--")
-            _download_hf(c, tmp)
-            if final.exists():
-                shutil.rmtree(final)
-            tmp.rename(final)
-            if not is_installed(c.key):
-                raise RuntimeError(tr(f"{c.title} 下载后未找到预期文件，请重试。", f"{c.title} is missing expected files after downloading. Please retry."))
-    if on_progress:
-        on_progress(len(todo), len(todo), "")

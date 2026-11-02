@@ -22,8 +22,8 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
     }
 
     func preparePreviewOfFile(at url: URL) async throws {
-        var encoding = String.Encoding.utf8
-        let text = try (try? String(contentsOf: url, encoding: .utf8)) ?? (String(contentsOf: url, usedEncoding: &encoding))
+        // 和 App 打开文件时一样识别编码（UTF-8 / UTF-16 / GB18030 / Shift-JIS 等）
+        let text = MarkdownDocument.decode(try Data(contentsOf: url))
         await withCheckedContinuation { c in
             loaded = c
             webView.loadFileURL(Self.previewURL, allowingReadAccessTo: Self.resources)

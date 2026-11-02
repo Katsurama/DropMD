@@ -39,13 +39,13 @@ enum RichBridge {
                     out.append(paragraph(runsString([MDRun(text: l)], kind: .code(lang), baseURL: baseURL), kind: .code(lang)))
                 }
 
-            case .table(let rows):
+            case .table(let rows, let align):
                 let cols = max(1, rows.map { $0.count }.max() ?? 1)
                 let table = makeTable(columns: cols)
                 for (r, row) in rows.enumerated() {
                     for c in 0..<cols {
-                        out.append(cellParagraph(table: table, row: r, column: c,
-                                                 runs: c < row.count ? row[c] : [], baseURL: baseURL))
+                        out.append(cellParagraph(table: table, row: r, column: c, runs: c < row.count ? row[c] : [],
+                                                 baseURL: baseURL, alignment: alignment(c < align.count ? align[c] : "---")))
                     }
                 }
 
@@ -156,7 +156,17 @@ enum RichBridge {
         return table
     }
 
-    static func cellParagraph(table: NSTextTable, row: Int, column: Int, runs: [MDRun], baseURL: URL?) -> NSAttributedString {
+    /// 表格列的对齐：Markdown 的 :--、:-:、--: ⇄ 单元格段落的对齐方式
+    static func alignment(_ marker: String) -> NSTextAlignment {
+        [":--": .left, ":-:": .center, "--:": .right][marker] ?? .natural
+    }
+
+    static func marker(_ alignment: NSTextAlignment) -> String {
+        [NSTextAlignment.left: ":--", .center: ":-:", .right: "--:"][alignment] ?? "---"
+    }
+
+    static func cellParagraph(table: NSTextTable, row: Int, column: Int, runs: [MDRun], baseURL: URL?,
+                              alignment: NSTextAlignment = .natural) -> NSAttributedString {
         let block = NSTextTableBlock(table: table, startingRow: row, rowSpan: 1, startingColumn: column, columnSpan: 1)
         block.setWidth(1, type: .absoluteValueType, for: .border)
         block.setBorderColor(RichStyle.lineColor)
@@ -171,7 +181,14 @@ enum RichBridge {
                 return r
             }
         }
-        return paragraph(runsString(cellRuns, kind: .body, baseURL: baseURL), kind: .body, block: block)
+        let p = NSMutableAttributedString(attributedString: paragraph(runsString(cellRuns, kind: .body, baseURL: baseURL),
+                                                                      kind: .body, block: block))
+        if alignment != .natural,
+           let style = (p.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle {
+            style.alignment = alignment
+            p.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: p.length))
+        }
+        return p
     }
 
     // MARK: 图片与分隔线
@@ -289,7 +306,7 @@ enum RichBridge {
         case rule
         case summary(String, open: Bool)
         case math(String)
-        case cell(NSTextTable, Int, Int, [MDRun])
+        case cell(NSTextTable, Int, Int, [MDRun], NSTextAlignment)
     }
 
     private struct Entry {
@@ -345,7 +362,8 @@ enum RichBridge {
     private static func classify(_ storage: NSAttributedString, _ ns: NSString, content: NSRange,
                                  attrs: [NSAttributedString.Key: Any]) -> Item {
         if let block = tableBlock(of: attrs) {
-            return .cell(block.table, block.startingRow, block.startingColumn, runs(storage, content))
+            return .cell(block.table, block.startingRow, block.startingColumn, runs(storage, content),
+                         (attrs[.paragraphStyle] as? NSParagraphStyle)?.alignment ?? .natural)
         }
         let k = kind(of: attrs)
         if k == .raw, let source = attrs[DMKey.math] as? String { return .math(source) }
@@ -482,11 +500,13 @@ enum RichBridge {
                     i += 1
                 }
                 blocks.append(.raw(lines.joined(separator: "\n")))
-            case .cell(let table, _, _, _):
+            case .cell(let table, _, _, _, _):
                 var cells: [(row: Int, col: Int, runs: [MDRun])] = []
+                var aligns: [Int: NSTextAlignment] = [:]   // 按表头一行的对齐方式保存
                 while let item = next(i) {
-                    guard case .cell(let t, let r, let c, let rs) = item, t === table else { break }
+                    guard case .cell(let t, let r, let c, let rs, let a) = item, t === table else { break }
                     cells.append((r, c, rs))
+                    if r == 0 { aligns[c] = a }
                     i += 1
                 }
                 let rows = (cells.map { $0.row }.max() ?? -1) + 1
@@ -495,7 +515,7 @@ enum RichBridge {
                 for cell in cells where cell.row >= 0 && cell.col >= 0 {
                     grid[cell.row][cell.col] = cell.runs
                 }
-                blocks.append(.table(grid))
+                blocks.append(.table(grid, align: (0..<cols).map { marker(aligns[$0] ?? .natural) }))
             }
         }
         return blocks
