@@ -147,6 +147,53 @@ MainActor.assumeIsolated {
         tv.insertNewline(nil); type(tv, "内容"); tv.insertNewline(nil); tv.insertNewline(nil); type(tv, "外面")
         check("折叠块回车", md(tv), "<details>\n<summary>标题</summary>\n\n内容\n\n</details>\n\n外面\n")
     }
+    // 折叠块：打开时 <details> 收起、<details open> 展开；收起不影响保存；光标进入时展开
+    do {
+        let tv = makeView("<details>\n<summary>标题</summary>\n\n内容\n\n</details>\n\n后面\n")
+        let lm = tv.layoutManager as! RichLayoutManager
+        lm.ensureLayout(for: tv.textContainer!)
+        let body = (tv.string as NSString).range(of: "内容")
+        let lineY = { (s: String) in lm.lineFragmentRect(forGlyphAt: lm.glyphIndexForCharacter(at: (tv.string as NSString).range(of: s).location), effectiveRange: nil) }
+        // 收起的内容不占位置：“后面”紧接在标题这一行下面
+        check("折叠块默认收起", "\(lm.hiddenRanges.count) \(lineY("后面").minY == lineY("标题").maxY)", "1 true")
+        check("收起时保存不变", md(tv), "<details>\n<summary>标题</summary>\n\n内容\n\n</details>\n\n后面\n")
+        tv.setSelectedRange(NSRange(location: body.location + 1, length: 0))
+        lm.ensureLayout(for: tv.textContainer!)
+        check("光标进入时展开", "\(lm.hiddenRanges.count) \(lineY("内容").minY >= lineY("标题").maxY)", "0 true")
+        let title = (tv.string as NSString).range(of: "标题")
+        tv.setCollapsed(true, summary: (tv.string as NSString).paragraphRange(for: title))
+        check("收起时光标移到标题末尾", "\(lm.hiddenRanges.count) \(tv.selectedRange().location)", "1 \(NSMaxRange(title))")
+        type(tv, "二")
+        check("收起后在标题输入", md(tv), "<details>\n<summary>标题二</summary>\n\n内容\n\n</details>\n\n后面\n")
+    }
+    do {
+        let src = "<details>\n<summary>标题</summary>\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n</details>\n"
+        check("折叠块以表格结尾", md(makeView(src)), src)
+    }
+    // 点击标题左边的三角：收起 / 展开；点击标题文字只是放光标
+    do {
+        let tv = makeView("<details>\n<summary>标题</summary>\n\n内容\n\n</details>\n")
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 400), styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = tv
+        let lm = tv.layoutManager as! RichLayoutManager
+        lm.ensureLayout(for: tv.textContainer!)
+        let line = lm.lineFragmentRect(forGlyphAt: 0, effectiveRange: nil)
+        let click = { (x: CGFloat) in
+            let p = tv.convert(NSPoint(x: tv.textContainerOrigin.x + line.minX + x, y: tv.textContainerOrigin.y + line.midY), to: nil)
+            tv.mouseDown(with: NSEvent.mouseEvent(with: .leftMouseDown, location: p, modifierFlags: [], timestamp: 0,
+                                                  windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!)
+        }
+        click(6)
+        check("点击三角展开", "\(lm.hiddenRanges.count)", "0")
+        click(6)
+        check("再点收起", "\(lm.hiddenRanges.count)", "1")
+        check("点三角不改内容", md(tv), "<details>\n<summary>标题</summary>\n\n内容\n\n</details>\n")
+    }
+    do {
+        let tv = makeView("<details open>\n<summary>标题</summary>\n\n内容\n\n</details>\n")
+        let lm = tv.layoutManager as! RichLayoutManager
+        check("details open 展开并保留", "\(lm.hiddenRanges.count) " + md(tv), "0 <details open>\n<summary>标题</summary>\n\n内容\n\n</details>\n")
+    }
     // 标题回车后是正文
     do {
         let tv = makeView("# 标题\n")

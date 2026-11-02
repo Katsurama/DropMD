@@ -51,25 +51,117 @@ enum RichTrait {
     }
 }
 
-/// 在列表段落的缩进区画出项目符号和编号（它们不属于正文，不会写入文件）
-final class RichLayoutManager: NSLayoutManager {
+/// 在列表段落的缩进区画出项目符号和编号（它们不属于正文，不会写入文件）；隐藏收起的折叠块内容
+final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
     private static let bullets = ["•", "◦", "▪"]
+
+    override init() {
+        super.init()
+        delegate = self
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        delegate = self
+    }
+
+    // MARK: 收起的折叠块：内容不生成字形、行高为 0（文字仍在，保存不受影响）
+
+    /// 收起的折叠块中的内容（缓存；文字或属性改变后重新计算）
+    var hiddenRanges: [NSRange] {
+        if let c = hiddenCache { return c }
+        let c = collapsedRanges()
+        hiddenCache = c
+        return c
+    }
+    private var hiddenCache: [NSRange]?
+
+    override func processEditing(for textStorage: NSTextStorage, edited editMask: NSTextStorageEditActions,
+                                 range newCharRange: NSRange, changeInLength delta: Int, invalidatedRange invalidatedCharRange: NSRange) {
+        let before = hiddenCache ?? []
+        hiddenCache = nil
+        super.processEditing(for: textStorage, edited: editMask, range: newCharRange, changeInLength: delta,
+                             invalidatedRange: invalidatedCharRange)
+        let now = hiddenRanges
+        guard now != before else { return }
+        // 收起、展开，或折叠块被编辑：前后两次隐藏的内容都重新排版
+        let all = NSRange(location: 0, length: textStorage.length)
+        for r in before + now {
+            let c = NSIntersectionRange(r, all)
+            if c.length > 0 {
+                invalidateGlyphs(forCharacterRange: c, changeInLength: 0, actualCharacterRange: nil)
+                invalidateLayout(forCharacterRange: c, actualCharacterRange: nil)
+            }
+        }
+    }
+
+    /// 标题之后、连续的折叠块内容段落
+    private func collapsedRanges() -> [NSRange] {
+        guard let s = textStorage, s.length > 0 else { return [] }
+        let ns = s.string as NSString
+        var out: [NSRange] = []
+        s.enumerateAttribute(DMKey.collapsed, in: NSRange(location: 0, length: s.length)) { value, range, _ in
+            // 以标题段落第一个字的属性为准（与段落样式相同）
+            let para = ns.paragraphRange(for: NSRange(location: range.location, length: 0))
+            guard value != nil, para.location == range.location,
+                  s.attribute(DMKey.summary, at: range.location, effectiveRange: nil) != nil else { return }
+            let start = NSMaxRange(para)
+            guard start < s.length else { return }
+            var body = NSRange()
+            let rest = NSRange(location: start, length: s.length - start)
+            if s.attribute(DMKey.inDetails, at: start, longestEffectiveRange: &body, in: rest) != nil { out.append(body) }
+        }
+        return out
+    }
+
+    func layoutManager(_ layoutManager: NSLayoutManager, shouldGenerateGlyphs glyphs: UnsafePointer<CGGlyph>,
+                       properties props: UnsafePointer<NSLayoutManager.GlyphProperty>,
+                       characterIndexes charIndexes: UnsafePointer<Int>, font aFont: NSFont,
+                       forGlyphRange glyphRange: NSRange) -> Int {
+        let hidden = hiddenRanges
+        guard !hidden.isEmpty, let ns = textStorage?.string as NSString? else { return 0 }
+        var newProps = Array(UnsafeBufferPointer(start: props, count: glyphRange.length))
+        var changed = false
+        // 换行符保留：隐藏的段落仍各占一行（行高为 0），不会并到标题那一行，点击标题行末尾也不会进入隐藏的内容
+        for i in 0..<glyphRange.length where ns.character(at: charIndexes[i]) != 0x0A
+            && hidden.contains(where: { NSLocationInRange(charIndexes[i], $0) }) {
+            newProps[i] = .null
+            changed = true
+        }
+        guard changed else { return 0 }
+        layoutManager.setGlyphs(glyphs, properties: newProps, characterIndexes: charIndexes, font: aFont, forGlyphRange: glyphRange)
+        return glyphRange.length
+    }
+
+    func layoutManager(_ layoutManager: NSLayoutManager, shouldSetLineFragmentRect lineFragmentRect: UnsafeMutablePointer<NSRect>,
+                       lineFragmentUsedRect: UnsafeMutablePointer<NSRect>, baselineOffset: UnsafeMutablePointer<CGFloat>,
+                       in textContainer: NSTextContainer, forGlyphRange glyphRange: NSRange) -> Bool {
+        let chars = characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
+        guard chars.length > 0, hiddenRanges.contains(where: { NSIntersectionRange($0, chars) == chars }) else { return false }
+        lineFragmentRect.pointee.size.height = 0
+        lineFragmentUsedRect.pointee.size.height = 0
+        baselineOffset.pointee = 0
+        return true
+    }
 
     override func drawGlyphs(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
         super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin)
         guard let storage = textStorage, storage.length > 0 else { return }
         let ns = storage.string as NSString
         let chars = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
+        let hidden = hiddenRanges
         var loc = ns.paragraphRange(for: NSRange(location: min(chars.location, ns.length - 1), length: 0)).location
         while loc < NSMaxRange(chars) && loc < ns.length {
             let para = ns.paragraphRange(for: NSRange(location: loc, length: 0))
             loc = NSMaxRange(para)
             guard para.length > 0 else { break }
+            if hidden.contains(where: { NSLocationInRange(para.location, $0) }) { continue }
             let attrs = storage.attributes(at: para.location, effectiveRange: nil)
             let inDetails = attrs[DMKey.inDetails] != nil
             let shift = inDetails ? RichStyle.detailsIndent : 0
             // 下一段也是引用 / 折叠块内容时，竖线延伸到下一段，连成一条
-            let next = loc < ns.length ? storage.attributes(at: loc, effectiveRange: nil) : [:]
+            let nextHidden = hidden.contains(where: { NSLocationInRange(loc, $0) })
+            let next = loc < ns.length && !nextHidden ? storage.attributes(at: loc, effectiveRange: nil) : [:]
             if inDetails { drawBar(para, origin: origin, x: 7, color: RichStyle.lineColor, joinsNext: next[DMKey.inDetails] != nil) }
             let kind = RichBridge.kind(of: attrs)
             if kind == .quote {
@@ -83,7 +175,7 @@ final class RichLayoutManager: NSLayoutManager {
             let depth: Int
             switch kind {
             case .summary:
-                marker = "▸"
+                marker = attrs[DMKey.collapsed] != nil ? "▸" : "▾"
                 depth = 0
             case .bullet(let d):
                 marker = Self.bullets[d % Self.bullets.count]
@@ -114,7 +206,16 @@ final class RichLayoutManager: NSLayoutManager {
     /// 代码块：连续的代码段落画成一整块圆角底色（不按行画，避免一条条的横条）
     override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
         drawCodeBlocks(glyphsToShow, origin: origin)
-        super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
+        // 收起的内容不画背景：隐藏的表格边框会缩成一个小方块画在左上角
+        var start = glyphsToShow.location
+        for hidden in hiddenRanges.map({ glyphRange(forCharacterRange: $0, actualCharacterRange: nil) }).sorted(by: { $0.location < $1.location })
+        where NSMaxRange(hidden) > start && hidden.location < NSMaxRange(glyphsToShow) {
+            if hidden.location > start { super.drawBackground(forGlyphRange: NSRange(location: start, length: hidden.location - start), at: origin) }
+            start = NSMaxRange(hidden)
+        }
+        if start < NSMaxRange(glyphsToShow) {
+            super.drawBackground(forGlyphRange: NSRange(location: start, length: NSMaxRange(glyphsToShow) - start), at: origin)
+        }
     }
 
     /// 行内代码、按键、高亮：底色只包住文字，画成圆角（系统默认填满整行高度，显得很笨重）。
@@ -153,10 +254,12 @@ final class RichLayoutManager: NSLayoutManager {
         guard let storage = textStorage, storage.length > 0, let container = textContainers.first else { return }
         let ns = storage.string as NSString
         let chars = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
+        let hidden = hiddenRanges
         var loc = ns.paragraphRange(for: NSRange(location: min(chars.location, ns.length - 1), length: 0)).location
         while loc < NSMaxRange(chars) && loc < ns.length {
             var block = ns.paragraphRange(for: NSRange(location: loc, length: 0))
-            guard isCodeParagraph(at: block.location, in: storage) else {
+            guard isCodeParagraph(at: block.location, in: storage),
+                  !hidden.contains(where: { NSLocationInRange(block.location, $0) }) else {
                 loc = NSMaxRange(block)
                 continue
             }
@@ -310,6 +413,8 @@ final class RichTextView: NSTextView {
     override var typingAttributes: [NSAttributedString.Key: Any] {
         get { super.typingAttributes }
         set {
+            var newValue = newValue
+            newValue[DMKey.collapsed] = nil   // 在收起的标题末尾回车，新段落不应跟着“收起”
             guard newValue[DMKey.callout] != nil else { super.typingAttributes = newValue; return }
             var a = RichStyle.typingAttributes(for: RichBridge.kind(of: newValue))
             a[.paragraphStyle] = newValue[.paragraphStyle]
@@ -918,14 +1023,62 @@ final class RichTextView: NSTextView {
         return true
     }
 
-    // MARK: - 鼠标：点击方框勾选 / 取消勾选待办
+    // MARK: - 折叠块：收起 / 展开（只改变显示，不改文件）
+
+    /// 收起或展开光标所在（或指定）的折叠块
+    func setCollapsed(_ on: Bool, summary para: NSRange) {
+        guard let storage = textStorage, para.length > 0 else { return }
+        storage.beginEditing()
+        if on {
+            storage.addAttribute(DMKey.collapsed, value: true, range: para)
+        } else {
+            storage.removeAttribute(DMKey.collapsed, range: para)
+        }
+        storage.endEditing()
+        // 光标在收起的内容里时移到标题末尾，否则会在看不见的地方输入
+        if on, let lm = layoutManager as? RichLayoutManager,
+           let body = lm.hiddenRanges.first(where: { $0.location == NSMaxRange(para) }),
+           NSLocationInRange(selectedRange().location, body) || NSIntersectionRange(selectedRange(), body).length > 0 {
+            setSelectedRange(NSRange(location: NSMaxRange(para) - 1, length: 0))
+        }
+        needsDisplay = true
+    }
+
+    /// 光标或选区进入收起的内容（方向键、查找、撤销等）时展开，避免在看不见的地方编辑
+    override func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting: Bool) {
+        super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelecting)
+        guard !stillSelecting, let lm = layoutManager as? RichLayoutManager else { return }
+        let hidden = lm.hiddenRanges
+        guard !hidden.isEmpty else { return }
+        for value in ranges {
+            let r = value.rangeValue
+            for body in hidden where NSLocationInRange(r.location, body) || NSIntersectionRange(r, body).length > 0 {
+                guard body.location > 0 else { continue }
+                setCollapsed(false, summary: paragraphRange(at: body.location - 1))
+            }
+        }
+    }
+
+    // MARK: - 鼠标：点击方框勾选 / 取消勾选待办；点击折叠块标题前的三角收起 / 展开
 
     override func mouseDown(with event: NSEvent) {
         if let storage = textStorage, storage.length > 0 {
-            let index = characterIndexForInsertion(at: convert(event.locationInWindow, from: nil))
+            let point = convert(event.locationInWindow, from: nil)
+            let index = characterIndexForInsertion(at: point)
             if index < storage.length {
                 let para = paragraphRange(at: index)
                 let ns = string as NSString
+                let attrs = storage.attributes(at: para.location, effectiveRange: nil)
+                if para.length > 0, attrs[DMKey.summary] != nil, let lm = layoutManager {
+                    // 三角画在标题文字左边的缩进里
+                    let glyph = lm.glyphIndexForCharacter(at: para.location)
+                    let line = lm.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+                    let textX = textContainerOrigin.x + line.minX + lm.location(forGlyphAt: glyph).x
+                    if point.x < textX, point.y >= textContainerOrigin.y + line.minY, point.y < textContainerOrigin.y + line.maxY {
+                        setCollapsed(attrs[DMKey.collapsed] == nil, summary: para)
+                        return
+                    }
+                }
                 if para.length > 0, index <= para.location + 1,
                    case .task(let d, let done) = RichBridge.kind(of: storage.attributes(at: para.location, effectiveRange: nil)) {
                     let box = ns.substring(with: NSRange(location: para.location, length: 1))

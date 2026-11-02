@@ -47,8 +47,13 @@ enum RichBridge {
                     out.append(paragraph(runsString([MDRun(text: l)], kind: .raw, baseURL: baseURL), kind: .raw))
                 }
 
-            case .details(let summary, let body):
-                out.append(paragraph(runsString([MDRun(text: summary)], kind: .summary, baseURL: baseURL), kind: .summary))
+            case .details(let summary, let body, let open):
+                let title = NSMutableAttributedString(attributedString: paragraph(
+                    runsString([MDRun(text: summary)], kind: .summary, baseURL: baseURL), kind: .summary))
+                // 与浏览器相同：打开文件时 <details> 是收起的，<details open> 是展开的
+                title.addAttribute(open ? DMKey.detailsOpen : DMKey.collapsed, value: true,
+                                   range: NSRange(location: 0, length: title.length))
+                out.append(title)
                 // 编辑器中不支持嵌套折叠块，内层的原样保留
                 let inner: [MDBlock] = body.map { b in
                     if case .details = b {
@@ -195,7 +200,7 @@ enum RichBridge {
         case code(String, String)
         case raw(String)
         case rule
-        case summary(String)
+        case summary(String, open: Bool)
         case cell(NSTextTable, Int, Int, [MDRun])
     }
 
@@ -263,7 +268,7 @@ enum RichBridge {
         case .raw:
             return .raw(plainText(ns, content))
         case .summary:
-            return .summary(plainText(ns, content))
+            return .summary(plainText(ns, content), open: attrs[DMKey.detailsOpen] != nil)
         case .task:
             var r = content
             if r.length >= 2 {
@@ -341,14 +346,19 @@ enum RichBridge {
             // 连续、且同在（或同不在）折叠块中的项目
             func next(_ k: Int) -> Item? { k < entries.count && entries[k].inDetails == zone ? entries[k].item : nil }
             switch entries[i].item {
-            case .summary(let title):
+            case .summary(let title, let open):
                 var body: [Entry] = []
                 i += 1
                 while i < entries.count && entries[i].inDetails {
                     body.append(Entry(item: entries[i].item, inDetails: false))
                     i += 1
                 }
-                blocks.append(.details(summary: title, body: group(body)))
+                // 内容末尾的空段落（表格后为放光标补的）不写入文件，否则会保存成 &nbsp;
+                while let last = body.last, case .line(let l) = last.item, l.kind == .body,
+                      l.runs.allSatisfy({ $0.text.isEmpty && $0.image == nil }) {
+                    body.removeLast()
+                }
+                blocks.append(.details(summary: title, body: group(body), open: open))
             case .line(let l):
                 blocks.append(.line(l))
                 i += 1

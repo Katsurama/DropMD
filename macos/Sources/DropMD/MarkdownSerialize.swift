@@ -39,14 +39,14 @@ extension MarkdownCodec {
             case .rule:
                 orderedDepth = nil
                 text = "---"
-            case .details(let summary, let body):
+            case .details(let summary, let body, let open):
                 orderedDepth = nil
                 let inner = serialize(body).trimmingCharacters(in: .newlines)
                 let title = summary.replacingOccurrences(of: "&", with: "&amp;")
                     .replacingOccurrences(of: "<", with: "&lt;")
                     .replacingOccurrences(of: ">", with: "&gt;")
                 // <summary> 之后要空一行，里面的 Markdown 才会被解析
-                text = "<details>\n<summary>" + title + "</summary>\n\n" + (inner.isEmpty ? "" : inner + "\n\n") + "</details>"
+                text = (open ? "<details open>" : "<details>") + "\n<summary>" + title + "</summary>\n\n" + (inner.isEmpty ? "" : inner + "\n\n") + "</details>"
             case .raw(let s):
                 orderedDepth = nil
                 text = s

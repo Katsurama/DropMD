@@ -15,6 +15,8 @@ enum DMKey {
     static let kbd = NSAttributedString.Key("dm.kbd")            // Bool：<kbd>键盘按键</kbd>
     static let summary = NSAttributedString.Key("dm.summary")    // Bool：折叠块的标题
     static let inDetails = NSAttributedString.Key("dm.details")  // Bool：折叠块中的内容
+    static let detailsOpen = NSAttributedString.Key("dm.open")   // Bool：折叠块标题，文件中写的是 <details open>
+    static let collapsed = NSAttributedString.Key("dm.collapsed") // Bool：折叠块标题，内容已收起（只影响显示，不保存）
     static let literal = NSAttributedString.Key("dm.literal")    // Bool：原样保存的文字（如 $公式$）
     static let link = NSAttributedString.Key("dm.link")          // String：链接地址
     static let image = NSAttributedString.Key("dm.image")        // String：图片路径
@@ -22,7 +24,7 @@ enum DMKey {
     static let callout = NSAttributedString.Key("dm.callout")    // String：提示框标题行的原文（如 [!TIP]），显示为“提示”等
 
     /// 段落类型相关的属性（切换段落样式时先全部清除）
-    static let paragraphKeys = [heading, quote, code, task, list, depth, raw, rule, summary]
+    static let paragraphKeys = [heading, quote, code, task, list, depth, raw, rule, summary, detailsOpen, collapsed]
 }
 
 /// 段落样式
