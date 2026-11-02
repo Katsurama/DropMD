@@ -39,7 +39,7 @@ tools/test_editor.sh                   # 单页编辑器按键测试（改了 Ri
 tools/test_update.sh                   # 软件更新的安装测试（改了 AppUpdateInstaller.swift 必须跑）
 tools/test_convert.sh                  # 文件转换后处理测试（改了 converters.py 必须跑）
 tools/test_preview.sh                  # 预览页面测试（改了 Resources/preview 或调用它的 Swift 代码必须跑）
-tools/test_l10n.sh                     # 英文、日文界面测试（改了界面文字必须跑）
+tools/test_l10n.sh                     # 英文、日文、繁体中文界面测试（改了界面文字必须跑）
 cd macos && swift build                # 编译界面（本机需完整的 Xcode；Xcode 27 加 --build-system native，
                                        # 否则程序记录的 SDK 版本不对，Liquid Glass 不启用）
 cd macos && swift run DropMD           # 只看界面（没有转换引擎和预览资源）
@@ -51,9 +51,9 @@ tools/build_local.sh vX.Y.Z-beta.N     # 构建后直接创建 GitHub Release（
 
 ## 界面语言
 
-- 中文、英文和日文，跟随系统语言（都不是时用英文）。源码里写中文原文：SwiftUI 的 `Text("…")`、`Button("…")` 等自动翻译，其他地方用 `String(localized: "…")`。
-- 英文、日文译文在 `macos/Resources/{en,ja}.lproj/Localizable.strings`，键就是中文原文；改了界面文字要同步改这两处，`tools/test_l10n.sh` 会检查。
-- 中文的翻译表在构建时生成（原文 = 原文），否则系统会退回英文。
+- 简体中文、繁体中文、英文和日文，跟随系统语言（都不是时用英文）。源码里写中文原文：SwiftUI 的 `Text("…")`、`Button("…")` 等自动翻译，其他地方用 `String(localized: "…")`。
+- 英文、日文、繁体译文在 `macos/Resources/{en,ja,zh-Hant}.lproj/Localizable.strings`，键就是中文原文（繁体用台湾用语）；改了界面文字要同步改这三处，`tools/test_l10n.sh` 会检查。
+- 简体中文的翻译表在构建时生成（原文 = 原文），否则系统会退回英文。
 - 转换引擎的提示用 `errors.tr(中文, 英文)`，App 启动引擎时传 `DROPMD_LANG`（日文界面时引擎提示用英文）。使用说明有中文版和英文版（`docs/User Guide.md`）。
 
 ## 图标
