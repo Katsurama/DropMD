@@ -76,7 +76,7 @@ tools/build_local.sh vX.Y.Z-beta.N     # 构建后直接创建 GitHub Release（
 
 ## 发布新版本
 
-1. 改版本号：`macos/Resources/Info.plist`（CFBundleShortVersionString、CFBundleVersion）、`src/dropmd/__init__.py`、`README.md`、`README.en.md`。
+1. 改版本号：`macos/Resources/Info.plist`（CFBundleShortVersionString、CFBundleVersion）、`src/dropmd/__init__.py`、`README.md`、`README.en.md`、`README.ja.md`。
 2. 在 `docs/发行说明.md` 最上面加本版说明（发布时整份文件作为 Release 说明）。
 3. **默认在 GitHub Actions 上构建**（公开仓库不计分钟数）：提交并推送后，先不带版本号触发构建、检查截图
    （`gh workflow run build.yml --repo Katsurama/DropMD --ref main`）；没问题再带版本号触发
