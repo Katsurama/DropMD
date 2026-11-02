@@ -27,6 +27,7 @@
   - `EditorAction`：所有命令（菜单、工具栏、格式面板共用这一份）
   - `FormatInspector`：右侧“格式”面板
   - `UpdateChecker` / `UpdateView` / `AppUpdateInstaller`：软件更新（下载后替换并重启）
+- `macos/Sources/DropMDQuickLook/`：Quick Look 预览扩展（访达里按空格），显示 App 里的预览页面；`DocLanguage`、`Markdown*.swift` 是指向 App 源码的符号链接，由 `build_app.sh` 用 swiftc 单独编译
 - `macos/Resources/preview/`：双页预览（markdown-it + 插件 + KaTeX，全部本地文件）
 - `src/dropmd/`：文件转换引擎（Python：MarkItDown / Pandoc / Docling）。用户同意保留 Python。
 

@@ -67,6 +67,25 @@ cp Resources/Credits.html "$APP/Contents/Resources/zh-Hant.lproj/Credits.html"
 mkdir -p "$APP/Contents/Resources/fonts"
 cp "$ROOT"/build/fonts/*.otf "$APP/Contents/Resources/fonts/"
 
+# Quick Look 预览扩展（访达里按空格预览 Markdown，显示上面的预览页面）。
+# 扩展没有 main，由系统的 NSExtensionMain 启动；与 App 共用 DocLanguage、Markdown*.swift（符号链接）
+QL="$APP/Contents/PlugIns/DropMDQuickLook.appex"
+mkdir -p "$QL/Contents/MacOS" "$QL/Contents/Resources"
+swiftc -O -parse-as-library -module-name DropMDQuickLook -target arm64-apple-macos14 -file-prefix-map "$PWD=DropMD" \
+  Sources/DropMDQuickLook/*.swift -Xlinker -e -Xlinker _NSExtensionMain -o "$QL/Contents/MacOS/DropMDQuickLook"
+strip -S "$QL/Contents/MacOS/DropMDQuickLook"
+cp Resources/QuickLook-Info.plist "$QL/Contents/Info.plist"
+for k in CFBundleShortVersionString CFBundleVersion; do
+  /usr/libexec/PlistBuddy -c "Add :$k string $(/usr/libexec/PlistBuddy -c "Print :$k" Resources/Info.plist)" "$QL/Contents/Info.plist"
+done
+# 沙盒中的扩展读不到 App 本体的文件，预览页面和字体各放一份（约 20 MB）
+cp -R "$APP/Contents/Resources/preview" "$APP/Contents/Resources/fonts" "$QL/Contents/Resources/"
+for l in en zh-Hans zh-Hant; do
+  mkdir -p "$QL/Contents/Resources/$l.lproj"
+  cp "$APP/Contents/Resources/$l.lproj/Localizable.strings" "$QL/Contents/Resources/$l.lproj/"
+done
+codesign --force --sign - --entitlements Resources/QuickLook.entitlements "$QL"
+
 # 本地临时签名（ad-hoc）。没有 Apple 开发者证书，首次打开需在“隐私与安全性”中允许。
 codesign --force --sign - "$APP"
 codesign --verify --verbose "$APP" || echo "警告：签名校验未通过（不影响本地运行）"

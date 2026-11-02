@@ -68,6 +68,7 @@ You can switch at any time; the content stays in sync. The Format panel on the r
 - **Export**: the Export button in the toolbar, or the Format menu:
   - **Export PDF**: A4 paper with automatic page breaks;
   - **Export HTML**: a single HTML file you can open in any browser. Local images are still linked by relative path, so save the HTML in the same folder as the .md file.
+- **Quick Look**: select a .md file in Finder and press Space to see it formatted (as in the Split view preview) without opening it.
 
 ---
 
