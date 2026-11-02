@@ -26,8 +26,8 @@ extension MarkdownCodec {
                 let longest = lines.map { longestRun(of: "`", in: $0) }.max() ?? 0
                 let fence = String(repeating: "`", count: max(3, longest + 1))
                 text = fence + lang + "\n" + lines.joined(separator: "\n") + (lines.isEmpty ? "" : "\n") + fence
-            case .table(let rows):
-                text = renderTable(rows)
+            case .table(let rows, let align):
+                text = renderTable(rows, align)
             case .rule:
                 text = "---"
             case .details(let summary, let body, let open):
@@ -87,14 +87,14 @@ extension MarkdownCodec {
         String(repeating: "  ", count: max(depth, 0)) + marker + (body.isEmpty ? "" : " " + body)
     }
 
-    private static func renderTable(_ rows: [[[MDRun]]]) -> String {
+    private static func renderTable(_ rows: [[[MDRun]]], _ align: [String]) -> String {
         guard !rows.isEmpty else { return "" }
         let cols = max(1, rows.map { $0.count }.max() ?? 1)
         var lines: [String] = []
         for (r, row) in rows.enumerated() {
             let cells = (0..<cols).map { c in c < row.count ? inline(row[c], heading: r == 0, inCell: true) : "" }
             lines.append("| " + cells.joined(separator: " | ") + " |")
-            if r == 0 { lines.append("|" + String(repeating: " --- |", count: cols)) }
+            if r == 0 { lines.append("|" + (0..<cols).map { c in " \(c < align.count ? align[c] : "---") |" }.joined()) }
         }
         return lines.joined(separator: "\n")
     }

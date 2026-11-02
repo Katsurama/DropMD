@@ -30,12 +30,22 @@ with tempfile.TemporaryDirectory() as d:
     (Path(d) / "a_b_images").mkdir()
     (Path(d) / "a_b_images/image7.png").write_bytes(b"old")
     (Path(d) / "a_b_images/mine.png").write_bytes(b"keep")
+    dst.write_text("上次转换的结果")
     got = _save_images("前![图](data:image/png;base64,aGk=)后![](data:image/jpeg;base64,!!)", dst)
     want = "前![图](a_b_images/image1.png)后<!-- 图片无法读取 -->"
     ok = (got == want and (Path(d) / "a_b_images/image1.png").read_bytes() == b"hi"
           and not (Path(d) / "a_b_images/image7.png").exists() and (Path(d) / "a_b_images/mine.png").exists())
     failed += not ok
     print("ok  " if ok else "FAIL", "导出图片", "" if ok else f"\n     got:  {got!r}")
+    # .md 还不存在：同名文件夹里用户自己的 image1.png 不删、不覆盖
+    dst2 = Path(d) / "c.md"
+    (Path(d) / "c_images").mkdir()
+    (Path(d) / "c_images/image1.png").write_bytes(b"mine")
+    got = _save_images("![](data:image/png;base64,aGk=)", dst2)
+    ok = (got == "![](c_images/image2.png)" and (Path(d) / "c_images/image1.png").read_bytes() == b"mine"
+          and (Path(d) / "c_images/image2.png").read_bytes() == b"hi")
+    failed += not ok
+    print("ok  " if ok else "FAIL", "不动用户的图片", "" if ok else f"\n     got:  {got!r}")
 print("全部通过" if not failed else f"失败 {failed} 项")
 raise SystemExit(1 if failed else 0)
 EOF

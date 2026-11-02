@@ -100,7 +100,7 @@ struct MDNumbering {
 enum MDBlock: Equatable {
     case line(MDLine)
     case code(lang: String, lines: [String])
-    case table([[[MDRun]]])   // 行 → 单元格 → 文字；第一行为表头
+    case table([[[MDRun]]], align: [String] = [])   // 行 → 单元格 → 文字，第一行为表头；align：各列的 ---、:--、:-:、--:
     case rule
     case details(summary: String, body: [MDBlock], open: Bool)   // 折叠块 <details>；open：<details open>，默认展开
     case raw(String)          // 编辑器不支持的内容（HTML、公式块等），原样保存
@@ -168,6 +168,15 @@ enum MarkdownCodec {
             if line.contains("|"), i + 1 < lines.count, isTableDelimiter(lines[i + 1]) {
                 indents = []
                 var rows = [splitRow(line)]
+                let align = splitRow(lines[i + 1]).map { cell -> String in
+                    let t = cell.trimmingCharacters(in: .whitespaces)
+                    switch (t.hasPrefix(":"), t.hasSuffix(":")) {
+                    case (true, true): return ":-:"
+                    case (true, false): return ":--"
+                    case (false, true): return "--:"
+                    default: return "---"
+                    }
+                }
                 i += 2
                 while i < lines.count && lines[i].contains("|") && !isBlank(lines[i]) {
                     rows.append(splitRow(lines[i]))
@@ -177,7 +186,7 @@ enum MarkdownCodec {
                 let grid: [[[MDRun]]] = rows.map { row -> [[MDRun]] in
                     (0..<cols).map { c -> [MDRun] in c < row.count ? parseInline(row[c]) : [] }
                 }
-                blocks.append(.table(grid))
+                blocks.append(.table(grid, align: align))
                 continue
             }
             if groups(quotePattern, line) != nil {
@@ -279,8 +288,14 @@ enum MarkdownCodec {
             }
             var parts = [line]
             i += 1
-            while i < lines.count && !isBlank(lines[i]) && !startsBlock(lines[i]) {
+            while i < lines.count && !isBlank(lines[i]) && !startsBlock(lines[i]) && groups(setextPattern, lines[i]) == nil {
                 parts.append(lines[i])
+                i += 1
+            }
+            // 段落下一行是 === 或 ---：一级、二级标题
+            var kind = MDLineKind.body
+            if i < lines.count, let m = groups(setextPattern, lines[i]) {
+                kind = .heading(m[1].hasPrefix("=") ? 1 : 2)
                 i += 1
             }
             // 行尾两个空格或反斜杠是强制换行，按 <br> 读入；其他换行合并为空格
@@ -295,7 +310,7 @@ enum MarkdownCodec {
                     text += t + (part.hasSuffix("  ") ? "<br>" : " ")
                 }
             }
-            blocks.append(.line(MDLine(kind: .body, runs: parseInline(text))))
+            blocks.append(.line(MDLine(kind: kind, runs: parseInline(text))))
         }
         // 只在一串有序列表的第一项上记编号，且不是 1 时才记
         var numbering = MDNumbering()
@@ -367,6 +382,7 @@ enum MarkdownCodec {
     }
 
     private static let headingPattern = re(#"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$"#)
+    private static let setextPattern = re(#"^ {0,3}(=+|-+)[ \t]*$"#)
     private static let rulePattern = re(#"^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$"#)
     private static let quotePattern = re(#"^ {0,3}>[ \t]?(.*)$"#)
     private static let listPattern = re(#"^([ \t]*)([-*+]|\d{1,9}[.)])(?:[ \t]+(.*))?$"#)

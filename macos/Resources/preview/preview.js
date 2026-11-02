@@ -179,7 +179,7 @@
     };
   }
 
-  function makeRenderer(mathOutput) {
+  function makeRenderer(mathOutput, blockRemote) {
     const md = window.markdownit({ html: true, linkify: true, typographer: false });
     // 开源插件：==高亮==（markdown-it-mark）、脚注 [^1]（markdown-it-footnote）
     if (window.markdownitMark) md.use(window.markdownitMark);
@@ -188,12 +188,13 @@
     md.use(taskListPlugin);
     md.use(calloutPlugin);
     md.use(lineMapPlugin);
-    md.use(blockRemoteImages);
+    if (blockRemote) md.use(blockRemoteImages);
     return md;
   }
 
-  const previewMD = makeRenderer("htmlAndMathml");
-  const exportMD = makeRenderer("mathml"); // 导出 HTML 用 MathML，无需字体文件，浏览器可直接显示
+  const previewMD = makeRenderer("htmlAndMathml", true);
+  // 导出 HTML 用 MathML，无需字体文件，浏览器可直接显示；网络图片保留（是否加载由打开它的浏览器决定）
+  const exportMD = makeRenderer("mathml", false);
 
   function setBase(baseHref) {
     let base = document.querySelector("base");

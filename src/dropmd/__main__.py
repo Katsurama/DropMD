@@ -2,11 +2,9 @@
 
 命令行参数：
 
-  --engine status|download|convert  JSON 引擎接口（macOS Swift 界面调用，见 engine.py）
+  --engine status|convert         JSON 引擎接口（macOS Swift 界面调用，见 engine.py）
 
   --selftest 输出文件夹 [--hq]   转换附带的样例文件并检查结果（构建流程用）
-  --download-models [--with-formula]
-                                  在命令行中下载高精度模型（运行此命令即视为同意下载）
 """
 
 from __future__ import annotations
@@ -161,13 +159,6 @@ def main() -> int:
         i = args.index("--selftest")
         out = args[i + 1] if i + 1 < len(args) else "selftest_out"
         return _selftest(out, "--hq" in args)
-    if "--download-models" in args:
-        from . import models
-
-        keys = models.required_components("--with-formula" in args)
-        models.download(keys, lambda i, n, t: print(f"[{i}/{n}] {t}", flush=True))
-        return 0
-
     print(__doc__)
     return 0
 
