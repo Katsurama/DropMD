@@ -123,7 +123,7 @@ final class UpdateChecker: ObservableObject {
 
     // MARK: - 启动时
 
-    /// App 启动时调用：首次启动询问是否自动检查；已开启时每天最多检查一次
+    /// App 启动时调用：首次启动询问是否自动检查；已开启时每次启动都检查
     func launchCheck() {
         cleanUpOldFiles()
         guard Self.repository != nil else { return }
@@ -132,14 +132,13 @@ final class UpdateChecker: ObservableObject {
             let a = NSAlert()
             a.messageText = String(localized: "是否自动检查更新？")
             a.informativeText = String(localized: """
-            每天最多查询一次，不发送任何文件或个人信息。可随时在“检查更新…”中更改。
+            每次启动时查询一次，不发送任何文件或个人信息。可随时在“检查更新…”中更改。
             """)
             a.addButton(withTitle: String(localized: "自动检查"))
             a.addButton(withTitle: String(localized: "暂不"))
             autoCheck = a.runModal() == .alertFirstButtonReturn
         }
         guard autoCheck else { return }
-        if let last = lastChecked, Date().timeIntervalSince(last) < 20 * 3600 { return }
         Task {
             await check()
             if state == .available, let latest {
