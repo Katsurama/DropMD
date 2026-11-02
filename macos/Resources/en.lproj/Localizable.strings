@@ -268,7 +268,7 @@
 
 /* UpdateChecker.swift */
 "是否自动检查更新？" = "Check for Updates Automatically?";
-"每天最多查询一次，不发送任何文件或个人信息。可随时在“检查更新…”中更改。" = "DropMD checks at most once a day and never sends any files or personal information. You can change this anytime in “Check for Updates…”.";
+"每次启动时查询一次，不发送任何文件或个人信息。可随时在“检查更新…”中更改。" = "DropMD checks each time it starts and never sends any files or personal information. You can change this anytime in “Check for Updates…”.";
 "自动检查" = "Check Automatically";
 "暂不" = "Not Now";
 "此版本没有配置更新来源。" = "This version has no update source.";
@@ -293,7 +293,7 @@
 
 /* UpdateView.swift */
 "检查更新只向 GitHub 查询版本信息，不发送任何文件或个人信息。" = "Checking for updates only asks GitHub for version information and never sends any files or personal information.";
-"自动检查更新（每天最多一次）" = "Check for updates automatically (at most once a day)";
+"启动时自动检查更新" = "Check for updates when DropMD starts";
 "包括测试版（beta）" = "Include beta versions";
 "立即检查" = "Check Now";
 "上次检查：%@" = "Last checked: %@";
