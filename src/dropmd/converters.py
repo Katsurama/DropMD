@@ -91,9 +91,10 @@ def _save_images(text: str, dst: Path) -> str:
     """把内嵌在 Markdown 中的 data URI 图片存到“文件名_images”文件夹，改为相对路径引用。"""
     folder = images_dir_name(dst)
     count = 0
-    # 重新转换时先删掉上次导出的图片（只删本程序命名的 imageN.xxx），图片变少时不留多余文件
+    # 重新转换时先删掉上次导出的图片（只删本程序命名的 imageN.xxx），图片变少时不留多余文件。
+    # .md 还不存在时，同名文件夹不是本程序建的，里面的文件一个都不动
     old = dst.parent / folder
-    if old.is_dir():
+    if old.is_dir() and dst.exists():
         for p in old.iterdir():
             if p.is_file() and _OUR_IMAGE.fullmatch(p.name):
                 p.unlink()
@@ -105,8 +106,10 @@ def _save_images(text: str, dst: Path) -> str:
             raw = base64.b64decode(data, validate=True)
         except ValueError:
             return tr(f"<!-- 图片{('：' + alt) if alt else ''}无法读取 -->", f"<!-- Image{(': ' + alt) if alt else ''} can't be read -->")
-        count += 1
         ext = {"jpeg": "jpg", "svg+xml": "svg"}.get(kind.lower(), kind.lower())
+        count += 1
+        while (dst.parent / folder / f"image{count}.{ext}").exists():  # 不覆盖用户自己的同名文件
+            count += 1
         name = f"image{count}.{ext}"
         (dst.parent / folder).mkdir(parents=True, exist_ok=True)
         (dst.parent / folder / name).write_bytes(raw)

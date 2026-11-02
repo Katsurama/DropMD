@@ -14,6 +14,11 @@ let calls = [
     if (!h.includes('>Tip<') || !h.includes('Web image: a')) throw new Error('界面文字没有生效');
     return true
     """,
+    // 导出的 HTML 保留网络图片（预览里为保护隐私不加载）
+    """
+    if (!DropMD.exportBody('![a](https://example.com/a.png)').includes('<img src="https://example.com/a.png"')) throw new Error('导出时网络图片丢了');
+    return true
+    """,
 ]
 
 final class Runner: NSObject, WKNavigationDelegate {

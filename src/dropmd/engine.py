@@ -7,10 +7,6 @@
          "missing": [{"key","title","source","size_mb","repo_id","revision","folder","marker"}]}
       macOS 界面用这些信息通过系统网络（URLSession）自行下载模型。
 
-  dropmd-engine --engine download --keys layout,table[,formula]
-      （仅在用户于界面中同意后调用）
-      → {"event":"progress","i","n","title"} ... {"event":"done","ok",["error"]}
-
   dropmd-engine --engine convert   （从标准输入读取一个 JSON 对象）
       输入：{"jobs":[{"src","dst"}], "options":{"mode","word_engine","ocr_engine","vision_lang","formulas"}}
       → {"event":"start","index"} / {"event":"result","index","ok","info"} ... {"event":"finished"}
@@ -63,31 +59,6 @@ def _status(out: _Out, args: list[str]) -> int:
     return 0
 
 
-def _download(out: _Out, args: list[str]) -> int:
-    import traceback
-
-    from . import models
-    from .errors import describe_download
-
-    keys: list[str] = []
-    if "--keys" in args:
-        i = args.index("--keys")
-        keys = [k for k in (args[i + 1] if i + 1 < len(args) else "").split(",") if k]
-    keys = [k for k in keys if k in models.COMPONENTS]
-    try:
-        models.download(
-            keys,
-            lambda i, n, t: out.send({"event": "progress", "i": i, "n": n, "title": t}),
-        )
-        out.send({"event": "done", "ok": True})
-        return 0
-    except Exception as exc:  # noqa: BLE001
-        print("模型下载失败：", file=sys.stderr)
-        traceback.print_exc(file=sys.stderr)
-        out.send({"event": "done", "ok": False, "error": describe_download(exc)})
-        return 1
-
-
 def _convert(out: _Out) -> int:
     from .converters import Options, convert
     from .errors import describe
@@ -120,8 +91,6 @@ def run(args: list[str]) -> int:
     print(f"===== {datetime.datetime.now():%Y-%m-%d %H:%M:%S} dropmd-engine {' '.join(args)}", file=sys.stderr, flush=True)
     if cmd == "status":
         return _status(out, args[1:])
-    if cmd == "download":
-        return _download(out, args[1:])
     if cmd == "convert":
         return _convert(out)
     out.send({"error": f"未知命令：{cmd}"})
