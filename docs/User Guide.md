@@ -67,7 +67,7 @@ You can switch at any time; the content stays in sync. The Format panel on the r
 - **Language**: choose the document language (Simplified Chinese, Traditional Chinese, Japanese, Korean) at the bottom left of the window. The same Chinese character is written differently in Chinese, Japanese and Korean; with the right language, characters use that language's shapes, in exported PDF / HTML files too. The default is “Automatic”: Japanese if the text has kana, Korean if it has Hangul, otherwise Simplified or Traditional Chinese based on your system language. A language you choose by hand is remembered for each file.
 - **Export**: the Export button in the toolbar, or the Format menu:
   - **Export PDF**: A4 paper with automatic page breaks;
-  - **Export HTML**: a single HTML file you can open in any browser. Local images are still linked by relative path, so save the HTML in the same folder as the .md file.
+  - **Export HTML**: a single HTML file you can open in any browser. Local images are embedded in the HTML file, so they show wherever you save or send it; web images keep their original address (the browser loads them when you open the file).
 - **Quick Look**: select a .md file in Finder and press Space to see it formatted (as in the Split view preview) without opening it.
 
 ---

@@ -236,6 +236,16 @@ MainActor.assumeIsolated {
                 "| 左 | 中 | 右 |\n| :-- | :-: | --: |\n| 1 | 2 | 3 |\n"] {
         check("单页原样保存 \(src.prefix(8).debugDescription)", md(makeView(src)), src)
     }
+    // 导出 HTML：本机图片嵌进文件；网络图片、找不到的图片保持原样
+    do {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("dropmd-export-\(ProcessInfo.processInfo.processIdentifier)")
+        try? FileManager.default.createDirectory(at: dir.appendingPathComponent("图 片"), withIntermediateDirectories: true)
+        try? Data("hi".utf8).write(to: dir.appendingPathComponent("图 片/a.png"))
+        let html = #"<p><img src="%E5%9B%BE%20%E7%89%87/a.png" alt="a"><img src="https://example.com/b.png" alt=""><img src="no.png" alt=""></p>"#
+        check("导出 HTML 嵌入图片", HTMLExport.embedLocalImages(html, base: dir),
+              #"<p><img src="data:image/png;base64,aGk=" alt="a"><img src="https://example.com/b.png" alt=""><img src="no.png" alt=""></p>"#)
+        try? FileManager.default.removeItem(at: dir)
+    }
     // 光标在公式后（打字属性取自公式这个字符）：输入的文字不能变成公式
     do {
         let tv = makeView("甲 $x^2$\n")

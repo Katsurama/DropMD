@@ -204,6 +204,7 @@
 "插入公式块" = "Insert Formula Block";
 "LaTeX 格式" = "LaTeX";
 "无法导出" = "Can't Export";
+"导出 HTML 失败" = "Couldn't Export HTML";
 "请先显示预览，再导出 PDF。" = "Show the preview first, then export the PDF.";
 "预览还在加载，请稍后再试。" = "The preview is still loading. Try again in a moment.";
 "导出为 %@" = "Export as %@";

@@ -56,6 +56,7 @@ check("details", "<details>\n<summary>点击展开 & 查看</summary>\n\n- 项�
 check("YAML 信息", "---\ntitle: 测试\ntags: [a, b]\n---\n\n正文\n")
 check("引用式链接", "见[说明][1]和[另一个][]。\n\n[1]: https://example.com \"标题\"\n[另一个]: https://example.org\n")
 check("强制换行", "行一  \n行二\\\n行三\n", "行一<br>行二<br>行三\n")
+check("行尾的普通反斜杠", "路径 C:\\\\\n下一行\n", "路径 C:\\\\ 下一行\n")
 check("缩进代码", "正文\n\n    代码 1\n\n    代码 2\n", "正文\n\n```\n代码 1\n\n代码 2\n```\n")
 check("编号从 5 开始", "5. 五\n6. 六\n")
 check("编号被代码打断", "1. 一\n\n```\nx\n```\n\n2. 二\n")

@@ -99,12 +99,19 @@ struct RichTextEditor: NSViewRepresentable {
         var lastMarkdown: String?
         var wasActive = false
         private weak var pendingView: NSTextView?
+        private weak var document: NSDocument?
         private var work: DispatchWorkItem?
 
         init(_ parent: RichTextEditor) { self.parent = parent }
 
         func textDidChange(_ notification: Notification) {
             pendingView = notification.object as? NSTextView
+            // 登记为文档的编辑器：保存、关窗、退出前系统会先让它交出修改（见下面的 NSEditor）
+            if document == nil, let window = pendingView?.window,
+               let doc = NSDocumentController.shared.document(for: window) {
+                document = doc
+                doc.objectDidBeginEditing(self)
+            }
             // 停顿片刻再转换为 Markdown，连续输入时不卡顿（自动保存会在之后写入）
             work?.cancel()
             let item = DispatchWorkItem { [weak self] in self?.flush() }
@@ -124,6 +131,8 @@ struct RichTextEditor: NSViewRepresentable {
         func flush() {
             work?.cancel()
             work = nil
+            document?.objectDidEndEditing(self)
+            document = nil
             guard let tv = pendingView, let storage = tv.textStorage else { return }
             pendingView = nil
             let md = RichBridge.markdown(from: storage)
@@ -149,5 +158,29 @@ struct RichTextEditor: NSViewRepresentable {
             }
             return true
         }
+    }
+}
+
+// MARK: - 保存、关闭文档前写回单页的修改
+// 单页的修改停顿片刻才写回文档；刚打完字就按 ⌘S、⌘W 或退出时，系统先调用这里，最后几个字不会丢
+
+extension RichTextEditor.Coordinator: NSEditor {
+    func commitEditing() -> Bool {
+        flush()
+        return true
+    }
+
+    func commitEditingWithoutPresentingError() throws {
+        flush()
+    }
+
+    func discardEditing() {}
+
+    func commitEditing(withDelegate delegate: Any?, didCommit didCommitSelector: Selector?, contextInfo: UnsafeMutableRawPointer?) {
+        flush()
+        guard let target = delegate as? NSObject, let sel = didCommitSelector, let imp = target.method(for: sel) else { return }
+        // 回调的形式：- (void)editor:(id)editor didCommit:(BOOL)didCommit contextInfo:(void *)contextInfo
+        typealias Callback = @convention(c) (AnyObject, Selector, AnyObject, Bool, UnsafeMutableRawPointer?) -> Void
+        unsafeBitCast(imp, to: Callback.self)(target, sel, self, true, contextInfo)
     }
 }
