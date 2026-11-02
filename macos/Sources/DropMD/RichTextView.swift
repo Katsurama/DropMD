@@ -294,10 +294,17 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         guard let container = textContainers.first else { return }
         let glyphs = glyphRange(forCharacterRange: para, actualCharacterRange: nil)
         guard glyphs.length > 0 else { return }
-        let rect = boundingRect(forGlyphRange: glyphs, in: container)
-        let line = lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+        var rect = boundingRect(forGlyphRange: glyphs, in: container)
+        var line = lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
         // 与下一段相连时画到本段最后一行的底部（包括段后间距）
-        let bottom = joinsNext ? lineFragmentRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil).maxY : rect.maxY
+        var bottom = joinsNext ? lineFragmentRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil).maxY : rect.maxY
+        // 表格单元格：竖线画在正文左边（不画进每个单元格），高度是整个单元格，各行连成一条
+        if let storage = textStorage, let cell = RichBridge.tableBlock(of: storage.attributes(at: para.location, effectiveRange: nil)) {
+            guard cell.startingColumn == 0 else { return }   // 每行只画一次（颜色半透明，叠画会变深）
+            line.origin.x = 0
+            rect = boundsRect(for: cell, glyphRange: glyphs)
+            bottom = rect.maxY
+        }
         color.setFill()
         NSRect(x: origin.x + line.minX + x, y: origin.y + rect.minY, width: 3, height: bottom - rect.minY).fill()
     }
