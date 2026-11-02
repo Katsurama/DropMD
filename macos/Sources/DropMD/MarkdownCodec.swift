@@ -303,7 +303,8 @@ enum MarkdownCodec {
             for (k, part) in parts.enumerated() {
                 var t = part.trimmingCharacters(in: .whitespaces)
                 if k == parts.count - 1 { text += t; break }
-                if t.hasSuffix("\\") {
+                // 行尾单数个反斜杠才是换行；双数个是转义后的普通反斜杠（如 C:\\）
+                if t.reversed().prefix(while: { $0 == "\\" }).count % 2 == 1 {
                     t.removeLast()
                     text += t + "<br>"
                 } else {

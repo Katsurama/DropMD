@@ -523,8 +523,9 @@ final class EditorController: ObservableObject {
         let title = url.deletingPathExtension().lastPathComponent
         Task { @MainActor in
             do {
-                let body = try await webView.callAsyncJavaScript("return DropMD.exportBody(t)", arguments: ["t": text],
-                                                                 in: nil, contentWorld: .page) as? String ?? ""
+                let rendered = try await webView.callAsyncJavaScript("return DropMD.exportBody(t)", arguments: ["t": text],
+                                                                     in: nil, contentWorld: .page) as? String ?? ""
+                let body = HTMLExport.embedLocalImages(rendered, base: self.fileURL?.deletingLastPathComponent())
                 // 样式表直接从 App 里读：网页脚本不能读取本机样式表的内容（WebKit 的安全限制）
                 let css = Self.previewURL.flatMap {
                     try? String(contentsOf: $0.deletingLastPathComponent().appendingPathComponent("preview.css"), encoding: .utf8)
@@ -550,7 +551,7 @@ final class EditorController: ObservableObject {
                 """
                 try Data(html.utf8).write(to: url, options: .atomic)
             } catch {
-                self.alert("导出 HTML 失败", error.localizedDescription)
+                self.alert(String(localized: "导出 HTML 失败"), error.localizedDescription)
             }
         }
     }

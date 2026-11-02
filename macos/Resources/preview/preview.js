@@ -196,6 +196,13 @@
   // 导出 HTML 用 MathML，无需字体文件，浏览器可直接显示；网络图片保留（是否加载由打开它的浏览器决定）
   const exportMD = makeRenderer("mathml", false);
 
+  // 文件开头的 YAML 信息（--- … ---，Obsidian、Hugo 等用）：显示为代码块，不当成分隔线和标题。
+  // 只换掉开头、结尾两行，行数不变，同步滚动不受影响
+  function frontMatter(text) {
+    const m = /^---[ \t]*\n([\s\S]*?\n)?(?:---|\.\.\.)[ \t]*(\n|$)/.exec(text);
+    return m ? "```yaml\n" + (m[1] || "") + "```" + m[2] + text.slice(m[0].length) : text;
+  }
+
   function setBase(baseHref) {
     let base = document.querySelector("base");
     if (!baseHref) { if (base) base.remove(); return; }
@@ -211,7 +218,7 @@
       if (uiText) Object.assign(ui, uiText);
       // 文档语言决定汉字字形，见 preview.css
       if (lang) document.documentElement.lang = lang;
-      document.getElementById("content").innerHTML = previewMD.render(text || "");
+      document.getElementById("content").innerHTML = previewMD.render(frontMatter(text || ""));
       return true;
     },
 
@@ -236,7 +243,7 @@
 
     /** 导出为独立 HTML 文件的正文 */
     exportBody: function (text) {
-      return exportMD.render(text || "");
+      return exportMD.render(frontMatter(text || ""));
     }
   };
 })();
