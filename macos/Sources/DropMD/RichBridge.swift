@@ -11,7 +11,15 @@ enum RichBridge {
     static func attributed(from blocks: [MDBlock], baseURL: URL?) -> NSAttributedString {
         let out = NSMutableAttributedString()
 
+        var lastRaw = false
         for block in blocks {
+            // 相邻的两段原样内容之间空一行，否则保存时会连成一段
+            if case .raw(let text) = block, !isMathBlock(text) {
+                if lastRaw { out.append(paragraph(runsString([], kind: .raw, baseURL: baseURL), kind: .raw)) }
+                lastRaw = true
+            } else {
+                lastRaw = false
+            }
             switch block {
             case .line(let line):
                 let kind = RichKind(line.kind)
@@ -22,7 +30,9 @@ enum RichBridge {
                     box.append(content)
                     content = box
                 }
-                out.append(paragraph(content, kind: kind))
+                let p = NSMutableAttributedString(attributedString: paragraph(content, kind: kind))
+                if let start = line.start { p.addAttribute(DMKey.start, value: start, range: NSRange(location: 0, length: p.length)) }
+                out.append(p)
 
             case .code(let lang, let lines):
                 for l in (lines.isEmpty ? [""] : lines) {
@@ -359,7 +369,7 @@ enum RichBridge {
             }
             return .line(MDLine(kind: k.lineKind, runs: runs(storage, r)))
         default:
-            return .line(MDLine(kind: k.lineKind, runs: runs(storage, content)))
+            return .line(MDLine(kind: k.lineKind, runs: runs(storage, content), start: attrs[DMKey.start] as? Int))
         }
     }
 

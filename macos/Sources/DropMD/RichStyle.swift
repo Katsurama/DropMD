@@ -18,6 +18,7 @@ enum DMKey {
     static let detailsOpen = NSAttributedString.Key("dm.open")   // Bool：折叠块标题，文件中写的是 <details open>
     static let collapsed = NSAttributedString.Key("dm.collapsed") // Bool：折叠块标题，内容已收起（只影响显示，不保存）
     static let literal = NSAttributedString.Key("dm.literal")    // Bool：原样保存的文字（如 $公式$）
+    static let start = NSAttributedString.Key("dm.start")        // Int：有序列表第一项的编号（不从 1 开始时）
     static let math = NSAttributedString.Key("dm.math")          // String：公式（显示为图片）的原文，如 $E=mc^2$、$$…$$
     static let link = NSAttributedString.Key("dm.link")          // String：链接地址
     static let image = NSAttributedString.Key("dm.image")        // String：图片路径
@@ -25,7 +26,7 @@ enum DMKey {
     static let callout = NSAttributedString.Key("dm.callout")    // String：提示框标题行的原文（如 [!TIP]），显示为“提示”等
 
     /// 段落类型相关的属性（切换段落样式时先全部清除）
-    static let paragraphKeys = [heading, quote, code, task, list, depth, raw, rule, summary, detailsOpen, collapsed]
+    static let paragraphKeys = [heading, quote, code, task, list, depth, raw, rule, summary, detailsOpen, collapsed, start]
 }
 
 /// 段落样式

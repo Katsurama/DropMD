@@ -6,8 +6,7 @@ extension MarkdownCodec {
     static func serialize(_ blocks: [MDBlock]) -> String {
         var out = ""
         var prev: MDBlock?
-        var orderedDepth: Int?   // 上一个块是有序列表项时的层级
-        var number = 0
+        var numbering = MDNumbering()
         var listTypes: [Int: Bool] = [:]   // 各层级最近一个列表项是否为有序列表
         for block in blocks {
             var text: String
@@ -19,28 +18,19 @@ extension MarkdownCodec {
             } else {
                 listTypes = [:]
             }
+            let number = numbering.number(for: block)?.n ?? 0
             switch block {
             case .line(let line):
-                if case .ordered(let d) = line.kind {
-                    number = (orderedDepth == d) ? number + 1 : 1
-                    orderedDepth = d
-                } else {
-                    orderedDepth = nil
-                }
                 text = render(line, number: number)
             case .code(let lang, let lines):
-                orderedDepth = nil
                 let longest = lines.map { longestRun(of: "`", in: $0) }.max() ?? 0
                 let fence = String(repeating: "`", count: max(3, longest + 1))
                 text = fence + lang + "\n" + lines.joined(separator: "\n") + (lines.isEmpty ? "" : "\n") + fence
             case .table(let rows):
-                orderedDepth = nil
                 text = renderTable(rows)
             case .rule:
-                orderedDepth = nil
                 text = "---"
             case .details(let summary, let body, let open):
-                orderedDepth = nil
                 let inner = serialize(body).trimmingCharacters(in: .newlines)
                 let title = summary.replacingOccurrences(of: "&", with: "&amp;")
                     .replacingOccurrences(of: "<", with: "&lt;")
@@ -48,7 +38,6 @@ extension MarkdownCodec {
                 // <summary> 之后要空一行，里面的 Markdown 才会被解析
                 text = (open ? "<details open>" : "<details>") + "\n<summary>" + title + "</summary>\n\n" + (inner.isEmpty ? "" : inner + "\n\n") + "</details>"
             case .raw(let s):
-                orderedDepth = nil
                 text = s
             }
             if text.isEmpty { continue }
