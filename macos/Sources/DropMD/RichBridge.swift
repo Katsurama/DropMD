@@ -88,6 +88,11 @@ enum RichBridge {
             if let p = value as? NSParagraphStyle { styles.append((range, p)) }
         }
         for (range, p) in styles {
+            // 表格整体右移（单元格里的文字不再额外缩进）
+            if let cell = p.textBlocks.first as? NSTextTableBlock {
+                cell.table.setWidth(RichStyle.detailsIndent, type: .absoluteValueType, for: .margin, edge: .minX)
+                continue
+            }
             guard let m = p.mutableCopy() as? NSMutableParagraphStyle else { continue }
             m.firstLineHeadIndent += RichStyle.detailsIndent
             m.headIndent += RichStyle.detailsIndent
