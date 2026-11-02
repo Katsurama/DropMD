@@ -57,6 +57,12 @@ final class MathRenderer: NSObject, WKNavigationDelegate {
         next()
     }
 
+    /// 系统结束了后台网页（如内存紧张）：重新加载，加载完接着画排队的公式
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        ready = false
+        webView.reload()
+    }
+
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
         decisionHandler(action.request.url?.path == pageURL?.path ? .allow : .cancel)
@@ -130,7 +136,7 @@ final class MathAttachmentCell: NSTextAttachmentCell {
     let display: Bool
     private let placeholder: NSAttributedString
     private var result: MathRenderer.Result?
-    private weak var view: NSTextView?
+    private weak var layoutManager: NSLayoutManager?
 
     init(source: String, display: Bool, font: NSFont) {
         latex = Self.latex(from: source, display: display)
@@ -165,13 +171,19 @@ final class MathAttachmentCell: NSTextAttachmentCell {
         result?.mask.size ?? placeholder.size()
     }
 
+    /// 排版时记下排版器：屏幕外（还没画过）的公式渲染好后也能更新尺寸
+    override func cellFrame(for textContainer: NSTextContainer, proposedLineFragment lineFrag: NSRect,
+                            glyphPosition position: NSPoint, characterIndex charIndex: Int) -> NSRect {
+        layoutManager = textContainer.layoutManager
+        return super.cellFrame(for: textContainer, proposedLineFragment: lineFrag, glyphPosition: position, characterIndex: charIndex)
+    }
+
     override func cellBaselineOffset() -> NSPoint {
         if let result { return NSPoint(x: 0, y: -result.descent) }
         return NSPoint(x: 0, y: (placeholder.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)?.descender ?? 0)
     }
 
     override func draw(withFrame cellFrame: NSRect, in controlView: NSView?) {
-        view = controlView as? NSTextView
         guard let mask = result?.mask else {
             placeholder.draw(at: cellFrame.origin)
             return
@@ -188,7 +200,7 @@ final class MathAttachmentCell: NSTextAttachmentCell {
 
     /// 渲染好后重新排版这个公式所在的位置
     private func refresh() {
-        guard let tv = view, let storage = tv.textStorage, let lm = tv.layoutManager, let attachment else { return }
+        guard let lm = layoutManager, let storage = lm.textStorage, let attachment else { return }
         storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, range, stop in
             guard (value as? NSTextAttachment) === attachment else { return }
             lm.invalidateLayout(forCharacterRange: range, actualCharacterRange: nil)

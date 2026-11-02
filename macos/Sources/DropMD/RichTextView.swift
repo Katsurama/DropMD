@@ -424,6 +424,7 @@ final class RichTextView: NSTextView {
         set {
             var newValue = newValue
             newValue[DMKey.collapsed] = nil   // 在收起的标题末尾回车，新段落不应跟着“收起”
+            newValue[DMKey.math] = nil        // 在公式后输入的文字不是公式，否则保存时被写成公式原文
             guard newValue[DMKey.callout] != nil else { super.typingAttributes = newValue; return }
             var a = RichStyle.typingAttributes(for: RichBridge.kind(of: newValue))
             a[.paragraphStyle] = newValue[.paragraphStyle]
