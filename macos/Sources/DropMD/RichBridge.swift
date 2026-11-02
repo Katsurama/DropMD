@@ -42,6 +42,9 @@ enum RichBridge {
             case .rule:
                 out.append(paragraph(ruleAttachment(), kind: .rule))
 
+            case .raw(let text) where isMathBlock(text):
+                out.append(mathBlockParagraph(text))
+
             case .raw(let text):
                 for l in text.components(separatedBy: "\n") {
                     out.append(paragraph(runsString([MDRun(text: l)], kind: .raw, baseURL: baseURL), kind: .raw))
@@ -119,6 +122,8 @@ enum RichBridge {
         for r in runs {
             if let src = r.image {
                 s.append(imageString(path: src, alt: r.text, baseURL: baseURL))
+            } else if r.literal, isInlineMath(r.text) {
+                s.append(mathString(r.text, display: false, attributes: RichStyle.attributes(for: r, kind: kind)))
             } else if r.literal, let c = MDCallout(header: r.text) {
                 // 提示框标题行显示为中文标题，保存时写回原文
                 var a = RichStyle.attributes(for: r, kind: kind)
@@ -187,6 +192,73 @@ enum RichBridge {
         return s
     }
 
+    // MARK: 公式
+
+    static func isInlineMath(_ text: String) -> Bool {
+        text.count >= 3 && text.hasPrefix("$") && text.hasSuffix("$") && !text.hasPrefix("$$")
+    }
+
+    static func isMathBlock(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.count >= 5 && t.hasPrefix("$$") && t.hasSuffix("$$")
+    }
+
+    /// 公式显示为一张图片（一个字符），保存时写回原文
+    static func mathString(_ source: String, display: Bool, attributes: [NSAttributedString.Key: Any]) -> NSAttributedString {
+        let font = (attributes[.font] as? NSFont) ?? RichStyle.baseFont(for: .body)
+        let attachment = NSTextAttachment()
+        attachment.attachmentCell = MathAttachmentCell(source: source, display: display, font: font)
+        let s = NSMutableAttributedString(attachment: attachment)
+        var a = attributes
+        a[DMKey.math] = source
+        a[DMKey.literal] = nil
+        a[.foregroundColor] = nil
+        s.addAttributes(a, range: NSRange(location: 0, length: s.length))
+        return s
+    }
+
+    /// 公式块：单独一段、居中
+    static func mathBlockParagraph(_ source: String) -> NSAttributedString {
+        let p = NSMutableAttributedString(attributedString: paragraph(
+            mathString(source, display: true, attributes: RichStyle.attributes(for: MDRun(), kind: .body)), kind: .raw))
+        let style = (RichStyle.paragraphStyle(.body).mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+        style.alignment = .center
+        p.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: p.length))
+        return p
+    }
+
+    /// 复制粘贴后：按原文重建公式、图片和分隔线（剪贴板里不存图片本身）
+    static func restoringAttachments(_ source: NSAttributedString, baseURL: URL?) -> NSAttributedString {
+        let s = NSMutableAttributedString(attributedString: source)
+        let whole = NSRange(location: 0, length: s.length)
+        var jobs: [(NSRange, NSAttributedString)] = []
+        s.enumerateAttributes(in: whole, options: []) { a, range, _ in
+            if let math = a[DMKey.math] as? String {
+                // 每个公式一个字符
+                for i in 0..<range.length {
+                    jobs.append((NSRange(location: range.location + i, length: 1),
+                                 mathString(math, display: isMathBlock(math), attributes: a)))
+                }
+            } else if let path = a[DMKey.image] as? String {
+                let image = NSMutableAttributedString(attributedString: imageString(path: path, alt: (a[DMKey.alt] as? String) ?? "", baseURL: baseURL))
+                var rest = a
+                rest[.attachment] = nil
+                for (k, v) in rest where image.attribute(k, at: 0, effectiveRange: nil) == nil {
+                    image.addAttribute(k, value: v, range: NSRange(location: 0, length: image.length))
+                }
+                jobs.append((range, image))
+            } else if a[DMKey.rule] != nil, (s.string as NSString).substring(with: range).contains("\u{FFFC}") {
+                let rule = NSMutableAttributedString(attributedString: ruleAttachment())
+                rule.addAttributes(a, range: NSRange(location: 0, length: rule.length))
+                let ns = s.string as NSString
+                let at = ns.range(of: "\u{FFFC}", range: range)
+                jobs.append((at, rule))
+            }
+        }
+        for (range, value) in jobs.reversed() { s.replaceCharacters(in: range, with: value) }
+        return s
+    }
+
     /// 分隔线占位（透明）。线本身由 RichLayoutManager 按整行宽度画出，与正文、代码块左右对齐。
     static func ruleAttachment() -> NSAttributedString {
         let attachment = NSTextAttachment()
@@ -206,6 +278,7 @@ enum RichBridge {
         case raw(String)
         case rule
         case summary(String, open: Bool)
+        case math(String)
         case cell(NSTextTable, Int, Int, [MDRun])
     }
 
@@ -265,6 +338,7 @@ enum RichBridge {
             return .cell(block.table, block.startingRow, block.startingColumn, runs(storage, content))
         }
         let k = kind(of: attrs)
+        if k == .raw, let source = attrs[DMKey.math] as? String { return .math(source) }
         switch k {
         case .rule:
             return .rule
@@ -307,6 +381,15 @@ enum RichBridge {
                 r.literal = true
                 out.append(r)
                 lastCalloutEnd = NSMaxRange(sub)
+                return
+            }
+            if let source = a[DMKey.math] as? String {
+                // 每个公式是一个字符；相邻的相同公式各写一次
+                for _ in 0..<sub.length {
+                    var r = MDRun(text: source)
+                    r.literal = true
+                    out.append(r)
+                }
                 return
             }
             if let src = a[DMKey.image] as? String {
@@ -369,6 +452,9 @@ enum RichBridge {
                 i += 1
             case .rule:
                 blocks.append(.rule)
+                i += 1
+            case .math(let source):
+                blocks.append(.raw(source))
                 i += 1
             case .code(let lang, _):
                 var lines: [String] = []

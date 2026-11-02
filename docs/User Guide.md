@@ -49,7 +49,7 @@ You can switch at any time; the content stays in sync. The Format panel on the r
   - **Footnote** (⌥⌘F): inserts a number like [^1] at the cursor and puts the note at the end of the document;
   - **Today's Date** and **Emoji & Symbols** (the system emoji picker);
   - **Line Break (Same Paragraph)** (⇧↩): a new line within the same paragraph, saved as `<br>`;
-  - **Inline Formula** (⌥⌘M) and **Formula Block** (⇧⌥⌘M): written in LaTeX, for example `E=mc^2`. In Page view formulas show as purple text; the Split preview and exported files show them as math.
+  - **Inline Formula** (⌥⌘M) and **Formula Block** (⇧⌥⌘M): written in LaTeX, for example `E=mc^2`. Page view shows them as math too; double-click a formula to edit it.
 - **Automatic formatting**: at the start of a paragraph, type `- `, `1. `, `# `, `> ` or `[] ` and the paragraph becomes a list, numbered list, heading, quote or checklist. The full-width forms typed with Chinese input methods (`－ `, `1。 `, `＃ `, `》 `, `【】 `) work too.
 - **Pasting**: text pasted from web pages or Word keeps bold, italic, links and so on. Formatting Markdown can't store, such as colors and fonts, is removed.
 - **Links**: ⌘-click a link to open it; a normal click is for editing the text.
@@ -151,7 +151,6 @@ DropMD is open source under the **MIT License** (see the `LICENSE` file): you ar
 - **Editor**: very large files (several MB) make syntax highlighting and the preview slower. The preview doesn't load images or fonts from the web.
 - **Page view** keeps only formatting Markdown can store: fonts, font sizes, text colors, alignment and so on can't be saved (which is why the toolbar has no buttons for them). Text pasted from web pages or Word keeps bold, italic, links and so on; other formatting is removed when saving.
 - Markdown that Page view doesn't support (for example general HTML code or nested collapsible sections) is shown as monospaced text and **saved exactly as it was**, so nothing is lost.
-- In Page view, formulas are shown as text; see the Split preview or an exported file for the rendered result.
 - The app is fairly large (see the actual build), mostly because of components such as PyTorch needed by High Accuracy mode.
 - The app isn't signed with an Apple developer certificate, so the first launch needs the manual step described above.
 - Intel Macs aren't supported (PyTorch, which High Accuracy mode depends on, no longer provides builds for Intel Macs).
