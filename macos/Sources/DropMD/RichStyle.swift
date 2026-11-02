@@ -18,6 +18,7 @@ enum DMKey {
     static let detailsOpen = NSAttributedString.Key("dm.open")   // Bool：折叠块标题，文件中写的是 <details open>
     static let collapsed = NSAttributedString.Key("dm.collapsed") // Bool：折叠块标题，内容已收起（只影响显示，不保存）
     static let literal = NSAttributedString.Key("dm.literal")    // Bool：原样保存的文字（如 $公式$）
+    static let math = NSAttributedString.Key("dm.math")          // String：公式（显示为图片）的原文，如 $E=mc^2$、$$…$$
     static let link = NSAttributedString.Key("dm.link")          // String：链接地址
     static let image = NSAttributedString.Key("dm.image")        // String：图片路径
     static let alt = NSAttributedString.Key("dm.alt")            // String：图片说明文字

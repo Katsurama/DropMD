@@ -244,7 +244,9 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
     }
 
     private func isCodeParagraph(at location: Int, in storage: NSTextStorage) -> Bool {
-        switch RichBridge.kind(of: storage.attributes(at: location, effectiveRange: nil)) {
+        let attrs = storage.attributes(at: location, effectiveRange: nil)
+        if attrs[DMKey.math] != nil { return false }   // 公式块显示为公式，不画代码底色
+        switch RichBridge.kind(of: attrs) {
         case .code, .raw: return true
         default: return false
         }
@@ -441,8 +443,44 @@ final class RichTextView: NSTextView {
 
     private static let keptKeys: Set<NSAttributedString.Key> = [
         .font, .underlineStyle, .strikethroughStyle, .obliqueness, .link, .attachment, .superscript,
-        DMKey.inlineCode, DMKey.kbd, DMKey.highlight, DMKey.literal, DMKey.link, DMKey.image, DMKey.alt, DMKey.callout,
+        DMKey.inlineCode, DMKey.kbd, DMKey.highlight, DMKey.literal, DMKey.link, DMKey.image, DMKey.alt, DMKey.callout, DMKey.math,
     ]
+
+    // MARK: - 在单页之间复制：另存一份带 DropMD 属性的内容，公式、图片粘贴后不丢
+
+    private static let richType = NSPasteboard.PasteboardType("io.github.dropmd.rich")
+
+    override var writablePasteboardTypes: [NSPasteboard.PasteboardType] {
+        [Self.richType] + super.writablePasteboardTypes
+    }
+
+    override var readablePasteboardTypes: [NSPasteboard.PasteboardType] {
+        [Self.richType] + super.readablePasteboardTypes
+    }
+
+    override func writeSelection(to pboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Bool {
+        guard type == Self.richType else { return super.writeSelection(to: pboard, type: type) }
+        guard let storage = textStorage else { return false }
+        let s = NSMutableAttributedString()
+        for value in selectedRanges { s.append(storage.attributedSubstring(from: value.rangeValue)) }
+        guard s.length > 0 else { return false }
+        // 公式、图片、分隔线不存图片本身，粘贴时按原文重建
+        s.removeAttribute(.attachment, range: NSRange(location: 0, length: s.length))
+        guard let data = try? NSKeyedArchiver.archivedData(withRootObject: s, requiringSecureCoding: true) else { return false }
+        return pboard.setData(data, forType: type)
+    }
+
+    override func readSelection(from pboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Bool {
+        guard type == Self.richType else { return super.readSelection(from: pboard, type: type) }
+        // 只接受文字、字体、颜色、段落样式等固定的类型（剪贴板内容可能来自别的程序）
+        let classes: [AnyClass] = [NSAttributedString.self, NSString.self, NSNumber.self, NSDictionary.self, NSArray.self,
+                                   NSFont.self, NSColor.self, NSURL.self, NSParagraphStyle.self, NSTextTab.self,
+                                   NSTextTable.self, NSTextTableBlock.self]
+        guard let data = pboard.data(forType: type),
+              let s = try? NSKeyedUnarchiver.unarchivedObject(ofClasses: classes, from: data) as? NSAttributedString else { return false }
+        replace(selectedRange(), with: RichBridge.restoringAttachments(s, baseURL: baseURL))
+        return true
+    }
 
     /// 从网页、Word 等粘贴的文字：去掉颜色、字体、对齐等无法保存的格式，统一为编辑器的样式
     private func normalizePasted(_ range: NSRange) {
@@ -597,14 +635,6 @@ final class RichTextView: NSTextView {
     /// 段内换行（不分段），保存为 <br>
     func insertSoftBreak() {
         insertText("\u{2028}", replacementRange: selectedRange())
-    }
-
-    /// 插入原样保存的文字（例如 $公式$）
-    func insertLiteral(_ text: String) {
-        var a = typingAttributes
-        a[DMKey.literal] = true
-        a[.foregroundColor] = NSColor.systemPurple
-        replace(selectedRange(), with: NSAttributedString(string: text, attributes: a))
     }
 
     // MARK: - 段落样式
@@ -838,11 +868,41 @@ final class RichTextView: NSTextView {
         setSelectedRange(NSRange(location: selectedRange().location, length: 2))
     }
 
-    /// 公式块：$$ 公式 $$，原样保存
+    /// 公式块：$$ 公式 $$，显示为居中的公式，保存时写回原文
     func insertMathBlock(_ formula: String) {
-        let p = RichBridge.paragraph(RichBridge.runsString([MDRun(text: "$$ \(formula) $$")], kind: .raw, baseURL: baseURL),
-                                     kind: .raw)
+        let p = RichBridge.mathBlockParagraph("$$\n\(formula)\n$$")
         insertBlock(p, caretOffset: p.length)
+    }
+
+    /// 行内公式：$公式$，显示为公式
+    func insertInlineMath(_ formula: String) {
+        var a = typingAttributes
+        a[DMKey.literal] = nil
+        replace(selectedRange(), with: RichBridge.mathString("$\(formula)$", display: false, attributes: a))
+    }
+
+    /// 双击公式时修改：参数是原文（$…$ 或 $$…$$），返回新的原文；取消时返回 nil
+    var editMath: ((String) -> String?)?
+
+    /// 点击位置上的公式
+    private func mathRange(at point: NSPoint) -> NSRange? {
+        guard let lm = layoutManager, let tc = textContainer, let storage = textStorage, storage.length > 0 else { return nil }
+        let p = NSPoint(x: point.x - textContainerOrigin.x, y: point.y - textContainerOrigin.y)
+        let glyph = lm.glyphIndex(for: p, in: tc)
+        guard lm.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: tc).contains(p) else { return nil }
+        let index = lm.characterIndexForGlyph(at: glyph)
+        guard index < storage.length, storage.attribute(DMKey.math, at: index, effectiveRange: nil) != nil else { return nil }
+        return NSRange(location: index, length: 1)
+    }
+
+    /// 修改一个公式（可撤销）
+    func editMath(at range: NSRange) {
+        guard let storage = textStorage, let source = storage.attribute(DMKey.math, at: range.location, effectiveRange: nil) as? String,
+              let new = editMath?(source), new != source else { return }
+        var a = storage.attributes(at: range.location, effectiveRange: nil)
+        a[.attachment] = nil
+        let display = RichBridge.isMathBlock(source)
+        replace(range, with: RichBridge.mathString(new, display: display, attributes: a), caret: NSMaxRange(range))
     }
 
     /// 脚注：光标处插入 [^n]，文末添加“[^n]: 说明”
@@ -1069,6 +1129,11 @@ final class RichTextView: NSTextView {
     // MARK: - 鼠标：点击方框勾选 / 取消勾选待办；点击折叠块标题前的三角收起 / 展开
 
     override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2, let r = mathRange(at: convert(event.locationInWindow, from: nil)) {
+            setSelectedRange(r)
+            editMath(at: r)
+            return
+        }
         if let storage = textStorage, storage.length > 0 {
             let point = convert(event.locationInWindow, from: nil)
             let index = characterIndexForInsertion(at: point)

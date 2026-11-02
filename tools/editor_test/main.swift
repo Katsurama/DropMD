@@ -170,6 +170,66 @@ MainActor.assumeIsolated {
         let src = "<details>\n<summary>标题</summary>\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n</details>\n"
         check("折叠块以表格结尾", md(makeView(src)), src)
     }
+    // 公式：单页中显示为一个公式（一个字符），保存时写回原文；双击可修改
+    do {
+        let src = "公式 $E=mc^2$ 和 $a$$b$ 与金额 \\$5\n\n$$\n\\sum_{i=1}^n i\n$$\n\n后面\n"
+        let tv = makeView(src)
+        check("公式保存不变", md(tv), src)
+        check("公式显示为一个字符", "\(tv.string.filter { $0 == "\u{FFFC}" }.count)", "4")
+        tv.editMath = { _ in "$x^2$" }
+        tv.editMath(at: (tv.string as NSString).range(of: "\u{FFFC}"))
+        check("修改行内公式", md(tv), src.replacingOccurrences(of: "$E=mc^2$", with: "$x^2$"))
+        let block = (tv.string as NSString).range(of: "\u{FFFC}", options: .backwards)
+        tv.editMath = { _ in "$$\ny\n$$" }
+        tv.editMath(at: block)
+        check("修改公式块", md(tv), src.replacingOccurrences(of: "$E=mc^2$", with: "$x^2$").replacingOccurrences(of: "\\sum_{i=1}^n i", with: "y"))
+    }
+    // 复制粘贴公式（用单独的剪贴板，不影响系统剪贴板）
+    do {
+        let tv = makeView("甲 $x^2$ 乙\n")
+        let board = NSPasteboard(name: NSPasteboard.Name("DropMDTest-\(ProcessInfo.processInfo.processIdentifier)"))
+        tv.setSelectedRange(NSRange(location: 0, length: 4))
+        board.clearContents()
+        _ = tv.writeSelection(to: board, types: tv.writablePasteboardTypes)
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).length - 1, length: 0))
+        _ = tv.readSelection(from: board)
+        board.releaseGlobally()
+        check("复制粘贴公式", md(tv), "甲 $x^2$ 乙甲 $x^2$\n")
+    }
+    do {
+        let src = "# 标题\n\n- 列表 **粗** [链接](https://example.com)\n\n![图](no-such.png)\n\n---\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n<details>\n<summary>折叠</summary>\n\n内容\n\n</details>\n\n$$\nx\n$$\n"
+        let from = makeView(src), to = makeView("")
+        let board = NSPasteboard(name: NSPasteboard.Name("DropMDTest2-\(ProcessInfo.processInfo.processIdentifier)"))
+        from.setSelectedRange(NSRange(location: 0, length: (from.string as NSString).length))
+        board.clearContents()
+        _ = from.writeSelection(to: board, types: from.writablePasteboardTypes)
+        _ = to.readSelection(from: board)
+        board.releaseGlobally()
+        check("整篇复制粘贴", md(to), src)
+    }
+    // 双击公式：修改
+    do {
+        let tv = makeView("甲 $x^2$ 乙\n")
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 400), styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = tv
+        let lm = tv.layoutManager!
+        lm.ensureLayout(for: tv.textContainer!)
+        let r = lm.boundingRect(forGlyphRange: NSRange(location: 2, length: 1), in: tv.textContainer!)
+        let p = tv.convert(NSPoint(x: tv.textContainerOrigin.x + r.midX, y: tv.textContainerOrigin.y + r.midY), to: nil)
+        var asked = ""
+        tv.editMath = { s in asked = s; return "$y$" }
+        tv.mouseDown(with: NSEvent.mouseEvent(with: .leftMouseDown, location: p, modifierFlags: [], timestamp: 0,
+                                              windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 2, pressure: 1)!)
+        check("双击公式修改", asked + " → " + md(tv), "$x^2$ → 甲 $y$ 乙\n")
+    }
+    do {
+        let tv = makeView("前\n")
+        tv.setSelectedRange(NSRange(location: 1, length: 0))
+        tv.insertInlineMath("x+1")
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).length, length: 0))
+        tv.insertMathBlock("z")
+        check("插入公式", md(tv), "前$x+1$\n\n$$\nz\n$$\n")
+    }
     // 点击标题左边的三角：收起 / 展开；点击标题文字只是放光标
     do {
         let tv = makeView("<details>\n<summary>标题</summary>\n\n内容\n\n</details>\n")

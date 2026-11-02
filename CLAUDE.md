@@ -23,6 +23,7 @@
 - `macos/Sources/DropMD/`：Swift / SwiftUI 界面（macOS 14+）
   - `MarkdownCodec` / `MarkdownInline` / `MarkdownSerialize`：Markdown ⇄ 段落模型，只依赖 Foundation
   - `RichBridge` / `RichStyle` / `RichTextView` / `RichEditorView`：单页（Word / Pages 式）编辑区，TextKit 1
+  - `MathRenderer`：单页中的公式，用预览页面里的 KaTeX 在后台画成图片
   - `EditorViews` / `EditorController`：编辑器窗口、双页（原文 + 预览）
   - `EditorAction`：所有命令（菜单、工具栏、格式面板共用这一份）
   - `FormatInspector`：右侧“格式”面板

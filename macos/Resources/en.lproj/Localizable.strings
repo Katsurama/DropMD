@@ -200,6 +200,7 @@
 "脚注说明" = "footnote text";
 "插入行内公式" = "Insert Inline Formula";
 "LaTeX 格式，例如 E=mc^2" = "LaTeX, for example E=mc^2";
+"修改公式" = "Edit Formula";
 "插入公式块" = "Insert Formula Block";
 "LaTeX 格式" = "LaTeX";
 "无法导出" = "Can't Export";
