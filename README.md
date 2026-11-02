@@ -113,7 +113,7 @@ tools/test_l10n.sh        # 检查界面文字是否都有英文译文
 macos/                 界面（Swift / SwiftUI）
   Sources/DropMD/      编辑器、文件转换窗口、软件更新
   Resources/preview/   双页预览（markdown-it、KaTeX，随源码提供，不联网加载）
-  Resources/en.lproj/  英文界面文字
+  Resources/en.lproj/  英文界面文字（ja.lproj：日文）
   Resources/AppIcon.icon  App 图标（Icon Composer 格式，自动适配浅色 / 深色）
   build_app.sh         组装 DropMD.app
 src/dropmd/            转换引擎（Python：MarkItDown / Pandoc / Docling）
