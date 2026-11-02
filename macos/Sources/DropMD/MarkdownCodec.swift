@@ -78,6 +78,23 @@ enum MDLineKind: Equatable {
 struct MDLine: Equatable {
     var kind: MDLineKind
     var runs: [MDRun]
+    var start: Int? = nil     // 有序列表不从 1 开始时，第一项的编号（如 5.）
+}
+
+/// 有序列表的编号：每一层各自计数，遇到列表以外的内容重新开始（解析和保存共用）
+struct MDNumbering {
+    private var counts: [Int: Int] = [:]
+
+    /// 有序列表项的编号，以及它是不是这一串的第一项；不是有序列表项时为 nil
+    mutating func number(for block: MDBlock) -> (n: Int, first: Bool)? {
+        guard case .line(let line) = block, let d = line.kind.listDepth else { counts = [:]; return nil }
+        counts = counts.filter { $0.key <= d }
+        guard line.kind.isOrdered else { counts[d] = nil; return nil }
+        let first = counts[d] == nil
+        let n = counts[d].map { $0 + 1 } ?? (line.start ?? 1)
+        counts[d] = n
+        return (n, first)
+    }
 }
 
 enum MDBlock: Equatable {
@@ -100,10 +117,28 @@ enum MarkdownCodec {
         var blocks: [MDBlock] = []
         var indents: [Int] = []   // 列表缩进栈，用于计算嵌套层级
         var i = 0
+        // 文件开头的 YAML 信息（--- … ---，Obsidian、Hugo 等用）：原样保存
+        if lines.first?.trimmingCharacters(in: .whitespaces) == "---",
+           let end = lines.dropFirst().firstIndex(where: { ["---", "..."].contains($0.trimmingCharacters(in: .whitespaces)) }) {
+            blocks.append(.raw(lines[0...end].joined(separator: "\n")))
+            i = end + 1
+        }
         while i < lines.count {
             let line = lines[i]
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty { i += 1; continue }
+
+            // 缩进 4 格的代码块
+            if indents.isEmpty, leadingWidth(line) >= 4 {
+                var body: [String] = []
+                while i < lines.count && (isBlank(lines[i]) || leadingWidth(lines[i]) >= 4) {
+                    body.append(dropIndent(lines[i], 4))
+                    i += 1
+                }
+                while let last = body.last, isBlank(last) { body.removeLast() }
+                blocks.append(.code(lang: "", lines: body))
+                continue
+            }
 
             if let fence = fenceOpening(line) {
                 indents = []
@@ -145,13 +180,31 @@ enum MarkdownCodec {
                 blocks.append(.table(grid))
                 continue
             }
-            if let m = groups(quotePattern, line) {
+            if groups(quotePattern, line) != nil {
                 indents = []
-                // 提示框的标题行原样保存，不能转义成 \[!NOTE\]
-                let runs = MDCallout(header: m[1]) != nil ? [MDRun(text: m[1].trimmingCharacters(in: .whitespaces), literal: true)]
-                                                          : parseInline(m[1])
-                blocks.append(.line(MDLine(kind: .quote, runs: runs)))
-                i += 1
+                var j = i
+                var contents: [String] = []
+                while j < lines.count, let q = groups(quotePattern, lines[j]) { contents.append(q[1]); j += 1 }
+                // 引用里有列表、标题、代码等单页表示不了的内容：整段原样保存
+                if contents.contains(where: { startsBlock($0) || leadingWidth($0) >= 4 }) {
+                    blocks.append(.raw(lines[i..<j].joined(separator: "\n")))
+                } else {
+                    for content in contents {
+                        // 提示框的标题行原样保存，不能转义成 \[!NOTE\]
+                        let runs = MDCallout(header: content) != nil
+                            ? [MDRun(text: content.trimmingCharacters(in: .whitespaces), literal: true)] : parseInline(content)
+                        blocks.append(.line(MDLine(kind: .quote, runs: runs)))
+                    }
+                }
+                i = j
+                continue
+            }
+            if indents.isEmpty, groups(listPattern, line) != nil, let end = complexListEnd(lines, i) {
+                // 列表项里有续段、代码块、引用等单页表示不了的内容：整个列表原样保存
+                var body = Array(lines[i..<end])
+                while let last = body.last, isBlank(last) { body.removeLast() }
+                blocks.append(.raw(body.joined(separator: "\n")))
+                i = end
                 continue
             }
             if let m = groups(listPattern, line) {
@@ -165,8 +218,15 @@ enum MarkdownCodec {
                     kind = .task(depth, t[1] != " ")
                     content = t[2]
                 }
-                blocks.append(.line(MDLine(kind: kind, runs: parseInline(content))))
                 i += 1
+                // 紧接着的续行属于这一项
+                while i < lines.count && !isBlank(lines[i]) && groups(listPattern, lines[i]) == nil && !startsBlock(lines[i]) {
+                    content += " " + lines[i].trimmingCharacters(in: .whitespaces)
+                    i += 1
+                }
+                var item = MDLine(kind: kind, runs: parseInline(content))
+                if kind.isOrdered { item.start = Int(m[2].dropLast()) }
+                blocks.append(.line(item))
                 continue
             }
             if trimmed.lowercased().hasPrefix("<details") {
@@ -217,15 +277,61 @@ enum MarkdownCodec {
                 i += 1
                 continue
             }
-            var parts = [trimmed]
+            var parts = [line]
             i += 1
             while i < lines.count && !isBlank(lines[i]) && !startsBlock(lines[i]) {
-                parts.append(lines[i].trimmingCharacters(in: .whitespaces))
+                parts.append(lines[i])
                 i += 1
             }
-            blocks.append(.line(MDLine(kind: .body, runs: parseInline(parts.joined(separator: " ")))))
+            // 行尾两个空格或反斜杠是强制换行，按 <br> 读入；其他换行合并为空格
+            var text = ""
+            for (k, part) in parts.enumerated() {
+                var t = part.trimmingCharacters(in: .whitespaces)
+                if k == parts.count - 1 { text += t; break }
+                if t.hasSuffix("\\") {
+                    t.removeLast()
+                    text += t + "<br>"
+                } else {
+                    text += t + (part.hasSuffix("  ") ? "<br>" : " ")
+                }
+            }
+            blocks.append(.line(MDLine(kind: .body, runs: parseInline(text))))
+        }
+        // 只在一串有序列表的第一项上记编号，且不是 1 时才记
+        var numbering = MDNumbering()
+        for k in blocks.indices {
+            if let (_, first) = numbering.number(for: blocks[k]), case .line(var l) = blocks[k], !first || l.start == 1 {
+                l.start = nil
+                blocks[k] = .line(l)
+            }
         }
         return blocks
+    }
+
+    /// 列表从 start 开始；里面有单页表示不了的内容（项里空行后的续段、代码块、引用等）时返回列表的结束位置，否则返回 nil
+    private static func complexListEnd(_ lines: [String], _ start: Int) -> Int? {
+        var j = start
+        var complex = false
+        while j < lines.count {
+            let l = lines[j]
+            if isBlank(l) {
+                var k = j + 1
+                while k < lines.count && isBlank(lines[k]) { k += 1 }
+                guard k < lines.count else { break }
+                if groups(listPattern, lines[k]) == nil {
+                    guard leadingWidth(lines[k]) >= 2 else { break }   // 空行后没有缩进：列表结束
+                    complex = true
+                }
+                j = k
+                continue
+            }
+            if groups(listPattern, l) == nil {
+                if leadingWidth(l) == 0 && startsBlock(l) { break }
+                if startsBlock(l.trimmingCharacters(in: .whitespaces)) { complex = true }
+            }
+            j += 1
+        }
+        return complex ? j : nil
     }
 
     /// 解析 <details><summary>标题</summary>内容</details>
@@ -309,8 +415,11 @@ enum MarkdownCodec {
         line.contains("-") && groups(tableDelimiterPattern, line) != nil
     }
 
+    /// 引用式链接的地址定义 [编号]: 网址（脚注 [^1]: 除外）
+    private static let referencePattern = re(#"^ {0,3}\[[^\]^][^\]]*\]:[ \t]*\S"#)
+
     private static func isRawStart(_ line: String) -> Bool {
-        groups(rawStartPattern, line) != nil
+        groups(rawStartPattern, line) != nil || groups(referencePattern, line) != nil
     }
 
     /// 这一行是否开始一个新的块（用于判断段落在哪里结束）
@@ -322,6 +431,22 @@ enum MarkdownCodec {
 
     private static func indentWidth(_ s: String) -> Int {
         s.reduce(0) { $0 + ($1 == "\t" ? 4 : 1) }
+    }
+
+    /// 行首空白的宽度（制表符算 4 格）
+    private static func leadingWidth(_ line: String) -> Int {
+        indentWidth(String(line.prefix(while: { $0 == " " || $0 == "\t" })))
+    }
+
+    /// 去掉行首最多 n 格的空白
+    private static func dropIndent(_ line: String, _ n: Int) -> String {
+        var s = Substring(line)
+        var w = 0
+        while w < n, let ch = s.first, ch == " " || ch == "\t" {
+            w += ch == "\t" ? 4 : 1
+            s.removeFirst()
+        }
+        return String(s)
     }
 
     /// 拆分表格的一行；保留 \| 转义，交给行内解析处理

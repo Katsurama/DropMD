@@ -230,6 +230,11 @@ MainActor.assumeIsolated {
         tv.insertMathBlock("z")
         check("插入公式", md(tv), "前$x+1$\n\n$$\nz\n$$\n")
     }
+    // 单页表示不了的写法：载入后直接保存，内容不变
+    for src in ["---\ntitle: 测试\n---\n\n<!-- 注释 -->\n\n正文\n", "5. 五\n6. 六\n\n正文\n\n2. 二\n",
+                "> - 列表\n>   - 嵌套\n", "- 一\n\n  续段\n- 二\n", "见[说明][1]。\n\n[1]: https://example.com\n"] {
+        check("单页原样保存 \(src.prefix(8).debugDescription)", md(makeView(src)), src)
+    }
     // 光标在公式后（打字属性取自公式这个字符）：输入的文字不能变成公式
     do {
         let tv = makeView("甲 $x^2$\n")

@@ -125,6 +125,17 @@ private struct InlineParser {
                 continue
             }
 
+            // 引用式链接 [文字][编号]、[文字][]：原样保留（地址写在文中别处的 [编号]: 网址 里）
+            if ch == "[", let close = find("]", from: i + 1, hi), close + 1 < hi, c[close + 1] == "[",
+               let end = find("]", from: close + 2, hi) {
+                flush()
+                var r = MDRun(text: String(c[i...end]))
+                r.literal = true
+                out.append(r)
+                i = end + 1
+                continue
+            }
+
             if ch == "<" {
                 // <br>：段内换行
                 if let len = ["<br>", "<br/>", "<br />"].first(where: { matches($0, at: i, hi) })?.count {
