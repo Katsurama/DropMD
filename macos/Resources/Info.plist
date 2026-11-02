@@ -27,6 +27,7 @@
         <string>zh-Hans</string>
         <string>zh-Hant</string>
         <string>en</string>
+        <string>ja</string>
     </array>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
