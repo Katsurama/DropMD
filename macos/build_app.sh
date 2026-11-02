@@ -31,7 +31,7 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 if [ -n "${GITHUB_REPOSITORY:-}" ]; then
   /usr/libexec/PlistBuddy -c "Add :DropMDUpdateRepository string $GITHUB_REPOSITORY" "$APP/Contents/Info.plist"
 fi
-# 界面语言：中文（源码中的原文，简体）和英文（en.lproj 中的译文）。系统菜单（关于、隐藏、退出等）跟着显示对应语言。
+# 界面语言：中文（源码中的原文，简体）、英文和日文（en.lproj、ja.lproj 中的译文）。系统菜单（关于、隐藏、退出等）跟着显示对应语言。
 # 繁体中文系统也显示中文界面（还没有繁体译文，界面文字是简体）；系统语言里都没有时用英文（Info.plist 的 CFBundleDevelopmentRegion）
 # 中文的翻译表是“原文 = 原文”：没有本语言的翻译表时，系统会改用英文（开发语言）的译文
 plutil -convert json -o - Resources/en.lproj/Localizable.strings | python3 -c '
@@ -44,6 +44,7 @@ for l in zh-Hans zh-Hant; do
 done
 cp "$APP/Contents/Resources/zh-Hans.lproj/Localizable.strings" "$APP/Contents/Resources/zh-Hant.lproj/"
 cp -R Resources/en.lproj "$APP/Contents/Resources/en.lproj"
+cp -R Resources/ja.lproj "$APP/Contents/Resources/ja.lproj"
 
 # 图标：Icon Composer 格式（Resources/AppIcon.icon），系统自动生成浅色、深色、透明、着色四种样式。
 # 编译结果（Assets.car：macOS 26 起使用；AppIcon.icns：旧系统、安装盘使用）已提交在 Resources/AppIcon.compiled，
@@ -80,7 +81,7 @@ for k in CFBundleShortVersionString CFBundleVersion; do
 done
 # 沙盒中的扩展读不到 App 本体的文件，预览页面和字体各放一份（约 20 MB）
 cp -R "$APP/Contents/Resources/preview" "$APP/Contents/Resources/fonts" "$QL/Contents/Resources/"
-for l in en zh-Hans zh-Hant; do
+for l in en ja zh-Hans zh-Hant; do
   mkdir -p "$QL/Contents/Resources/$l.lproj"
   cp "$APP/Contents/Resources/$l.lproj/Localizable.strings" "$QL/Contents/Resources/$l.lproj/"
 done

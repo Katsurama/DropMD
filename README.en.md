@@ -113,7 +113,7 @@ tools/test_l10n.sh        # checks every interface text has an English translati
 macos/                 Interface (Swift / SwiftUI)
   Sources/DropMD/      Editor, converter window, software updates
   Resources/preview/   Split view preview (markdown-it, KaTeX; bundled, nothing loaded from the web)
-  Resources/en.lproj/  English interface text
+  Resources/en.lproj/  English interface text (ja.lproj: Japanese)
   Resources/AppIcon.icon  App icon (Icon Composer format, adapts to light / dark)
   build_app.sh         Assembles DropMD.app
 src/dropmd/            Conversion engine (Python: MarkItDown / Pandoc / Docling)
