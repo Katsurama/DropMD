@@ -1,4 +1,4 @@
-<p align="right">🌐 <a href="README.md">简体中文</a> | <b>English</b></p>
+<p align="right">🌐 <a href="README.md">简体中文</a> | <b>English</b> | <a href="README.ja.md">日本語</a></p>
 
 <div align="center">
 
@@ -24,7 +24,7 @@ It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all o
 
 > [!NOTE]
 > DropMD is in beta. Please report problems in Issues.
-> The interface follows your Mac's language: English or Chinese.
+> The interface follows your Mac's language: English, Japanese, or Simplified / Traditional Chinese.
 
 ## ✨ Features
 
@@ -36,6 +36,7 @@ It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all o
 - **More formatting**: callouts (`> [!NOTE]`), collapsible sections, footnotes, math formulas, superscript / subscript, keyboard keys
 - **Chinese, Japanese and Korean text**: choose the document language so characters use the right glyph shapes, on screen and in exported files
 - **A native Mac app**: built with SwiftUI, uses Liquid Glass on macOS 26 and later, with colors designed for both light and dark mode
+- **Quick Look**: select a .md file in Finder and press Space to see it formatted without opening it
 - **Export**: PDF and HTML; auto save and version history
 - **Software updates**: check for new versions in the app; downloads are checked for integrity, then click Restart to finish
 
@@ -103,7 +104,7 @@ macos/build_app.sh        # outputs dist/DropMD.app
 tools/test_codec.sh       # Markdown round-trip tests
 tools/test_editor.sh      # Page view editing tests
 tools/test_update.sh      # software update install tests
-tools/test_l10n.sh        # checks every interface text has an English translation
+tools/test_l10n.sh        # checks every interface text has English, Japanese and Traditional Chinese translations
 ```
 
 <details>
@@ -112,8 +113,9 @@ tools/test_l10n.sh        # checks every interface text has an English translati
 ```
 macos/                 Interface (Swift / SwiftUI)
   Sources/DropMD/      Editor, converter window, software updates
+  Sources/DropMDQuickLook/  Quick Look extension
   Resources/preview/   Split view preview (markdown-it, KaTeX; bundled, nothing loaded from the web)
-  Resources/en.lproj/  English interface text (ja.lproj: Japanese)
+  Resources/en.lproj/  English interface text (ja.lproj: Japanese, zh-Hant.lproj: Traditional Chinese)
   Resources/AppIcon.icon  App icon (Icon Composer format, adapts to light / dark)
   build_app.sh         Assembles DropMD.app
 src/dropmd/            Conversion engine (Python: MarkItDown / Pandoc / Docling)
