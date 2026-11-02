@@ -14,7 +14,18 @@ final class SelectionModel: ObservableObject {
 @MainActor
 final class EditorController: ObservableObject {
     weak var textView: NSTextView? { didSet { textView?.textStorage?.delegate = fonts } }
-    weak var richView: RichTextView? { didSet { richView?.textStorage?.delegate = fonts } }
+    weak var richView: RichTextView? {
+        didSet {
+            richView?.textStorage?.delegate = fonts
+            // 双击单页中的公式：修改 LaTeX
+            richView?.editMath = { [weak self] source in
+                let block = RichBridge.isMathBlock(source)
+                guard let self, let f = self.askText(String(localized: "修改公式"), info: String(localized: "LaTeX 格式"), placeholder: "",
+                                                     initial: MathAttachmentCell.latex(from: source, display: block)) else { return nil }
+                return block ? "$$\n\(f)\n$$" : "$\(f)$"
+            }
+        }
+    }
     weak var webView: WKWebView?
     var fileURL: URL? {
         didSet {
@@ -373,7 +384,7 @@ final class EditorController: ObservableObject {
     func inlineMath() {
         guard let formula = askText(String(localized: "插入行内公式"), info: String(localized: "LaTeX 格式，例如 E=mc^2"),
                                     placeholder: "E=mc^2") else { return }
-        if let r = rich { r.insertLiteral("$\(formula)$") } else { replaceSelection(with: "$\(formula)$") }
+        if let r = rich { r.insertInlineMath(formula) } else { replaceSelection(with: "$\(formula)$") }
     }
 
     func mathBlock() {
