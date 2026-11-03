@@ -443,7 +443,48 @@ final class RichTextView: NSTextView {
         let start = selectedRange().location
         super.paste(sender)
         let end = selectedRange().location
-        if end > start { normalizePasted(NSRange(location: start, length: end - start)) }
+        if end > start { cleanPasted(NSRange(location: start, length: end - start)) }
+    }
+
+    /// 刚粘贴进来的内容：去掉保存不了的格式，链接、列表转成单页的写法
+    func cleanPasted(_ range: NSRange) {
+        let lists = pastedLists(range)   // 清理格式前先记下：清理后系统的列表信息就没了
+        normalizePasted(range)
+        listify(lists)
+    }
+
+    /// 粘贴内容里系统标成列表的段落（文本编辑、Word、网页的列表带 NSTextList）及其层级
+    private func pastedLists(_ range: NSRange) -> [(NSRange, Int)] {
+        guard let storage = textStorage else { return [] }
+        let ns = storage.string as NSString
+        var out: [(NSRange, Int)] = []
+        var loc = range.location
+        while loc < NSMaxRange(range), loc < ns.length {
+            let p = ns.paragraphRange(for: NSRange(location: loc, length: 0))
+            if let lists = (storage.attribute(.paragraphStyle, at: p.location, effectiveRange: nil) as? NSParagraphStyle)?.textLists,
+               !lists.isEmpty {
+                out.append((p, lists.count - 1))
+            }
+            loc = NSMaxRange(p)
+        }
+        return out
+    }
+
+    /// 这些段落的文字以“•⇥”“1⇥”这样的列表符号开头：去掉符号，改成单页的列表
+    private func listify(_ paras: [(NSRange, Int)]) {
+        guard let storage = textStorage else { return }
+        for (p, depth) in paras.reversed() {   // 从后往前改，前面段落的位置不变
+            let text = (storage.string as NSString).substring(with: p)
+            guard let m = text.range(of: #"^\t*(\S{1,4})\t"#, options: .regularExpression) else { continue }
+            let marker = text[m].trimmingCharacters(in: .whitespaces)
+            let ordered = marker.first?.isNumber == true || marker.first?.isLetter == true
+            let cut = NSRange(location: p.location, length: (String(text[m]) as NSString).length)
+            guard shouldChangeText(in: cut, replacementString: "") else { continue }
+            storage.replaceCharacters(in: cut, with: "")
+            didChangeText()
+            let para = paragraphRange(at: p.location)
+            _ = restyle(para, to: ordered ? .ordered(depth) : .bullet(depth), from: RichBridge.kind(of: paragraphAttributes(para)))
+        }
     }
 
     private static let keptKeys: Set<NSAttributedString.Key> = [
@@ -503,6 +544,14 @@ final class RichTextView: NSTextView {
                 a[.font] = RichStyle.setBold(RichStyle.baseFont(for: paragraphKind), RichStyle.isBold(font))
                 if let font, font.fontDescriptor.symbolicTraits.contains(.italic) {
                     a[.obliqueness] = RichStyle.italicObliqueness
+                }
+            }
+            // 网页、文本编辑里的链接只有系统的 .link，转成单页的链接，否则保存时只剩下划线
+            if a[DMKey.link] == nil, let link = a[.link] {
+                let url = (link as? URL)?.absoluteString ?? (link as? String)
+                if let url, !url.isEmpty {
+                    a[DMKey.link] = url
+                    a[.underlineStyle] = NSUnderlineStyle.single.rawValue
                 }
             }
             a[.foregroundColor] = a[DMKey.link] != nil ? NSColor.linkColor
