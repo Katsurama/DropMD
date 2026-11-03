@@ -10,7 +10,7 @@
 
 Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換することもできます。すべてお使いの Mac 上で処理します
 
-[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-インストール) [![Version](https://img.shields.io/badge/Version-0.1.0-0a84ff?style=flat-square)](docs/发行说明.md) [![UI](https://img.shields.io/badge/UI-SwiftUI%20%C2%B7%20Liquid%20Glass-f05138?style=flat-square&logo=swift&logoColor=white)](macos) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-インストール) [![Version](https://img.shields.io/badge/Version-0.2.0-0a84ff?style=flat-square)](docs/发行说明.md) [![UI](https://img.shields.io/badge/UI-SwiftUI%20%C2%B7%20Liquid%20Glass-f05138?style=flat-square&logo=swift&logoColor=white)](macos) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE)
 
 <br>
 
@@ -24,7 +24,7 @@ Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換す�
 
 > [!NOTE]
 > 問題があれば Issues で報告してください。
-> 表示言語は Mac の言語設定に合わせて、日本語・英語・中国語（簡体字 / 繁体字）から自動で選ばれます。
+> 表示言語は Mac の言語設定に合わせて、日本語・英語・中国語（簡体字 / 繁体字）から自動で選ばれます。「DropMD → 設定…」で個別に選ぶこともできます。
 
 ## ✨ 機能
 
