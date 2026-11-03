@@ -46,6 +46,15 @@ with tempfile.TemporaryDirectory() as d:
           and (Path(d) / "c_images/image2.png").read_bytes() == b"hi")
     failed += not ok
     print("ok  " if ok else "FAIL", "不动用户的图片", "" if ok else f"\n     got:  {got!r}")
+# 引擎提示跟着界面语言：简体、繁体、英文
+import subprocess, sys, os
+for lang, want in [("zh", "找不到文件，可能已被移动或删除。"), ("zh-Hant", "找不到檔案，可能已被移動或刪除。"),
+                   ("en", "File not found. It may have been moved or deleted.")]:
+    got = subprocess.run([sys.executable, "-c", "from dropmd.errors import describe; print(describe(FileNotFoundError()))"],
+                         env={**os.environ, "DROPMD_LANG": lang}, capture_output=True, text=True).stdout.strip()
+    ok = got == want
+    failed += not ok
+    print("ok  " if ok else "FAIL", f"引擎提示 {lang}", "" if ok else f"\n     got:  {got!r}")
 print("全部通过" if not failed else f"失败 {failed} 项")
 raise SystemExit(1 if failed else 0)
 EOF

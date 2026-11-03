@@ -95,8 +95,8 @@ def get_converter(ocr_engine: str, formulas: bool, vision_lang: str = "zh-Hans")
                 from .errors import ConversionError, tr
 
                 raise ConversionError(
-                    tr("高精度模型尚未下载：", "High-accuracy models aren't downloaded yet: ")
-                    + tr("、", ", ").join(c.title for c in missing)
+                    tr("高精度模型尚未下载：", "High-accuracy models aren't downloaded yet: ", "高精度模型尚未下載：")
+                    + tr("、", ", ", "、").join(c.title for c in missing)
                 )
             _cache[key] = _build_converter(ocr_engine, formulas, vision_lang)
         return _cache[key]
@@ -132,5 +132,5 @@ def convert_pdf(src: Path, dst: Path, ocr_engine: str, formulas: bool, images_di
 
     n_pics = len(getattr(doc, "pictures", []) or [])
     if n_pics:
-        return tr(f"高精度模式；导出 {n_pics} 张图片", f"High Accuracy mode; {n_pics} images exported")
-    return tr("高精度模式", "High Accuracy mode")
+        return tr(f"高精度模式；导出 {n_pics} 张图片", f"High Accuracy mode; {n_pics} images exported", f"高精度模式；輸出 {n_pics} 張圖片")
+    return tr("高精度模式", "High Accuracy mode", "高精度模式")
