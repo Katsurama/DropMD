@@ -8,6 +8,7 @@ extension MarkdownCodec {
         var prev: MDBlock?
         var numbering = MDNumbering()
         var listTypes: [Int: Bool] = [:]   // 各层级最近一个列表项是否为有序列表
+        var contentCols: [Int] = []          // 各层级项目文字开始的列：下一层缩进到这里（1. 下面 3 格），否则会被读成同级
         for block in blocks {
             var text: String
             var newList = false
@@ -17,11 +18,17 @@ extension MarkdownCodec {
                 listTypes[d] = line.kind.isOrdered
             } else {
                 listTypes = [:]
+                contentCols = []
             }
             let number = numbering.number(for: block)?.n ?? 0
             switch block {
             case .line(let line):
-                text = render(line, number: number)
+                var indent = 0
+                if let d = line.kind.listDepth {
+                    indent = d == 0 ? 0 : d - 1 < contentCols.count ? contentCols[d - 1] : (contentCols.last ?? 0) + 2
+                    contentCols = Array(contentCols.prefix(d)) + [indent + (line.kind.isOrdered ? "\(number).".count + 1 : 2)]
+                }
+                text = render(line, number: number, indent: indent)
             case .code(let lang, let lines):
                 let longest = lines.map { longestRun(of: "`", in: $0) }.max() ?? 0
                 let fence = String(repeating: "`", count: max(3, longest + 1))
@@ -63,7 +70,7 @@ extension MarkdownCodec {
         return "\n\n"
     }
 
-    private static func render(_ line: MDLine, number: Int) -> String {
+    private static func render(_ line: MDLine, number: Int, indent: Int) -> String {
         switch line.kind {
         case .body:
             let body = keepingBreaks(inline(line.runs))
@@ -74,12 +81,12 @@ extension MarkdownCodec {
         case .quote:
             let body = oneLine(inline(line.runs))
             return body.isEmpty ? ">" : "> " + body
-        case .bullet(let d):
-            return item(d, "-", keepingBreaks(inline(line.runs)))
-        case .ordered(let d):
-            return item(d, "\(number).", keepingBreaks(inline(line.runs)))
-        case .task(let d, let done):
-            return item(d, done ? "- [x]" : "- [ ]", keepingBreaks(inline(line.runs)))
+        case .bullet:
+            return item(indent, "-", keepingBreaks(inline(line.runs)))
+        case .ordered:
+            return item(indent, "\(number).", keepingBreaks(inline(line.runs)))
+        case .task(_, let done):
+            return item(indent, done ? "- [x]" : "- [ ]", keepingBreaks(inline(line.runs)))
         }
     }
 
@@ -96,8 +103,8 @@ extension MarkdownCodec {
         s.replacingOccurrences(of: "\n", with: " ")
     }
 
-    private static func item(_ depth: Int, _ marker: String, _ body: String) -> String {
-        let indent = String(repeating: "  ", count: max(depth, 0))
+    private static func item(_ spaces: Int, _ marker: String, _ body: String) -> String {
+        let indent = String(repeating: " ", count: spaces)
         // 续行缩进到项目文字下面
         let text = body.replacingOccurrences(of: "\n", with: "\n" + indent + String(repeating: " ", count: marker.count + 1))
         return indent + marker + (body.isEmpty ? "" : " " + text)

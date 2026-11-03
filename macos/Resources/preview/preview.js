@@ -16,7 +16,7 @@
 
     function isWS(c) { return c === 0x20 || c === 0x09 || c === 0x0a; }
 
-    md.inline.ruler.after("escape", "math_inline", function (state, silent) {
+    md.inline.ruler.before("escape", "math_inline", function (state, silent) {   // 要在转义之前，否则 \( 先被当成转义的括号
       const s = state.src, pos = state.pos;
       let open, close;
       if (s.charCodeAt(pos) === 0x24 /* $ */) {
@@ -179,12 +179,45 @@
     };
   }
 
+  // ---------------------------------------------------------------- 中文粗体
+  // 标准规则按英文“词旁有空格”判断，**“重点”**内容、**结论（重要）**以及 这种 AI 常写的中文粗体会失效。
+  // 标记外侧是中日韩文字时当作空格看；其余与 markdown-it 原来的 scanDelims 相同。
+  function cjkEmphasisPlugin(md) {
+    const u = md.utils;
+    function isCJK(c) {
+      return (c >= 0x2e80 && c <= 0x9fff) || (c >= 0xac00 && c <= 0xd7af) || (c >= 0xf900 && c <= 0xfaff) ||
+        (c >= 0xff00 && c <= 0xffef) || (c >= 0x20000 && c <= 0x3ffff);
+    }
+    function isPunct(c) { return u.isMdAsciiPunct(c) || u.isPunctCharCode(c); }
+    md.inline.State.prototype.scanDelims = function (start, canSplitWord) {
+      const src = this.src, max = this.posMax, marker = src.charCodeAt(start);
+      let last = 0x20;
+      if (start > 0) {
+        last = src.charCodeAt(start - 1);
+        if (last >= 0xdc00 && last <= 0xdfff && start > 1) last = src.codePointAt(start - 2);
+      }
+      let pos = start;
+      while (pos < max && src.charCodeAt(pos) === marker) pos++;
+      const next = pos < max ? src.codePointAt(pos) : 0x20;
+      const lastP = isPunct(last), nextP = isPunct(next);
+      const lastWS = u.isWhiteSpace(last), nextWS = u.isWhiteSpace(next);
+      const left = !nextWS && (!nextP || lastWS || isCJK(last) || lastP);
+      const right = !lastWS && (!lastP || nextWS || isCJK(next) || nextP);
+      return {
+        can_open: left && (canSplitWord || !right || lastP),
+        can_close: right && (canSplitWord || !left || nextP),
+        length: pos - start,
+      };
+    };
+  }
+
   function makeRenderer(mathOutput, blockRemote) {
     const md = window.markdownit({ html: true, linkify: true, typographer: false });
     // 开源插件：==高亮==（markdown-it-mark）、脚注 [^1]（markdown-it-footnote）
     if (window.markdownitMark) md.use(window.markdownitMark);
     if (window.markdownitFootnote) md.use(window.markdownitFootnote);
     md.use(function (m) { mathPlugin(m, mathOutput); });
+    md.use(cjkEmphasisPlugin);
     md.use(taskListPlugin);
     md.use(calloutPlugin);
     md.use(lineMapPlugin);
