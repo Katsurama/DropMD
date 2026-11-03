@@ -183,27 +183,19 @@ struct EditorView: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                // 单页延伸到工具栏下方（与 Pages 相同），不留一条分隔带
-                RichTextEditor(text: $document.text, baseURL: fileURL?.deletingLastPathComponent(),
-                               controller: editor, isActive: mode == .rich)
-                    .ignoresSafeArea(.container, edges: .top)
-                // 双页从工具栏下方开始，中间的分隔线不穿过工具栏
-                if sourceLoaded || mode == .source {
-                    sourcePane
-                        .opacity(mode == .source ? 1 : 0)
-                        .allowsHitTesting(mode == .source)
-                }
+        // “格式”面板不用系统的 .inspector：它会让工具栏中间的按钮只按编辑区居中，打开面板时偏左
+        HStack(spacing: 0) {
+            editorColumn
+            if showInspector {
+                Rectangle()
+                    .fill(Color(nsColor: RichStyle.lineColor))
+                    .frame(width: 1)
+                FormatInspector(editor: editor, selection: editor.selection, isRich: mode == .rich)
+                    .frame(width: 260)
             }
-            statusBar
         }
         // 最小宽度留得小一些：打开“格式”面板时从编辑区分出空间，窗口不变大
         .frame(minWidth: 420, minHeight: 360)
-        .inspector(isPresented: $showInspector) {
-            FormatInspector(editor: editor, selection: editor.selection, isRich: mode == .rich)
-                .inspectorColumnWidth(min: 240, ideal: 260, max: 340)
-        }
         .onAppear {
             editor.fileURL = fileURL
             editor.isRichMode = mode == .rich
@@ -228,6 +220,24 @@ struct EditorView: View {
         .toolbar { toolbarContent }
         .hidesToolbarTitle()
         .onReceive(NotificationCenter.default.publisher(for: .showUpdates)) { _ in openWindow(id: "updates") }
+    }
+
+    private var editorColumn: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                // 单页延伸到工具栏下方（与 Pages 相同），不留一条分隔带
+                RichTextEditor(text: $document.text, baseURL: fileURL?.deletingLastPathComponent(),
+                               controller: editor, isActive: mode == .rich)
+                    .ignoresSafeArea(.container, edges: .top)
+                // 双页从工具栏下方开始，中间的分隔线不穿过工具栏
+                if sourceLoaded || mode == .source {
+                    sourcePane
+                        .opacity(mode == .source ? 1 : 0)
+                        .allowsHitTesting(mode == .source)
+                }
+            }
+            statusBar
+        }
     }
 
     /// 切换视图前，先把单页中尚未写回的修改写回文档
