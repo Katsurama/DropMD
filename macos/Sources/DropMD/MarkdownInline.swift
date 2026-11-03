@@ -19,10 +19,11 @@ private struct InlineStyle {
     var sub = false
     var kbd = false
     var link: String?
+    var title: String?
 
     func run(_ text: String) -> MDRun {
         MDRun(text: text, bold: bold, italic: italic, underline: underline, strike: strike, highlight: highlight,
-              sup: sup, sub: sub, kbd: kbd, link: link)
+              sup: sup, sub: sub, kbd: kbd, link: link, title: title)
     }
 
     /// 行内 HTML 标签对应的样式
@@ -49,6 +50,7 @@ private struct LinkMatch {
     let labelLo: Int
     let labelHi: Int
     let url: String
+    let title: String?
     let end: Int
 }
 
@@ -85,7 +87,7 @@ private struct InlineParser {
                     if code.count > 2, code.first == " ", code.last == " " {
                         code = String(code.dropFirst().dropLast())
                     }
-                    out.append(MDRun(text: code, code: true, link: st.link))
+                    out.append(MDRun(text: code, code: true, link: st.link, title: st.title))
                     i = close + n
                     continue
                 }
@@ -99,6 +101,7 @@ private struct InlineParser {
                 flush()
                 var r = MDRun(text: String(c[m.labelLo..<m.labelHi]))
                 r.image = m.url.removingPercentEncoding ?? m.url
+                r.title = m.title
                 out.append(r)
                 i = m.end
                 continue
@@ -120,6 +123,7 @@ private struct InlineParser {
                 flush()
                 var inner = st
                 inner.link = m.url
+                inner.title = m.title
                 out += parse(m.labelLo, m.labelHi, inner)
                 i = m.end
                 continue
@@ -159,6 +163,7 @@ private struct InlineParser {
                         flush()
                         var r = st.run(url)
                         r.link = url
+                        r.title = nil
                         out.append(r)
                         i = end + 1
                         continue
@@ -359,8 +364,13 @@ private struct InlineParser {
         }
         guard q < hi else { return nil }
         var dest = String(c[start..<q]).trimmingCharacters(in: .whitespaces)
-        if let sp = dest.firstIndex(of: " ") { dest = String(dest[..<sp]) }
+        var title: String?
+        if let sp = dest.firstIndex(of: " ") {
+            let rest = dest[sp...].trimmingCharacters(in: .whitespaces)
+            if !rest.isEmpty { title = rest }
+            dest = String(dest[..<sp])
+        }
         if dest.hasPrefix("<") && dest.hasSuffix(">") { dest = String(dest.dropFirst().dropLast()) }
-        return LinkMatch(labelLo: open + 1, labelHi: k, url: dest, end: q + 1)
+        return LinkMatch(labelLo: open + 1, labelHi: k, url: dest, title: title, end: q + 1)
     }
 }

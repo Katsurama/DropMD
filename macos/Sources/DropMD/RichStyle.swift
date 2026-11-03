@@ -21,6 +21,8 @@ enum DMKey {
     static let start = NSAttributedString.Key("dm.start")        // Int：有序列表第一项的编号（不从 1 开始时）
     static let math = NSAttributedString.Key("dm.math")          // String：公式（显示为图片）的原文，如 $E=mc^2$、$$…$$
     static let link = NSAttributedString.Key("dm.link")          // String：链接地址
+    static let softBreak = NSAttributedString.Key("dm.soft")     // Bool：段落里的单个换行，显示为空格，保存时写回换行
+    static let title = NSAttributedString.Key("dm.title")        // String：链接、图片的提示文字原文（含引号）
     static let image = NSAttributedString.Key("dm.image")        // String：图片路径
     static let alt = NSAttributedString.Key("dm.alt")            // String：图片说明文字
     static let callout = NSAttributedString.Key("dm.callout")    // String：提示框标题行的原文（如 [!TIP]），显示为“提示”等
@@ -286,6 +288,7 @@ enum RichStyle {
         }
         if let url = r.link {
             a[DMKey.link] = url
+            a[DMKey.title] = r.title
             a[.foregroundColor] = NSColor.linkColor
             a[.underlineStyle] = NSUnderlineStyle.single.rawValue
             if let u = URL(string: url) { a[.link] = u }
