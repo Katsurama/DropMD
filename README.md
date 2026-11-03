@@ -10,7 +10,7 @@
 
 还能把 Word、Excel、PowerPoint、PDF 等文件转换为 Markdown，全部在本机完成
 
-[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-安装) [![版本](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.1.0-0a84ff?style=flat-square)](docs/发行说明.md) [![界面](https://img.shields.io/badge/%E7%95%8C%E9%9D%A2-SwiftUI%20%C2%B7%20Liquid%20Glass-f05138?style=flat-square&logo=swift&logoColor=white)](macos) [![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-3b82f6?style=flat-square)](LICENSE)
+[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-安装) [![版本](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.2.0-0a84ff?style=flat-square)](docs/发行说明.md) [![界面](https://img.shields.io/badge/%E7%95%8C%E9%9D%A2-SwiftUI%20%C2%B7%20Liquid%20Glass-f05138?style=flat-square&logo=swift&logoColor=white)](macos) [![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-3b82f6?style=flat-square)](LICENSE)
 
 <br>
 
@@ -33,7 +33,7 @@
 - **双页**：左边 Markdown 原文，右边实时预览，滚动同步
 - **常用格式**：标题、粗体、斜体、下划线、删除线、高亮、列表、待办、表格、图片、链接、代码块
 - **更多格式**：提示框（`> [!NOTE]`）、折叠块、脚注、数学公式、上标 / 下标、键盘按键
-- **界面语言**：跟随系统，简体中文、繁体中文、英文或日文
+- **界面语言**：简体中文、繁体中文、英文或日文，跟随系统，也可以在“设置”里单独选择
 - **中文输入法友好**：段首输入“－ ”“》 ”“1。 ”“【】 ”“＃ ”也能自动变成列表、引用、待办、标题
 - **原生 Mac 界面**：SwiftUI 开发，macOS 26 起使用 Liquid Glass，浅色 / 深色都有专门配色
 - **快速查看**：在访达里选中 .md 文件按空格，不用打开就能看到排版效果
