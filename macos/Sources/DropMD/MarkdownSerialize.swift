@@ -75,11 +75,11 @@ extension MarkdownCodec {
             let body = oneLine(inline(line.runs))
             return body.isEmpty ? ">" : "> " + body
         case .bullet(let d):
-            return item(d, "-", oneLine(inline(line.runs)))
+            return item(d, "-", keepingBreaks(inline(line.runs)))
         case .ordered(let d):
-            return item(d, "\(number).", oneLine(inline(line.runs)))
+            return item(d, "\(number).", keepingBreaks(inline(line.runs)))
         case .task(let d, let done):
-            return item(d, done ? "- [x]" : "- [ ]", oneLine(inline(line.runs)))
+            return item(d, done ? "- [x]" : "- [ ]", keepingBreaks(inline(line.runs)))
         }
     }
 
@@ -97,7 +97,10 @@ extension MarkdownCodec {
     }
 
     private static func item(_ depth: Int, _ marker: String, _ body: String) -> String {
-        String(repeating: "  ", count: max(depth, 0)) + marker + (body.isEmpty ? "" : " " + body)
+        let indent = String(repeating: "  ", count: max(depth, 0))
+        // 续行缩进到项目文字下面
+        let text = body.replacingOccurrences(of: "\n", with: "\n" + indent + String(repeating: " ", count: marker.count + 1))
+        return indent + marker + (body.isEmpty ? "" : " " + text)
     }
 
     private static func renderTable(_ rows: [[[MDRun]]], _ align: [String]) -> String {

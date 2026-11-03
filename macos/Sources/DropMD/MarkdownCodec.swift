@@ -194,7 +194,18 @@ enum MarkdownCodec {
                 indents = []
                 var j = i
                 var contents: [String] = []
-                while j < lines.count, let q = groups(quotePattern, lines[j]) { contents.append(q[1]); j += 1 }
+                while j < lines.count {
+                    if let q = groups(quotePattern, lines[j]) {
+                        contents.append(q[1])
+                    } else if let last = contents.last, !isBlank(last), !isBlank(lines[j]), !startsBlock(lines[j]),
+                              groups(setextPattern, lines[j]) == nil {
+                        // 不带 > 的续行也属于这段引用，保存时补上 >
+                        contents.append(lines[j].trimmingCharacters(in: .whitespaces))
+                    } else {
+                        break
+                    }
+                    j += 1
+                }
                 // 引用里有列表、标题、代码等单页表示不了的内容：整段原样保存
                 if contents.contains(where: { startsBlock($0) || leadingWidth($0) >= 4 }) {
                     blocks.append(.raw(lines[i..<j].joined(separator: "\n")))
@@ -229,9 +240,9 @@ enum MarkdownCodec {
                     content = t[2]
                 }
                 i += 1
-                // 紧接着的续行属于这一项
+                // 紧接着的续行属于这一项，换行保留
                 while i < lines.count && !isBlank(lines[i]) && groups(listPattern, lines[i]) == nil && !startsBlock(lines[i]) {
-                    content += " " + lines[i].trimmingCharacters(in: .whitespaces)
+                    content += "\n" + lines[i].trimmingCharacters(in: .whitespaces)
                     i += 1
                 }
                 var item = MDLine(kind: kind, runs: parseInline(content))
