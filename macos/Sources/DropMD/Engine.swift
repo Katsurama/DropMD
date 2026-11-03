@@ -99,9 +99,10 @@ final class Engine: @unchecked Sendable {
         let p = Process()
         p.executableURL = exe
         p.arguments = ["--engine"] + args
-        // 引擎给用户看的文字（转换结果说明、错误原因）：中文界面用中文，其他界面（英文、日文）用英文
-        let chinese = !Bundle.main.localizations.contains("en") || Bundle.main.preferredLocalizations.first?.hasPrefix("zh") == true
-        p.environment = ProcessInfo.processInfo.environment.merging(["DROPMD_LANG": chinese ? "zh" : "en"]) { $1 }
+        // 引擎给用户看的文字（转换结果说明、错误原因）：简体、繁体界面用对应的中文，其他界面（英文、日文）用英文
+        let ui = Bundle.main.preferredLocalizations.first ?? ""
+        let lang = ui.hasPrefix("zh-Hant") ? "zh-Hant" : ui.hasPrefix("zh") || !Bundle.main.localizations.contains("en") ? "zh" : "en"
+        p.environment = ProcessInfo.processInfo.environment.merging(["DROPMD_LANG": lang]) { $1 }
         let out = Pipe()
         let inp = Pipe()
         p.standardOutput = out
