@@ -18,7 +18,7 @@ Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換す�
 
 <br>
 
-<img src="docs/images/demo.en.gif" alt="デモ：1 ページ表示で入力しながら書式設定、2 ページ表示でソースとプレビューを並べて表示、Word ファイルをドラッグして変換" width="100%">
+<img src="docs/images/demo.en.gif" alt="デモ：ページ表示で入力しながら書式設定、分割表示でソースとプレビューを並べて表示、Word ファイルをドラッグして変換" width="100%">
 
 </div>
 
@@ -28,10 +28,10 @@ Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換す�
 
 ## ✨ 機能
 
-<p align="center"><img src="docs/images/editor-light.en.jpg" alt="ライトモードの 1 ページ表示とフォーマットパネル" width="49%"> <img src="docs/images/editor-dark.en.jpg" alt="ダークモードの 2 ページ表示：Markdown ソースとプレビュー" width="49%"></p>
+<p align="center"><img src="docs/images/editor-light.en.jpg" alt="ライトモードの ページ表示とフォーマットパネル" width="49%"> <img src="docs/images/editor-dark.en.jpg" alt="ダークモードの 分割表示：Markdown ソースとプレビュー" width="49%"></p>
 
-- **1 ページ表示**：Pages や Word のように、書式が付いた状態のまま直接編集できます。Markdown を知らなくても使え、ファイルは標準の Markdown で保存されます
-- **2 ページ表示**：左に Markdown ソース、右にリアルタイムのプレビュー。スクロールも連動します
+- **ページ表示**：Pages や Word のように、書式が付いた状態のまま直接編集できます。Markdown を知らなくても使え、ファイルは標準の Markdown で保存されます
+- **分割表示**：左に Markdown ソース、右にリアルタイムのプレビュー。スクロールも連動します
 - **よく使う書式**：見出し、太字、斜体、下線、取り消し線、ハイライト、リスト、チェックリスト、表、画像、リンク、コードブロック
 - **その他の書式**：コールアウト（`> [!NOTE]`）、折りたたみセクション、脚注、数式、上付き / 下付き、キーボードのキー
 - **日本語・中国語・韓国語**：書類の言語を選ぶと、漢字がその言語の字形で表示されます（画面上でも、書き出したファイルでも）
@@ -102,7 +102,7 @@ macos/build_app.sh        # dist/DropMD.app を出力
 
 ```bash
 tools/test_codec.sh       # Markdown の往復テスト
-tools/test_editor.sh      # 1 ページ表示の編集テスト
+tools/test_editor.sh      # ページ表示の編集テスト
 tools/test_update.sh      # ソフトウェア・アップデートのインストールテスト
 tools/test_l10n.sh        # すべての表示テキストに英語・日本語・繁体字の訳があるか確認
 ```
@@ -114,7 +114,7 @@ tools/test_l10n.sh        # すべての表示テキストに英語・日本語�
 macos/                 インターフェイス（Swift / SwiftUI）
   Sources/DropMD/      エディタ、変換ウインドウ、ソフトウェア・アップデート
   Sources/DropMDQuickLook/  クイックルック用の拡張機能
-  Resources/preview/   2 ページ表示のプレビュー（markdown-it、KaTeX。同梱しており、Web からは読み込みません）
+  Resources/preview/   分割表示のプレビュー（markdown-it、KaTeX。同梱しており、Web からは読み込みません）
   Resources/ja.lproj/  日本語の表示テキスト（en.lproj：英語、zh-Hant.lproj：繁体字）
   Resources/AppIcon.icon  アプリのアイコン（Icon Composer 形式、ライト / ダークに対応）
   build_app.sh         DropMD.app を組み立てる
