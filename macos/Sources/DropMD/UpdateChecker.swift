@@ -43,6 +43,27 @@ struct AppVersion: Comparable, CustomStringConvertible {
 }
 
 /// GitHub Releases 中的一个版本
+/// 更新说明只留界面语言那一段。说明里中文在前，其他语言各以一行 **English** / **日本語** / **繁體中文** 开头；
+/// “## 版本”和“---”各语言共用。要的语言没有就退回：繁体 → 中文，日文 → 英文 → 中文。
+func releaseNotes(_ body: String, language: String) -> String {
+    let markers = ["**English**": "en", "**日本語**": "ja", "**繁體中文**": "zh-Hant"]
+    var section = "zh"
+    var lines: [(section: String?, text: String)] = []   // section 为 nil：共用的行
+    for line in body.components(separatedBy: "\n") {
+        let t = line.trimmingCharacters(in: .whitespaces)
+        if let s = markers[t] { section = s; continue }
+        if t.hasPrefix("## ") || t == "---" { section = "zh"; lines.append((nil, line)); continue }
+        lines.append((t.isEmpty ? nil : section, line))
+    }
+    let wanted = language == "zh-Hant" ? ["zh-Hant", "zh"] : language == "ja" ? ["ja", "en", "zh"]
+        : language == "zh" ? ["zh"] : ["en", "zh"]
+    let has = Set(lines.compactMap(\.section))
+    let pick = wanted.first { has.contains($0) } ?? "zh"
+    return lines.filter { $0.section == nil || $0.section == pick }.map(\.text).joined(separator: "\n")
+        .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
 struct ReleaseInfo: Decodable, Identifiable {
     struct Asset: Decodable {
         let name: String

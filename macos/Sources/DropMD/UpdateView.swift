@@ -144,7 +144,9 @@ struct UpdateView: View {
     }
 
     private func notes(_ release: ReleaseInfo) -> AttributedString {
-        let body = release.body ?? String(localized: "（没有更新说明）")
+        let ui = Bundle.main.preferredLocalizations.first ?? ""
+        let lang = ui.hasPrefix("zh-Hant") ? "zh-Hant" : ui.hasPrefix("zh") ? "zh" : ui.hasPrefix("ja") ? "ja" : "en"
+        let body = release.body.map { releaseNotes($0, language: lang) } ?? String(localized: "（没有更新说明）")
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         return (try? AttributedString(markdown: body, options: options)) ?? AttributedString(body)
     }
