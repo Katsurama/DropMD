@@ -108,5 +108,13 @@ check(newer("0.2.0-beta.1", "0.1.9"), "大版本号优先")
 check(AppVersion("v1.2")! == AppVersion("1.2.0")!, "v1.2 与 1.2.0 相同")
 check(AppVersion("abc") == nil, "无效版本号")
 
+// 更新说明只显示界面语言那一段
+let notes = "## DropMD 1.0\n\n**新功能**\n- 中文\n\n**English**\n- English\n\n**日本語**\n- 日本語\n\n---\n\n## DropMD 0.9\n\n- 旧中文\n\n**English**\n- old"
+check(releaseNotes(notes, language: "zh") == "## DropMD 1.0\n\n**新功能**\n- 中文\n\n---\n\n## DropMD 0.9\n\n- 旧中文", "更新说明：简体只留中文")
+check(releaseNotes(notes, language: "en") == "## DropMD 1.0\n\n- English\n\n---\n\n## DropMD 0.9\n\n- old", "更新说明：英文")
+check(releaseNotes(notes, language: "ja").contains("- 日本語") && !releaseNotes(notes, language: "ja").contains("English"), "更新说明：日文")
+check(releaseNotes(notes, language: "zh-Hant").contains("- 中文"), "更新说明：没有繁体时用中文")
+check(releaseNotes("- 只有中文", language: "en") == "- 只有中文", "更新说明：没有英文时用中文")
+
 print(failures == 0 ? "全部通过" : "\(failures) 项失败")
 exit(failures == 0 ? 0 : 1)
