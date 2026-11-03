@@ -70,7 +70,7 @@ You can switch at any time; the content stays in sync. The Format panel on the r
 - **Export**: the Export button in the toolbar, or the Format menu:
   - **Export PDF**: A4 paper with automatic page breaks;
   - **Export HTML**: a single HTML file you can open in any browser. Local images are embedded in the HTML file, so they show wherever you save or send it; web images keep their original address (the browser loads them when you open the file).
-- **Quick Look**: select a .md file in Finder and press Space to see it formatted (as in the Split view preview) without opening it.
+- **Quick Look**: select a .md file in Finder and press Space to see it formatted (as in the Split view preview) without opening it. Local images in the document are shown too; for this, Quick Look can **read** (not change) files in your home folder and on external drives, and it never goes online.
 
 ---
 
