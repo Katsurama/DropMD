@@ -439,13 +439,6 @@ final class RichTextView: NSTextView {
 
     // MARK: - 粘贴：只保留 Markdown 能保存的格式
 
-    override func paste(_ sender: Any?) {
-        let start = selectedRange().location
-        super.paste(sender)
-        let end = selectedRange().location
-        if end > start { cleanPasted(NSRange(location: start, length: end - start)) }
-    }
-
     /// 刚粘贴进来的内容：去掉保存不了的格式，链接、列表转成单页的写法
     func cleanPasted(_ range: NSRange) {
         let lists = pastedLists(range)   // 清理格式前先记下：清理后系统的列表信息就没了
@@ -517,7 +510,14 @@ final class RichTextView: NSTextView {
     }
 
     override func readSelection(from pboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Bool {
-        guard type == Self.richType else { return super.readSelection(from: pboard, type: type) }
+        guard type == Self.richType else {
+            // 粘贴和拖入都走这里：别的程序来的内容去掉保存不了的格式，链接、列表转成单页的写法
+            let sel = selectedRange(), before = textStorage?.length ?? 0
+            guard super.readSelection(from: pboard, type: type) else { return false }
+            let inserted = (textStorage?.length ?? 0) - before + sel.length
+            if inserted > 0 { cleanPasted(NSRange(location: sel.location, length: inserted)) }
+            return true
+        }
         // 只接受文字、字体、颜色、段落样式等固定的类型（剪贴板内容可能来自别的程序）
         let classes: [AnyClass] = [NSAttributedString.self, NSString.self, NSNumber.self, NSDictionary.self, NSArray.self,
                                    NSFont.self, NSColor.self, NSURL.self, NSParagraphStyle.self, NSTextTab.self,

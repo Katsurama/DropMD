@@ -218,17 +218,23 @@ MainActor.assumeIsolated {
         pasted.append(NSAttributedString(string: "链接", attributes: [.font: font, .link: URL(string: "https://example.com")!,
                                                                     .underlineStyle: NSUnderlineStyle.single.rawValue]))
         pasted.append(NSAttributedString(string: "。\n", attributes: [.font: font]))
+        // 列表符号由系统写进 RTF（和文本编辑复制出来的一样）
         func listPara(_ text: String, _ format: NSTextList.MarkerFormat, _ lists: Int) -> NSAttributedString {
             let p = NSMutableParagraphStyle()
             p.textLists = Array(repeating: NSTextList(markerFormat: format, options: 0), count: lists)
             return NSAttributedString(string: text, attributes: [.font: font, .paragraphStyle: p])
         }
-        pasted.append(listPara("•\t列表一\n", .disc, 1))
-        pasted.append(listPara("\t◦\t子项\n", .circle, 2))
-        pasted.append(listPara("1\t第一步\n", .decimal, 1))
+        pasted.append(listPara("列表一\n", .disc, 1))
+        pasted.append(listPara("子项\n", .circle, 2))
+        pasted.append(listPara("第一步\n", .decimal, 1))
         pasted.append(NSAttributedString(string: "1\t张三\n", attributes: [.font: font]))
-        tv.insertText(pasted, replacementRange: NSRange(location: 0, length: 0))
-        tv.cleanPasted(NSRange(location: 0, length: pasted.length))
+        // 走真正的读取剪贴板流程（粘贴、拖入都走这里），用单独的剪贴板，不影响系统剪贴板
+        let board = NSPasteboard(name: NSPasteboard.Name("DropMDTest3-\(ProcessInfo.processInfo.processIdentifier)"))
+        board.clearContents()
+        board.setData(try! pasted.data(from: NSRange(location: 0, length: pasted.length),
+                                       documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]), forType: .rtf)
+        _ = tv.readSelection(from: board)
+        board.releaseGlobally()
         check("粘贴富文本", md(tv), "见[链接](https://example.com)。\n\n- 列表一\n  - 子项\n\n1. 第一步\n\n1\t张三\n")
     }
     // 复制粘贴公式（用单独的剪贴板，不影响系统剪贴板）
@@ -288,9 +294,9 @@ MainActor.assumeIsolated {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("dropmd-export-\(ProcessInfo.processInfo.processIdentifier)")
         try? FileManager.default.createDirectory(at: dir.appendingPathComponent("图 片"), withIntermediateDirectories: true)
         try? Data("hi".utf8).write(to: dir.appendingPathComponent("图 片/a.png"))
-        let html = #"<p><img src="%E5%9B%BE%20%E7%89%87/a.png" alt="a"><img src="https://example.com/b.png" alt=""><img src="no.png" alt=""></p>"#
+        let html = #"<p><img src="%E5%9B%BE%20%E7%89%87/a.png" alt="a"><img src="https://example.com/b.png" alt=""><img src="no.png" alt=""><img width="200" src="%E5%9B%BE%20%E7%89%87/a.png"></p>"#
         check("导出 HTML 嵌入图片", HTMLExport.embedLocalImages(html, base: dir),
-              #"<p><img src="data:image/png;base64,aGk=" alt="a"><img src="https://example.com/b.png" alt=""><img src="no.png" alt=""></p>"#)
+              #"<p><img src="data:image/png;base64,aGk=" alt="a"><img src="https://example.com/b.png" alt=""><img src="no.png" alt=""><img width="200" src="data:image/png;base64,aGk="></p>"#)
         try? FileManager.default.removeItem(at: dir)
     }
     // 光标在公式后（打字属性取自公式这个字符）：输入的文字不能变成公式
