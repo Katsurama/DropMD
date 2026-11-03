@@ -2,9 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- 系统要求 Quick Look 扩展在沙盒中运行；只能读取正在预览的文件 -->
+	<!-- 系统要求 Quick Look 扩展在沙盒中运行 -->
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
+	<!-- 只读个人文件夹和外接硬盘：文档旁边的本机图片才能显示（用户 2026-11-03 选择放宽）。不能写，读不到系统文件夹 -->
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
+	<array>
+		<string>/</string>
+	</array>
+	<key>com.apple.security.temporary-exception.files.absolute-path.read-only</key>
+	<array>
+		<string>/Volumes/</string>
+	</array>
 	<!-- WebKit 的网页进程在沙盒里必须有这一项才能启动（没有时预览一直转圈）。
 	     预览不会联网：页面的内容安全策略禁止一切网络请求，扩展也不跳转任何链接 -->
 	<key>com.apple.security.network.client</key>

@@ -34,6 +34,14 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
         _ = try await webView.callAsyncJavaScript("DropMD.render(t, b, l, u)",
                                                   arguments: ["t": text, "b": dir, "l": lang.tag, "u": titles],
                                                   contentWorld: .page)
+        // 网页读不到文档旁边的图片：由扩展读出来嵌进页面（扩展能只读个人文件夹和外接硬盘，见 QuickLook.entitlements）
+        let content = "document.getElementById('content')"
+        if let html = try await webView.callAsyncJavaScript("return \(content).innerHTML", arguments: [:], contentWorld: .page) as? String {
+            let embedded = HTMLExport.embedLocalImages(html, base: url.deletingLastPathComponent())
+            if embedded != html {
+                _ = try await webView.callAsyncJavaScript("\(content).innerHTML = h", arguments: ["h": embedded], contentWorld: .page)
+            }
+        }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
