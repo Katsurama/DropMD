@@ -282,8 +282,9 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             let first = lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
             let last = lineFragmentRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
             let pad = container.lineFragmentPadding
-            let shift = storage.attribute(DMKey.inDetails, at: block.location, effectiveRange: nil) != nil
-                ? RichStyle.detailsIndent : 0
+            // 折叠块里、列表项里的代码块整体右移：按段落缩进算（代码块本身的内边距是 14）
+            let style = storage.attribute(.paragraphStyle, at: block.location, effectiveRange: nil) as? NSParagraphStyle
+            let shift = max(0, (style?.headIndent ?? 14) - 14)
             let rect = NSRect(x: origin.x + first.minX + pad + shift, y: origin.y + first.minY - 6,
                               width: first.width - pad * 2 - shift, height: last.maxY - first.minY + 10)
             RichStyle.codeBlockBackground.setFill()
@@ -332,7 +333,9 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         while loc > 0 {
             let prev = ns.paragraphRange(for: NSRange(location: loc - 1, length: 0))
             loc = prev.location
-            switch RichBridge.kind(of: storage.attributes(at: prev.location, effectiveRange: nil)) {
+            let a = storage.attributes(at: prev.location, effectiveRange: nil)
+            if a[DMKey.listCode] != nil { continue }   // 列表项里的代码块不打断编号
+            switch RichBridge.kind(of: a) {
             case .ordered(let d) where d == depth: n += 1
             case .ordered(let d) where d > depth: continue
             case .bullet(let d) where d > depth: continue

@@ -12,10 +12,17 @@ extension MarkdownCodec {
         for block in blocks {
             var text: String
             var newList = false
+            // 列表项里的代码块：缩进到上一项的文字下面
+            var codeIndent: Int?
+            if case .code(_, _, .some) = block, case .line(let p)? = prev, let d = p.kind.listDepth, d < contentCols.count {
+                codeIndent = contentCols[d]
+            }
             if case .line(let line) = block, let d = line.kind.listDepth {
                 listTypes = listTypes.filter { $0.key <= d }
                 if let wasOrdered = listTypes[d], wasOrdered != line.kind.isOrdered { newList = true }
                 listTypes[d] = line.kind.isOrdered
+            } else if codeIndent != nil {
+                // 保留各层缩进和列表类型：代码块后面的项还属于同一个列表
             } else {
                 listTypes = [:]
                 contentCols = []
@@ -29,10 +36,14 @@ extension MarkdownCodec {
                     contentCols = Array(contentCols.prefix(d)) + [indent + (line.kind.isOrdered ? "\(number).".count + 1 : 2)]
                 }
                 text = render(line, number: number, indent: indent)
-            case .code(let lang, let lines):
+            case .code(let lang, let lines, _):
                 let longest = lines.map { longestRun(of: "`", in: $0) }.max() ?? 0
                 let fence = String(repeating: "`", count: max(3, longest + 1))
                 text = fence + lang + "\n" + lines.joined(separator: "\n") + (lines.isEmpty ? "" : "\n") + fence
+                if let n = codeIndent {
+                    let pad = String(repeating: " ", count: n)
+                    text = text.components(separatedBy: "\n").map { $0.isEmpty ? $0 : pad + $0 }.joined(separator: "\n")
+                }
             case .table(let rows, let align):
                 text = renderTable(rows, align)
             case .rule:
@@ -57,6 +68,9 @@ extension MarkdownCodec {
     }
 
     private static func separator(_ a: MDBlock, _ b: MDBlock) -> String {
+        // 列表项里的代码块：原文前后有没有空行就照原样（有空行的列表项间距大）
+        if case .code(_, _, let gap?) = b, case .line(let x) = a, x.kind.listDepth != nil { return gap ? "\n\n" : "\n" }
+        if case .code(_, _, let gap?) = a, case .line(let y) = b, y.kind.listDepth != nil { return gap ? "\n\n" : "\n" }
         // 提示框的标题行开始一个新的引用块，与上面的引用之间要空行，否则会连成一个
         if case .line(let y) = b, y.kind == .quote, y.runs.count == 1, y.runs[0].literal,
            MDCallout(header: y.runs[0].text) != nil { return "\n\n" }
