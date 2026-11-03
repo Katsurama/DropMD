@@ -324,3 +324,7 @@
 "DropMD 是默认打开程序" = "DropMD is the default app";
 "将 DropMD 设为默认" = "Make DropMD the Default";
 "在访达中双击 .md 文件时，用默认打开程序打开。" = "Double-clicking a .md file in Finder opens it in the default app.";
+"界面语言" = "Language";
+"重新启动 DropMD 后，界面语言才会改变。" = "The new language will be used after DropMD restarts.";
+"立即重新启动" = "Restart Now";
+"稍后" = "Later";
