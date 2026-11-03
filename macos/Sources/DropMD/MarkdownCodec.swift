@@ -88,6 +88,7 @@ struct MDNumbering {
 
     /// 有序列表项的编号，以及它是不是这一串的第一项；不是有序列表项时为 nil
     mutating func number(for block: MDBlock) -> (n: Int, first: Bool)? {
+        if case .code(_, _, .some) = block { return nil }   // 列表项里的代码块不打断编号
         guard case .line(let line) = block, let d = line.kind.listDepth else { counts = [:]; return nil }
         counts = counts.filter { $0.key <= d }
         guard line.kind.isOrdered else { counts[d] = nil; return nil }
@@ -100,7 +101,8 @@ struct MDNumbering {
 
 enum MDBlock: Equatable {
     case line(MDLine)
-    case code(lang: String, lines: [String])
+    /// listGap：属于上面的列表项时不为 nil（AI 常写的“1. 安装：”下面的代码），true 表示前后有空行
+    case code(lang: String, lines: [String], listGap: Bool? = nil)
     case table([[[MDRun]]], align: [String] = [])   // 行 → 单元格 → 文字，第一行为表头；align：各列的 ---、:--、:-:、--:
     case rule
     case details(summary: String, body: [MDBlock], open: Bool)   // 折叠块 <details>；open：<details open>，默认展开
@@ -221,7 +223,13 @@ enum MarkdownCodec {
                 continue
             }
             if indents.isEmpty, groups(listPattern, line) != nil, let end = complexListEnd(lines, i) {
-                // 列表项里有续段、代码块、引用等单页表示不了的内容：整个列表原样保存
+                // 只是列表项里带代码块：拆成列表项和代码块，单页里可以编辑
+                if let parts = listWithCode(Array(lines[i..<end])) {
+                    blocks += parts
+                    i = end
+                    continue
+                }
+                // 列表项里有续段、引用等单页表示不了的内容：整个列表原样保存
                 var body = Array(lines[i..<end])
                 while let last = body.last, isBlank(last) { body.removeLast() }
                 blocks.append(.raw(body.joined(separator: "\n")))
@@ -391,6 +399,58 @@ enum MarkdownCodec {
             j += 1
         }
         return complex ? j : nil
+    }
+
+    /// 列表项里只有代码块时（AI 常写“1. 安装：”下面跟代码）拆成列表项和代码块；还有续段等其他内容时返回 nil
+    private static func listWithCode(_ lines: [String]) -> [MDBlock]? {
+        var out: [MDBlock] = []
+        var chunk: [String] = []   // 连续的列表行，交给 parse
+        var contentCol = 0         // 上一个列表项文字开始的列
+        func flush() -> Bool {
+            guard !chunk.isEmpty else { return true }
+            let parsed = parse(chunk.joined(separator: "\n"))
+            chunk = []
+            guard parsed.allSatisfy({ if case .line(let l) = $0 { return l.kind.listDepth != nil } else { return false } }) else { return false }
+            out += parsed
+            return true
+        }
+        var j = 0
+        while j < lines.count {
+            let l = lines[j]
+            if isBlank(l) { j += 1; continue }
+            let w = leadingWidth(l)
+            if let m = groups(listPattern, l) {
+                // 代码块后面的嵌套项：层级算不准，整块原样保存
+                if chunk.isEmpty, !out.isEmpty, w > 0 { return nil }
+                let gap = l.dropFirst(m[1].count + m[2].count).prefix(while: { $0 == " " }).count
+                contentCol = indentWidth(m[1]) + m[2].count + min(max(gap, 1), 4)
+                chunk.append(l)
+                j += 1
+                continue
+            }
+            if let fence = fenceOpening(dropIndent(l, w)), w >= contentCol, !(chunk.isEmpty && out.isEmpty) {
+                guard flush() else { return nil }
+                let gap = isBlank(lines[j - 1])
+                var body: [String] = []
+                j += 1
+                while j < lines.count, !isFenceClosing(dropIndent(lines[j], w), fence) {
+                    body.append(dropIndent(lines[j], w))
+                    j += 1
+                }
+                guard j < lines.count else { return nil }   // 没有结尾的 ```
+                j += 1
+                out.append(.code(lang: fence.lang, lines: body, listGap: gap))
+                continue
+            }
+            // 紧跟在列表行后的续行
+            if !chunk.isEmpty, !isBlank(lines[j - 1]) {
+                chunk.append(l)
+                j += 1
+                continue
+            }
+            return nil
+        }
+        return flush() ? out : nil
     }
 
     /// 解析 <details><summary>标题</summary>内容</details>
