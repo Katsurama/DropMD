@@ -209,6 +209,28 @@ MainActor.assumeIsolated {
         tv.editMath(at: block)
         check("修改公式块", md(tv), src.replacingOccurrences(of: "$E=mc^2$", with: "$x^2$").replacingOccurrences(of: "\\sum_{i=1}^n i", with: "y"))
     }
+    // 从文本编辑、网页粘贴：链接保留地址，系统列表变成单页的列表，颜色去掉；表格里的“1⇥张三”不当成列表
+    do {
+        let tv = makeView("")
+        let pasted = NSMutableAttributedString()
+        let font = NSFont(name: "Georgia", size: 20) ?? .systemFont(ofSize: 20)
+        pasted.append(NSAttributedString(string: "见", attributes: [.font: font, .foregroundColor: NSColor.red]))
+        pasted.append(NSAttributedString(string: "链接", attributes: [.font: font, .link: URL(string: "https://example.com")!,
+                                                                    .underlineStyle: NSUnderlineStyle.single.rawValue]))
+        pasted.append(NSAttributedString(string: "。\n", attributes: [.font: font]))
+        func listPara(_ text: String, _ format: NSTextList.MarkerFormat, _ lists: Int) -> NSAttributedString {
+            let p = NSMutableParagraphStyle()
+            p.textLists = Array(repeating: NSTextList(markerFormat: format, options: 0), count: lists)
+            return NSAttributedString(string: text, attributes: [.font: font, .paragraphStyle: p])
+        }
+        pasted.append(listPara("•\t列表一\n", .disc, 1))
+        pasted.append(listPara("\t◦\t子项\n", .circle, 2))
+        pasted.append(listPara("1\t第一步\n", .decimal, 1))
+        pasted.append(NSAttributedString(string: "1\t张三\n", attributes: [.font: font]))
+        tv.insertText(pasted, replacementRange: NSRange(location: 0, length: 0))
+        tv.cleanPasted(NSRange(location: 0, length: pasted.length))
+        check("粘贴富文本", md(tv), "见[链接](https://example.com)。\n\n- 列表一\n  - 子项\n\n1. 第一步\n\n1\t张三\n")
+    }
     // 复制粘贴公式（用单独的剪贴板，不影响系统剪贴板）
     do {
         let tv = makeView("甲 $x^2$ 乙\n")
