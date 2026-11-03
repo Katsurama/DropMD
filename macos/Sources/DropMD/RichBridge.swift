@@ -131,7 +131,7 @@ enum RichBridge {
         let s = NSMutableAttributedString()
         for r in runs {
             if let src = r.image {
-                s.append(imageString(path: src, alt: r.text, baseURL: baseURL))
+                s.append(imageString(path: src, alt: r.text, title: r.title, baseURL: baseURL))
             } else if r.literal, isInlineMath(r.text) {
                 s.append(mathString(r.text, display: false, attributes: RichStyle.attributes(for: r, kind: kind)))
             } else if r.literal, let c = MDCallout(header: r.text) {
@@ -140,7 +140,14 @@ enum RichBridge {
                 a[DMKey.callout] = r.text.trimmingCharacters(in: .whitespaces)
                 s.append(NSAttributedString(string: c.title, attributes: a))
             } else {
-                s.append(NSAttributedString(string: r.text, attributes: RichStyle.attributes(for: r, kind: kind)))
+                // 段落里的单个换行显示为空格
+                let a = RichStyle.attributes(for: r, kind: kind)
+                var soft = a
+                soft[DMKey.softBreak] = true
+                for (k, part) in r.text.components(separatedBy: "\n").enumerated() {
+                    if k > 0 { s.append(NSAttributedString(string: " ", attributes: soft)) }
+                    s.append(NSAttributedString(string: part, attributes: a))
+                }
             }
         }
         return s
@@ -195,14 +202,15 @@ enum RichBridge {
 
     static let maxImageWidth: CGFloat = 560
 
-    static func imageString(path: String, alt: String, baseURL: URL?) -> NSAttributedString {
+    static func imageString(path: String, alt: String, title: String? = nil, baseURL: URL?) -> NSAttributedString {
         var image: NSImage?
         let lower = path.lowercased()
         // 网络图片为保护隐私不加载
         if !lower.hasPrefix("http:"), !lower.hasPrefix("https:"), !lower.hasPrefix("//"), !path.isEmpty {
             image = NSImage(contentsOf: URL(fileURLWithPath: path, relativeTo: baseURL))
         }
-        let marks: [NSAttributedString.Key: Any] = [DMKey.image: path, DMKey.alt: alt]
+        var marks: [NSAttributedString.Key: Any] = [DMKey.image: path, DMKey.alt: alt]
+        marks[DMKey.title] = title
         guard let loaded = image, loaded.size.width > 0, loaded.size.height > 0 else {
             // 找不到图片时显示占位文字，保存时仍写回原来的图片地址
             var a = RichStyle.attributes(for: MDRun(), kind: .body)
@@ -267,7 +275,8 @@ enum RichBridge {
                                  mathString(math, display: isMathBlock(math), attributes: a)))
                 }
             } else if let path = a[DMKey.image] as? String {
-                let image = NSMutableAttributedString(attributedString: imageString(path: path, alt: (a[DMKey.alt] as? String) ?? "", baseURL: baseURL))
+                let image = NSMutableAttributedString(attributedString: imageString(path: path, alt: (a[DMKey.alt] as? String) ?? "",
+                                                                                         title: a[DMKey.title] as? String, baseURL: baseURL))
                 var rest = a
                 rest[.attachment] = nil
                 for (k, v) in rest where image.attribute(k, at: 0, effectiveRange: nil) == nil {
@@ -425,13 +434,15 @@ enum RichBridge {
                 if let prev = lastImageRange, NSMaxRange(prev) == sub.location, out.last?.image == src { return }
                 var r = MDRun(text: (a[DMKey.alt] as? String) ?? "")
                 r.image = src
+                r.title = a[DMKey.title] as? String
                 out.append(r)
                 lastImageRange = sub
                 return
             }
-            let text = ns.substring(with: sub)
+            var text = ns.substring(with: sub)
                 .replacingOccurrences(of: "\u{FFFC}", with: "")
             guard !text.isEmpty else { return }
+            if a[DMKey.softBreak] != nil { text = text.replacingOccurrences(of: " ", with: "\n") }
             var r = MDRun(text: text)
             r.bold = RichStyle.isBold(a[.font] as? NSFont)
             r.italic = ((a[.obliqueness] as? Double) ?? 0) != 0
@@ -446,6 +457,7 @@ enum RichBridge {
             r.literal = a[DMKey.literal] != nil
             r.link = a[DMKey.link] as? String
             if r.link != nil {
+                r.title = a[DMKey.title] as? String
                 // 链接本身显示为带下划线，不算用户加的下划线
                 r.underline = false
             }

@@ -17,6 +17,7 @@ struct MDRun: Equatable {
     var code = false          // 行内代码
     var literal = false       // 原样保存的文字（例如 $公式$），保存时不转义
     var link: String?         // 链接地址（与 Markdown 中的写法相同）
+    var title: String?        // 链接、图片的提示文字，保存原文（含引号），如 "标题"
     var image: String?        // 图片地址；此时 text 为替代文字
 }
 
@@ -279,6 +280,29 @@ enum MarkdownCodec {
                 continue
             }
 
+            // 多行脚注（[^1]: 后面有缩进的续行或续段）：原样保存
+            if indents.isEmpty, groups(footnotePattern, line) != nil {
+                var j = i + 1, end = i + 1, multi = false
+                while j < lines.count {
+                    if isBlank(lines[j]) {
+                        var k = j
+                        while k < lines.count && isBlank(lines[k]) { k += 1 }
+                        guard k < lines.count, leadingWidth(lines[k]) >= 4 else { break }
+                        j = k
+                        continue
+                    }
+                    if leadingWidth(lines[j]) == 0, startsBlock(lines[j]) || groups(footnotePattern, lines[j]) != nil { break }
+                    if leadingWidth(lines[j]) > 0 { multi = true }
+                    j += 1
+                    end = j
+                }
+                if multi {
+                    blocks.append(.raw(lines[i..<end].joined(separator: "\n")))
+                    i = end
+                    continue
+                }
+            }
+
             // 普通段落：连续的多行合并为一段
             indents = []
             if trimmed == "&nbsp;" {
@@ -298,7 +322,8 @@ enum MarkdownCodec {
                 kind = .heading(m[1].hasPrefix("=") ? 1 : 2)
                 i += 1
             }
-            // 行尾两个空格或反斜杠是强制换行，按 <br> 读入；其他换行合并为空格
+            // 行尾两个空格或反斜杠是强制换行，按 <br> 读入；其他换行在正文里原样保留（中文常这样分行），标题里合并为空格
+            let soft = kind == .body ? "\n" : " "
             var text = ""
             for (k, part) in parts.enumerated() {
                 var t = part.trimmingCharacters(in: .whitespaces)
@@ -308,7 +333,7 @@ enum MarkdownCodec {
                     t.removeLast()
                     text += t + "<br>"
                 } else {
-                    text += t + (part.hasSuffix("  ") ? "<br>" : " ")
+                    text += t + (part.hasSuffix("  ") ? "<br>" : soft)
                 }
             }
             blocks.append(.line(MDLine(kind: kind, runs: parseInline(text))))
@@ -383,6 +408,7 @@ enum MarkdownCodec {
     }
 
     private static let headingPattern = re(#"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$"#)
+    private static let footnotePattern = re(#"^ {0,3}\[\^[^\]\s]+\]:"#)
     private static let setextPattern = re(#"^ {0,3}(=+|-+)[ \t]*$"#)
     private static let rulePattern = re(#"^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$"#)
     private static let quotePattern = re(#"^ {0,3}>[ \t]?(.*)$"#)
@@ -440,7 +466,11 @@ enum MarkdownCodec {
     }
 
     /// 这一行是否开始一个新的块（用于判断段落在哪里结束）
-    private static func startsBlock(_ line: String) -> Bool {
+    static func isSetextUnderline(_ line: String) -> Bool {
+        groups(setextPattern, line) != nil
+    }
+
+    static func startsBlock(_ line: String) -> Bool {
         fenceOpening(line) != nil || groups(headingPattern, line) != nil || groups(rulePattern, line) != nil
             || groups(quotePattern, line) != nil || groups(listPattern, line) != nil || isRawStart(line)
             || line.trimmingCharacters(in: .whitespaces).hasPrefix("$$")

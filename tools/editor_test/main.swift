@@ -51,6 +51,21 @@ MainActor.assumeIsolated {
         tv.insertNewline(nil); type(tv, "二")
         check("提示框标题后输入", md(tv), "> [!tip]\n> 二\n> 一\n")
     }
+    // 链接、图片的提示文字，段落里的单个换行，多行脚注：保存后不变
+    for src in ["见[说明](https://example.com \"标题\")和![图](a.png 'b')。\n",
+                "第一行\n第二行，**粗\n体**\n",
+                "正文[^1]\n\n[^1]: 第一行\n    第二行\n\n    第二段\n"] {
+        check("单页往返 \(src.prefix(4).replacingOccurrences(of: "\n", with: " "))", md(makeView(src)), src)
+    }
+    // 单个换行显示为空格；在它后面输入的空格还是空格
+    do {
+        let tv = makeView("一\n二\n")
+        check("换行显示为空格", tv.string, "一 二\n")
+        tv.setSelectedRange(NSRange(location: 2, length: 0))
+        tv.typingAttributes = tv.textStorage!.attributes(at: 1, effectiveRange: nil)
+        type(tv, " 加")
+        check("换行后输入空格", md(tv), "一\n 加二\n")
+    }
     // 脚注：正文里的编号是上标，文末说明行开头的编号不是
     do {
         let tv = makeView("正文[^1]\n\n[^1]: 说明\n")

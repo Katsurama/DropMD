@@ -66,21 +66,34 @@ extension MarkdownCodec {
     private static func render(_ line: MDLine, number: Int) -> String {
         switch line.kind {
         case .body:
-            let body = inline(line.runs)
+            let body = keepingBreaks(inline(line.runs))
             return body.isEmpty ? "&nbsp;" : body   // 空段落用 &nbsp; 保留
         case .heading(let level):
-            let body = inline(line.runs, heading: true)
+            let body = oneLine(inline(line.runs, heading: true))
             return String(repeating: "#", count: min(max(level, 1), 6)) + (body.isEmpty ? "" : " " + body)
         case .quote:
-            let body = inline(line.runs)
+            let body = oneLine(inline(line.runs))
             return body.isEmpty ? ">" : "> " + body
         case .bullet(let d):
-            return item(d, "-", inline(line.runs))
+            return item(d, "-", oneLine(inline(line.runs)))
         case .ordered(let d):
-            return item(d, "\(number).", inline(line.runs))
+            return item(d, "\(number).", oneLine(inline(line.runs)))
         case .task(let d, let done):
-            return item(d, done ? "- [x]" : "- [ ]", inline(line.runs))
+            return item(d, done ? "- [x]" : "- [ ]", oneLine(inline(line.runs)))
         }
+    }
+
+    /// 段落里换行后的一行若会被读成列表、标题等，就改回空格
+    private static func keepingBreaks(_ s: String) -> String {
+        let lines = s.components(separatedBy: "\n")
+        var out = lines[0]
+        for l in lines.dropFirst() { out += (startsBlock(l) || isSetextUnderline(l) ? " " : "\n") + l }
+        return out
+    }
+
+    /// 段落里的换行只在正文里保留（正文改成标题、列表等时合并为空格）
+    private static func oneLine(_ s: String) -> String {
+        s.replacingOccurrences(of: "\n", with: " ")
     }
 
     private static func item(_ depth: Int, _ marker: String, _ body: String) -> String {
@@ -92,7 +105,7 @@ extension MarkdownCodec {
         let cols = max(1, rows.map { $0.count }.max() ?? 1)
         var lines: [String] = []
         for (r, row) in rows.enumerated() {
-            let cells = (0..<cols).map { c in c < row.count ? inline(row[c], heading: r == 0, inCell: true) : "" }
+            let cells = (0..<cols).map { c in c < row.count ? oneLine(inline(row[c], heading: r == 0, inCell: true)) : "" }
             lines.append("| " + cells.joined(separator: " | ") + " |")
             if r == 0 { lines.append("|" + (0..<cols).map { c in " \(c < align.count ? align[c] : "---") |" }.joined()) }
         }
@@ -115,7 +128,7 @@ extension MarkdownCodec {
     // MARK: - 行内
 
     private enum Mark: Equatable {
-        case link(String), underline, sup, sub, kbd, strike, highlight, bold, italic
+        case link(String, String?), underline, sup, sub, kbd, strike, highlight, bold, italic
 
         var opening: String {
             switch self {
@@ -133,7 +146,7 @@ extension MarkdownCodec {
 
         var closing: String {
             switch self {
-            case .link(let url): return "](" + MarkdownCodec.encodeURL(url) + ")"
+            case .link(let url, let title): return "](" + MarkdownCodec.encodeURL(url) + (title.map { " " + $0 } ?? "") + ")"
             case .underline: return "</u>"
             case .sup: return "</sup>"
             case .sub: return "</sub>"
@@ -168,7 +181,7 @@ extension MarkdownCodec {
         for r in merged(runs) {
             if let src = r.image {
                 transition([])
-                out += "![" + escapeAlt(r.text) + "](" + encodeURL(src) + ")"
+                out += "![" + escapeAlt(r.text) + "](" + encodeURL(src) + (r.title.map { " " + $0 } ?? "") + ")"
                 continue
             }
             if r.literal {
@@ -177,12 +190,12 @@ extension MarkdownCodec {
                 continue
             }
             if r.code {
-                transition(r.link.map { [.link($0)] } ?? [])
+                transition(r.link.map { [.link($0, r.title)] } ?? [])
                 out += codeSpan(r.text)
                 continue
             }
             var wanted: [Mark] = []
-            if let url = r.link { wanted.append(.link(url)) }
+            if let url = r.link { wanted.append(.link(url, r.title)) }
             if r.underline { wanted.append(.underline) }
             if r.sup { wanted.append(.sup) }
             if r.sub { wanted.append(.sub) }
@@ -212,7 +225,9 @@ extension MarkdownCodec {
         }
         transition([])
         // 段内换行写成 <br>
-        return (out + pending).trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "\u{2028}", with: "<br>")
+        return (out + pending).trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: #" +\n"#, with: "\n", options: .regularExpression)   // 换行前的空格会变成强制换行
+            .replacingOccurrences(of: "\u{2028}", with: "<br>")
     }
 
     /// 合并样式完全相同的相邻文字
@@ -223,7 +238,7 @@ extension MarkdownCodec {
                last.code == r.code, last.bold == r.bold, last.italic == r.italic,
                last.underline == r.underline, last.strike == r.strike, last.highlight == r.highlight,
                last.sup == r.sup, last.sub == r.sub, last.kbd == r.kbd,
-               last.link == r.link {
+               last.link == r.link, last.title == r.title {
                 last.text += r.text
                 out[out.count - 1] = last
             } else {
