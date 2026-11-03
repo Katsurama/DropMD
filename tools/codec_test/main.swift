@@ -30,7 +30,7 @@ check("mathblock", "$$\nx^2\n$$\n")
 check("escapes", "a\\*b snake_case \\_x\\_ 1. 不是列表\n")
 check("nested", "***粗斜*** **粗 *斜* 粗**\n")
 check("empty para", "a\n\n&nbsp;\n\nb\n")
-check("soft wrap", "第一行\n第二行\n", "第一行 第二行\n")
+check("soft wrap", "第一行\n第二行\n")
 check("4-space nested", "- a\n    - b\n", "- a\n  - b\n")
 check("star bullets", "* a\n* b\n", "- a\n- b\n")
 check("heading closing", "## 标题 ##\n", "## 标题\n")
@@ -46,6 +46,10 @@ if s != "**粗体** 普通 *斜*" { failures += 1 }
 let adj = MarkdownCodec.inline([MDRun(text: "a", bold: true), MDRun(text: "b", bold: true, underline: true)])
 print(adj == "**a<u>b</u>**" ? "ok   adjacent" : "FAIL adjacent: \(adj)")
 if adj != "**a<u>b</u>**" { failures += 1 }
+// 换行后的一行会被读成列表、标题时改回空格
+let soft = MarkdownCodec.serialize([.line(MDLine(kind: .body, runs: [MDRun(text: "a\n- b\n=\nc")]))])
+print(soft == "a - b =\nc\n" ? "ok   soft break fallback" : "FAIL soft break fallback: \(soft)")
+if soft != "a - b =\nc\n" { failures += 1 }
 
 check("bullet then ordered nested", "- a\n  1. x\n  2. y\n- b\n")
 check("triple fallback", "***a* b**\n")
@@ -56,7 +60,12 @@ check("details", "<details>\n<summary>点击展开 & 查看</summary>\n\n- 项�
 check("YAML 信息", "---\ntitle: 测试\ntags: [a, b]\n---\n\n正文\n")
 check("引用式链接", "见[说明][1]和[另一个][]。\n\n[1]: https://example.com \"标题\"\n[另一个]: https://example.org\n")
 check("强制换行", "行一  \n行二\\\n行三\n", "行一<br>行二<br>行三\n")
-check("行尾的普通反斜杠", "路径 C:\\\\\n下一行\n", "路径 C:\\\\ 下一行\n")
+check("行尾的普通反斜杠", "路径 C:\\\\\n下一行\n")
+check("链接和图片的提示文字", "见[说明](https://example.com \"标题\")和![图](a.png 'b')。\n")
+check("中文段落里的换行", "第一行\n第二行，**粗\n体**\n第三行\n")
+check("标题里的换行", "标题\n接着\n===\n", "# 标题 接着\n")
+check("多行脚注", "正文[^1]\n\n[^1]: 第一行\n    第二行\n\n    第二段\n\n后面\n")
+check("一行脚注后接正文", "[^1]: 脚注\n\n正文\n")
 check("缩进代码", "正文\n\n    代码 1\n\n    代码 2\n", "正文\n\n```\n代码 1\n\n代码 2\n```\n")
 check("编号从 5 开始", "5. 五\n6. 六\n")
 check("编号被代码打断", "1. 一\n\n```\nx\n```\n\n2. 二\n")
