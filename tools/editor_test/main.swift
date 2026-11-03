@@ -54,8 +54,18 @@ MainActor.assumeIsolated {
     // 链接、图片的提示文字，段落里的单个换行，多行脚注：保存后不变
     for src in ["见[说明](https://example.com \"标题\")和![图](a.png 'b')。\n",
                 "第一行\n第二行，**粗\n体**\n",
-                "正文[^1]\n\n[^1]: 第一行\n    第二行\n\n    第二段\n"] {
+                "正文[^1]\n\n[^1]: 第一行\n    第二行\n\n    第二段\n",
+                "1. 安装：\n\n   ```bash\n   npm i\n   ```\n\n2. 运行\n",
+                "- 一\n  ```\n  x\n  ```\n- 二\n"] {
         check("单页往返 \(src.prefix(4).replacingOccurrences(of: "\n", with: " "))", md(makeView(src)), src)
+    }
+    // 列表项里的代码块：在里面打字、回车后，保存时仍缩进在列表项下面
+    do {
+        let tv = makeView("1. 安装：\n\n   ```bash\n   npm i\n   ```\n\n2. 运行\n")
+        let end = (tv.string as NSString).range(of: "npm i").upperBound
+        tv.setSelectedRange(NSRange(location: end, length: 0))
+        type(tv, " -g"); tv.insertNewline(nil); type(tv, "npm run")
+        check("列表项里的代码块里打字", md(tv), "1. 安装：\n\n   ```bash\n   npm i -g\n   npm run\n   ```\n\n2. 运行\n")
     }
     // 单个换行显示为空格；在它后面输入的空格还是空格
     do {

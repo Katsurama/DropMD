@@ -12,7 +12,9 @@ enum RichBridge {
         let out = NSMutableAttributedString()
 
         var lastRaw = false
+        var listDepth = 0   // 上一个列表项的层级：列表项里的代码块缩进到它的文字下面
         for block in blocks {
+            if case .line(let l) = block, let d = l.kind.listDepth { listDepth = d }
             // 相邻的两段原样内容之间空一行，否则保存时会连成一段
             if case .raw(let text) = block, !isMathBlock(text) {
                 if lastRaw { out.append(paragraph(runsString([], kind: .raw, baseURL: baseURL), kind: .raw)) }
@@ -34,9 +36,20 @@ enum RichBridge {
                 if let start = line.start { p.addAttribute(DMKey.start, value: start, range: NSRange(location: 0, length: p.length)) }
                 out.append(p)
 
-            case .code(let lang, let lines):
+            case .code(let lang, let lines, let listGap):
                 for l in (lines.isEmpty ? [""] : lines) {
-                    out.append(paragraph(runsString([MDRun(text: l)], kind: .code(lang), baseURL: baseURL), kind: .code(lang)))
+                    let p = NSMutableAttributedString(attributedString:
+                        paragraph(runsString([MDRun(text: l)], kind: .code(lang), baseURL: baseURL), kind: .code(lang)))
+                    if let listGap {
+                        p.addAttribute(DMKey.listCode, value: listGap, range: NSRange(location: 0, length: p.length))
+                        let style = (p.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle
+                        if let style {
+                            style.firstLineHeadIndent += CGFloat(listDepth + 1) * RichStyle.indent
+                            style.headIndent += CGFloat(listDepth + 1) * RichStyle.indent
+                            p.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: p.length))
+                        }
+                    }
+                    out.append(p)
                 }
 
             case .table(let rows, let align):
@@ -311,7 +324,7 @@ enum RichBridge {
 
     private enum Item {
         case line(MDLine)
-        case code(String, String)
+        case code(String, String, listGap: Bool?)
         case raw(String)
         case rule
         case summary(String, open: Bool)
@@ -381,7 +394,7 @@ enum RichBridge {
         case .rule:
             return .rule
         case .code(let lang):
-            return .code(lang, plainText(ns, content))
+            return .code(lang, plainText(ns, content), listGap: attrs[DMKey.listCode] as? Bool)
         case .raw:
             return .raw(plainText(ns, content))
         case .summary:
@@ -497,14 +510,14 @@ enum RichBridge {
             case .math(let source):
                 blocks.append(.raw(source))
                 i += 1
-            case .code(let lang, _):
+            case .code(let lang, _, let listGap):
                 var lines: [String] = []
                 while let item = next(i) {
-                    guard case .code(_, let text) = item else { break }
+                    guard case .code(_, let text, _) = item else { break }
                     lines.append(text)
                     i += 1
                 }
-                blocks.append(.code(lang: lang, lines: lines))
+                blocks.append(.code(lang: lang, lines: lines, listGap: listGap))
             case .raw:
                 var lines: [String] = []
                 while let item = next(i) {
