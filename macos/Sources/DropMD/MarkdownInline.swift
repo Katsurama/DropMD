@@ -71,6 +71,16 @@ private struct InlineParser {
         while i < hi {
             let ch = c[i]
 
+            // \(公式\)（ChatGPT 等常用）：原样保留，要在反斜杠转义之前判断
+            if ch == "\\", i + 1 < hi, c[i + 1] == "(", let end = parenMathEnd(i, hi) {
+                flush()
+                var r = MDRun(text: String(c[i..<end]))
+                r.literal = true
+                out.append(r)
+                i = end
+                continue
+            }
+
             // 反斜杠转义
             if ch == "\\", i + 1 < hi, isPunct(c[i + 1]) {
                 buf.append(c[i + 1])
@@ -312,6 +322,18 @@ private struct InlineParser {
         while j < hi, c[j] != "]", !c[j].isWhitespace, c[j] != "[" { j += 1 }
         guard j < hi, c[j] == "]", j > i + 2 else { return nil }
         return j + 1
+    }
+
+    /// \(...\) 的结束位置（不含）；里面要有字
+    private func parenMathEnd(_ i: Int, _ hi: Int) -> Int? {
+        var j = i + 2
+        while j + 1 < hi {
+            if c[j] == "\\", c[j + 1] == ")" {
+                return c[(i + 2)..<j].contains { !$0.isWhitespace } ? j + 2 : nil
+            }
+            j += 1
+        }
+        return nil
     }
 
     /// $...$ 的结束位置（不含）。像 $5 和 $10 这样的金额不算公式。
