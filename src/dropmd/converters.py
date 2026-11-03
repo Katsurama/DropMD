@@ -67,10 +67,10 @@ def _check_paths(src: Path, dst: Path) -> None:
     if not src.is_file():
         raise FileNotFoundError(str(src))
     if dst.suffix.lower() != ".md":
-        raise ConversionError(tr("内部错误：输出文件必须是 .md。", "Internal error: the output file must be .md."))
+        raise ConversionError(tr("内部错误：输出文件必须是 .md。", "Internal error: the output file must be .md.", "內部錯誤：輸出檔案必須是 .md。"))
     try:
         if dst.exists() and dst.samefile(src):
-            raise ConversionError(tr("输出文件与源文件相同，已跳过以保护原文件。", "The output file is the same as the source file; skipped to protect the original."))
+            raise ConversionError(tr("输出文件与源文件相同，已跳过以保护原文件。", "The output file is the same as the source file; skipped to protect the original.", "輸出檔案與來源檔案相同，已略過以保護原檔案。"))
     except OSError:
         pass
 
@@ -105,7 +105,7 @@ def _save_images(text: str, dst: Path) -> str:
         try:
             raw = base64.b64decode(data, validate=True)
         except ValueError:
-            return tr(f"<!-- 图片{('：' + alt) if alt else ''}无法读取 -->", f"<!-- Image{(': ' + alt) if alt else ''} can't be read -->")
+            return tr(f"<!-- 图片{('：' + alt) if alt else ''}无法读取 -->", f"<!-- Image{(': ' + alt) if alt else ''} can't be read -->", f"<!-- 圖片{('：' + alt) if alt else ''}無法讀取 -->")
         ext = {"jpeg": "jpg", "svg+xml": "svg"}.get(kind.lower(), kind.lower())
         count += 1
         while (dst.parent / folder / f"image{count}.{ext}").exists():  # 不覆盖用户自己的同名文件
@@ -126,10 +126,10 @@ def convert_markitdown(src: Path, dst: Path) -> str:
         text = text.replace("\t", " ")
     if not text:
         if src.suffix.lower() == ".pdf":
-            raise ConversionError(tr("未能提取到文字，可能是扫描版（图片）PDF。请改用“高精度模式”。", "No text could be extracted; this may be a scanned (image) PDF. Use High Accuracy mode instead."))
-        raise ConversionError(tr("文件中没有可提取的内容。", "There is no content to extract in this file."))
+            raise ConversionError(tr("未能提取到文字，可能是扫描版（图片）PDF。请改用“高精度模式”。", "No text could be extracted; this may be a scanned (image) PDF. Use High Accuracy mode instead.", "未能擷取到文字，可能是掃描版（圖片）PDF。請改用「高精度模式」。"))
+        raise ConversionError(tr("文件中没有可提取的内容。", "There is no content to extract in this file.", "檔案中沒有可擷取的內容。"))
     _write_text(dst, text + "\n")
-    return tr("快速模式", "Fast mode")
+    return tr("快速模式", "Fast mode", "快速模式")
 
 
 _LUA_FILTER = resource_root() / "packaging" / "pandoc_plain_images.lua"
@@ -138,7 +138,7 @@ _LUA_FILTER = resource_root() / "packaging" / "pandoc_plain_images.lua"
 def convert_pandoc(src: Path, dst: Path) -> str:
     exe = pandoc_path()
     if not exe:
-        raise ConversionError(tr("找不到 Pandoc 组件，请改用 MarkItDown 引擎。", "Pandoc can't be found. Use the MarkItDown engine instead."))
+        raise ConversionError(tr("找不到 Pandoc 组件，请改用 MarkItDown 引擎。", "Pandoc can't be found. Use the MarkItDown engine instead.", "找不到 Pandoc 元件，請改用 MarkItDown 引擎。"))
     dst.parent.mkdir(parents=True, exist_ok=True)
     img_dir = images_dir_name(dst)
     tmp_name = dst.name + ".part"
@@ -159,7 +159,7 @@ def convert_pandoc(src: Path, dst: Path) -> str:
     if proc.returncode != 0:
         tmp.unlink(missing_ok=True)
         err = proc.stderr.decode("utf-8", "replace").strip().splitlines()
-        raise ConversionError(tr("Pandoc 转换失败：", "Pandoc failed: ") + (err[-1] if err else tr("返回码 ", "exit code ") + str(proc.returncode)))
+        raise ConversionError(tr("Pandoc 转换失败：", "Pandoc failed: ", "Pandoc 轉換失敗：") + (err[-1] if err else tr("返回码 ", "exit code ", "傳回碼 ") + str(proc.returncode)))
     # 保险起见，图片引用统一使用正斜杠
     text = tmp.read_text(encoding="utf-8")
     fixed = text.replace(img_dir + "\\", img_dir + "/")
@@ -168,7 +168,7 @@ def convert_pandoc(src: Path, dst: Path) -> str:
     tmp.replace(dst)
     media = dst.parent / img_dir
     n = sum(1 for p in media.rglob("*") if p.is_file()) if media.is_dir() else 0
-    return tr(f"Pandoc；导出 {n} 张图片", f"Pandoc; {n} images exported") if n else "Pandoc"
+    return tr(f"Pandoc；导出 {n} 张图片", f"Pandoc; {n} images exported", f"Pandoc；輸出 {n} 張圖片") if n else "Pandoc"
 
 
 def convert(src: Path, dst: Path, options: Options) -> str:

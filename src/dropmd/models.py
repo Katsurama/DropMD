@@ -32,7 +32,7 @@ COMPONENTS: dict[str, Component] = {
     c.key: c
     for c in [
         Component(
-            "layout", tr("版面分析模型（Docling Heron）", "Layout analysis model (Docling Heron)"),
+            "layout", tr("版面分析模型（Docling Heron）", "Layout analysis model (Docling Heron)", "版面分析模型（Docling Heron）"),
             "https://huggingface.co/docling-project/docling-layout-heron",
             size_mb=172,
             repo_id="docling-project/docling-layout-heron",
@@ -40,7 +40,7 @@ COMPONENTS: dict[str, Component] = {
             marker="docling-project--docling-layout-heron/config.json",
         ),
         Component(
-            "table", tr("表格结构识别模型（TableFormer）", "Table structure model (TableFormer)"),
+            "table", tr("表格结构识别模型（TableFormer）", "Table structure model (TableFormer)", "表格結構辨識模型（TableFormer）"),
             "https://huggingface.co/docling-project/docling-models",
             size_mb=358,
             repo_id="docling-project/docling-models",
@@ -48,7 +48,7 @@ COMPONENTS: dict[str, Component] = {
             marker="docling-project--docling-models/model_artifacts/tableformer/accurate/tm_config.json",
         ),
         Component(
-            "formula", tr("数学公式识别模型（CodeFormulaV2）", "Math formula model (CodeFormulaV2)"),
+            "formula", tr("数学公式识别模型（CodeFormulaV2）", "Math formula model (CodeFormulaV2)", "數學公式辨識模型（CodeFormulaV2）"),
             "https://huggingface.co/docling-project/CodeFormulaV2",
             size_mb=640,
             repo_id="docling-project/CodeFormulaV2",
