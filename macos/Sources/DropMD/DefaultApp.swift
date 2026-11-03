@@ -91,9 +91,11 @@ struct SettingsView: View {
     @State private var isDefault = DefaultApp.isDefault
     @State private var working = false
     @State private var language = AppLanguage.current
+    @ObservedObject private var updater = UpdateChecker.shared
 
     var body: some View {
         Form {
+            AppearanceMenu()
             Picker("界面语言", selection: $language) {
                 Text("跟随系统").tag("")
                 Divider()
@@ -120,6 +122,7 @@ struct SettingsView: View {
             Text("在访达中双击 .md 文件时，用默认打开程序打开。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Toggle("启动时自动检查更新", isOn: $updater.autoCheck)
         }
         .formStyle(.grouped)
         .frame(width: 460)
