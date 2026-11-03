@@ -231,11 +231,12 @@ enum RichBridge {
 
     static func isInlineMath(_ text: String) -> Bool {
         text.count >= 3 && text.hasPrefix("$") && text.hasSuffix("$") && !text.hasPrefix("$$")
+            || text.count >= 5 && text.hasPrefix("\\(") && text.hasSuffix("\\)")
     }
 
     static func isMathBlock(_ text: String) -> Bool {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.count >= 5 && t.hasPrefix("$$") && t.hasSuffix("$$")
+        return t.count >= 5 && (t.hasPrefix("$$") && t.hasSuffix("$$") || t.hasPrefix("\\[") && t.hasSuffix("\\]"))
     }
 
     /// 公式显示为一张图片（一个字符），保存时写回原文

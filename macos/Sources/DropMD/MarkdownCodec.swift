@@ -290,6 +290,13 @@ enum MarkdownCodec {
                 blocks.append(.raw(body.joined(separator: "\n")))
                 continue
             }
+            // \[ … \]（ChatGPT 等常用的公式块）：找得到 \] 才算，原样保存
+            if trimmed.hasPrefix("\\["), let end = mathBracketEnd(lines, i) {
+                indents = []
+                blocks.append(.raw(lines[i...end].joined(separator: "\n")))
+                i = end + 1
+                continue
+            }
 
             // 多行脚注（[^1]: 后面有缩进的续行或续段）：原样保存
             if indents.isEmpty, groups(footnotePattern, line) != nil {
@@ -479,6 +486,15 @@ enum MarkdownCodec {
     /// 这一行是否开始一个新的块（用于判断段落在哪里结束）
     static func isSetextUnderline(_ line: String) -> Bool {
         groups(setextPattern, line) != nil
+    }
+
+    /// \[ 公式块的最后一行（含 \]）；没有 \] 时返回 nil
+    static func mathBracketEnd(_ lines: [String], _ start: Int) -> Int? {
+        for k in start..<lines.count {
+            let rest = k == start ? String(lines[k].trimmingCharacters(in: .whitespaces).dropFirst(2)) : lines[k]
+            if rest.contains("\\]") { return k }
+        }
+        return nil
     }
 
     static func startsBlock(_ line: String) -> Bool {

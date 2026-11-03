@@ -21,6 +21,15 @@ let calls = [
     if (h.includes('<hr') || h.includes('<h2') || !h.includes('title: 测试')) throw new Error('YAML 信息显示错了：' + h);
     return true
     """,
+    // AI 常写的中文粗体（结尾贴着标点、后面紧跟中文）、\\( \\) 公式、1. 下嵌套 3 格的列表
+    """
+    DropMD.render('这是**“重点”**内容，参见**结论（重要）**以及 \\\\(x^2\\\\)\\n\\n1. 一\\n   - 子项\\n2. 二', '', 'zh-Hans');
+    const h = document.getElementById('content').innerHTML;
+    if (h.includes('**')) throw new Error('中文粗体没有生效：' + h);
+    if (!h.includes('katex')) throw new Error('\\\\( \\\\) 公式没有显示：' + h);
+    if ((h.match(/<ol/g) || []).length !== 1) throw new Error('嵌套列表被拆开了：' + h);
+    return true
+    """,
     // 导出的 HTML 保留网络图片（预览里为保护隐私不加载）
     """
     if (!DropMD.exportBody('![a](https://example.com/a.png)').includes('<img src="https://example.com/a.png"')) throw new Error('导出时网络图片丢了');

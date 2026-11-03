@@ -60,7 +60,7 @@ You can switch at any time; the content stays in sync. The Format panel on the r
 
 - Edit the Markdown source on the left and see the live preview on the right. Both sides scroll together.
 - **Syntax highlighting**: headings, bold, italic, code, links, lists, formulas and so on use different colors and fonts.
-- **Math**: `$E=mc^2$` is an inline formula and `$$ … $$` a display formula, rendered with KaTeX. `==highlight==` and footnotes also preview correctly.
+- **Math**: `$E=mc^2$` is an inline formula and `$$ … $$` a display formula, rendered with KaTeX. The `\(E=mc^2\)` and `\[ … \]` forms that ChatGPT and other AI tools use work too. `==highlight==` and footnotes also preview correctly.
 
 ### For both views
 
