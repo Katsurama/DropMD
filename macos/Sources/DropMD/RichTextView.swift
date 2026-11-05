@@ -326,17 +326,21 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
     }
 
     /// 有序列表项的编号：向前数同一层级、连续的有序列表项
-    private func number(at location: Int, depth: Int, in storage: NSTextStorage) -> Int {
+    func number(at location: Int, depth: Int, in storage: NSTextStorage) -> Int {
         let ns = storage.string as NSString
         var n = 1
         var loc = location
+        // 列表不从 1 开始时（5. 五），第一项上记着起始编号
+        if let start = storage.attribute(DMKey.start, at: location, effectiveRange: nil) as? Int { return start }
         while loc > 0 {
             let prev = ns.paragraphRange(for: NSRange(location: loc - 1, length: 0))
             loc = prev.location
             let a = storage.attributes(at: prev.location, effectiveRange: nil)
             if a[DMKey.listCode] != nil { continue }   // 列表项里的代码块不打断编号
             switch RichBridge.kind(of: a) {
-            case .ordered(let d) where d == depth: n += 1
+            case .ordered(let d) where d == depth:
+                if let start = a[DMKey.start] as? Int { return start + n }
+                n += 1
             case .ordered(let d) where d > depth: continue
             case .bullet(let d) where d > depth: continue
             case .task(let d, _) where d > depth: continue
@@ -429,6 +433,16 @@ final class RichTextView: NSTextView {
             newValue[DMKey.collapsed] = nil   // 在收起的标题末尾回车，新段落不应跟着“收起”
             newValue[DMKey.math] = nil        // 在公式后输入的文字不是公式，否则保存时被写成公式原文
             newValue[DMKey.softBreak] = nil   // 在换行后输入的空格不是换行
+            // 在原样内容（<span>、[^1] 等）后面输入的是普通文字：不跟着原样保存，否则打的 *字* 下次打开变成斜体。在它中间输入才算修改它
+            if newValue[DMKey.literal] != nil, let storage = textStorage {
+                let at = selectedRange().location
+                if at >= storage.length || storage.attribute(DMKey.literal, at: at, effectiveRange: nil) == nil {
+                    newValue[DMKey.literal] = nil
+                    newValue[.foregroundColor] = RichStyle.bodyColor
+                    newValue[.superscript] = nil   // 脚注显示成上标
+                    newValue[.font] = RichStyle.baseFont(for: RichBridge.kind(of: newValue))
+                }
+            }
             if newValue[DMKey.image] != nil {   // 在图片旁输入的文字不是图片，否则保存时被吞掉
                 for k in [DMKey.image, DMKey.imageID, DMKey.alt, DMKey.title, DMKey.link, DMKey.linkTitle] { newValue[k] = nil }
                 newValue[.foregroundColor] = RichStyle.bodyColor
@@ -1082,7 +1096,12 @@ final class RichTextView: NSTextView {
     }
 
     func insertImage(path: String, alt: String) {
-        replace(selectedRange(), with: RichBridge.imageString(path: path.replacingOccurrences(of: "%", with: "%25"), alt: alt, baseURL: baseURL))
+        replace(selectedRange(), with: RichBridge.imageString(path: Self.encodedImagePath(path), alt: alt, baseURL: baseURL))
+    }
+
+    /// 文件名里的 % # ? 在 Markdown 地址里有别的意思，要编码
+    static func encodedImagePath(_ path: String) -> String {
+        path.replacingOccurrences(of: "%", with: "%25").replacingOccurrences(of: "#", with: "%23").replacingOccurrences(of: "?", with: "%3F")
     }
 
     // MARK: - 表格中移动
