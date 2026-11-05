@@ -78,6 +78,34 @@ MainActor.assumeIsolated {
         let typedAt = (plain.string as NSString).range(of: "字").location
         check("图片后打字的字号", "\((plain.textStorage!.attribute(.font, at: typedAt, effectiveRange: nil) as? NSFont)?.pointSize ?? 0)", "\(RichStyle.baseFont(for: .body).pointSize)")
     }
+    // 编码：没改内容时字节不变；改了也用回原编码；识别不出就不打开
+    do {
+        let gb = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)))
+        let zh = "# 标题\r\n中文内容\n", ja = "# 見出し\n日本語の文章です。\n"
+        let files: [(String, Data)] = [
+            ("UTF-8", Data(zh.utf8)), ("UTF-8 BOM", Data([0xEF, 0xBB, 0xBF]) + Data(zh.utf8)),
+            ("UTF-16LE", Data([0xFF, 0xFE]) + zh.data(using: .utf16LittleEndian)!), ("UTF-16BE", Data([0xFE, 0xFF]) + zh.data(using: .utf16BigEndian)!),
+            ("GB18030", zh.data(using: gb)!), ("Shift-JIS", ja.data(using: .shiftJIS)!), ("EUC-JP", ja.data(using: .japaneseEUC)!),
+            ("坏的 UTF-8", Data([0x61, 0xE4, 0xB8, 0x62, 0xFF, 0xFE, 0x80, 0x81])),
+        ]
+        for (name, bytes) in files {
+            check("编码不改不变 \(name)", (try? MarkdownDocument(data: bytes).data()) == bytes ? "同" : "变了", "同")
+        }
+        var doc = try! MarkdownDocument(data: zh.data(using: gb)!)
+        doc.text += "新"
+        check("改后用回原编码", String(data: doc.data(), encoding: gb) ?? "", zh + "新")
+        var bomDoc = try! MarkdownDocument(data: Data([0xEF, 0xBB, 0xBF]) + Data("a\n".utf8))
+        check("BOM 不进文字", bomDoc.text, "a\n")
+        bomDoc.text = "b\n"
+        check("改后保留 BOM", "\(bomDoc.data().prefix(3) == Data([0xEF, 0xBB, 0xBF]))", "true")
+        var sjis = try! MarkdownDocument(data: ja.data(using: .shiftJIS)!)
+        sjis.text += "😀"
+        check("原编码写不下：存成 UTF-8 不丢字", String(data: sjis.data(), encoding: .utf8) ?? "", ja + "😀")
+        let png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0x0D, 0x49, 0x48, 0x44, 0x52, 0, 0, 1, 0])
+        check("识别不出就不打开", (try? MarkdownDocument(data: png)) == nil ? "不打开" : "打开了", "不打开")
+        check("快速查看仍尽量显示", MarkdownDocument.decode(png).isEmpty ? "空" : "有内容", "有内容")
+        check("新文档是 UTF-8", String(data: MarkdownDocument(text: "新").data(), encoding: .utf8) ?? "", "新")
+    }
     // 同一批重名的文件：输出不能重复，否则后转换的会覆盖先转换的
     do {
         let names = ["a.docx", "a.pdf", "a_pdf.docx", "a.PDF", "a_pdf.html"]
