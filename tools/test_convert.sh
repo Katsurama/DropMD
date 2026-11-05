@@ -46,6 +46,20 @@ with tempfile.TemporaryDirectory() as d:
           and (Path(d) / "c_images/image2.png").read_bytes() == b"hi")
     failed += not ok
     print("ok  " if ok else "FAIL", "不动用户的图片", "" if ok else f"\n     got:  {got!r}")
+# “s t.md”和“s_t.md”清理后同名：各用各的文件夹，重新转换一个不影响另一个
+with tempfile.TemporaryDirectory() as d:
+    img = "![](data:image/png;base64,aGk=)"
+    a, b = Path(d) / "s t.md", Path(d) / "s_t.md"
+    a.write_text(_save_images(img, a))
+    b.write_text(_save_images(img, b))
+    keep_a = (Path(d) / "s_t_images/image1.png").exists()
+    a2 = _save_images(img, a)
+    b2 = _save_images(img, b)
+    ok = (keep_a and a.read_text() == "![](s_t_images/image1.png)" == a2
+          and b.read_text() == "![](s_t_images_2/image1.png)" == b2
+          and (Path(d) / "s_t_images/image1.png").exists() and (Path(d) / "s_t_images_2/image1.png").exists())
+    failed += not ok
+    print("ok  " if ok else "FAIL", "清理后同名的文档不共用文件夹", "" if ok else f"\n     got:  {a.read_text()!r} {b.read_text()!r}")
 # 引擎提示跟着界面语言：简体、繁体、英文
 import subprocess, sys, os
 for lang, want in [("zh", "找不到文件，可能已被移动或删除。"), ("zh-Hant", "找不到檔案，可能已被移動或刪除。"),
