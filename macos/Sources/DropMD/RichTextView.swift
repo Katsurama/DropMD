@@ -429,6 +429,10 @@ final class RichTextView: NSTextView {
             newValue[DMKey.collapsed] = nil   // 在收起的标题末尾回车，新段落不应跟着“收起”
             newValue[DMKey.math] = nil        // 在公式后输入的文字不是公式，否则保存时被写成公式原文
             newValue[DMKey.softBreak] = nil   // 在换行后输入的空格不是换行
+            if newValue[DMKey.image] != nil {   // 在图片旁输入的文字不是图片，否则保存时被吞掉
+                for k in [DMKey.image, DMKey.imageID, DMKey.alt, DMKey.title, DMKey.link, DMKey.linkTitle] { newValue[k] = nil }
+                newValue[.foregroundColor] = RichStyle.bodyColor
+            }
             guard newValue[DMKey.callout] != nil else { super.typingAttributes = newValue; return }
             var a = RichStyle.typingAttributes(for: RichBridge.kind(of: newValue))
             a[.paragraphStyle] = newValue[.paragraphStyle]
@@ -569,7 +573,7 @@ final class RichTextView: NSTextView {
 
     private static let keptKeys: Set<NSAttributedString.Key> = [
         .font, .underlineStyle, .strikethroughStyle, .obliqueness, .link, .attachment, .superscript,
-        DMKey.inlineCode, DMKey.kbd, DMKey.highlight, DMKey.literal, DMKey.link, DMKey.title, DMKey.softBreak, DMKey.image, DMKey.alt, DMKey.callout, DMKey.math,
+        DMKey.inlineCode, DMKey.kbd, DMKey.highlight, DMKey.literal, DMKey.link, DMKey.title, DMKey.linkTitle, DMKey.imageID, DMKey.softBreak, DMKey.image, DMKey.alt, DMKey.callout, DMKey.math,
     ]
 
     // MARK: - 在单页之间复制：另存一份带 DropMD 属性的内容，公式、图片粘贴后不丢
@@ -1067,7 +1071,7 @@ final class RichTextView: NSTextView {
     }
 
     func insertImage(path: String, alt: String) {
-        replace(selectedRange(), with: RichBridge.imageString(path: path, alt: alt, baseURL: baseURL))
+        replace(selectedRange(), with: RichBridge.imageString(path: path.replacingOccurrences(of: "%", with: "%25"), alt: alt, baseURL: baseURL))
     }
 
     // MARK: - 表格中移动
