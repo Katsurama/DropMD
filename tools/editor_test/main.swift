@@ -437,18 +437,21 @@ MainActor.assumeIsolated {
         let html = #"<p><img src="%E5%9B%BE%20%E7%89%87/a.png" alt="a"><img src="https://example.com/b.png" alt=""><img src="no.png" alt=""><img width="200" src="%E5%9B%BE%20%E7%89%87/a.png"></p>"#
         check("导出 HTML 嵌入图片", HTMLExport.embedLocalImages(html, base: dir),
               #"<p><img src="data:image/png;base64,aGk=" alt="a"><img src="https://example.com/b.png" alt=""><img src="no.png" alt=""><img width="200" src="data:image/png;base64,aGk="></p>"#)
-        // 快速查看：大图缩小后再嵌入，小图不变；导出时大图保持原图
+        // 快速查看：图片换成扩展提供的地址，大图缩小，小图不变；导出时大图保持原图
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 2400, pixelsHigh: 1200, bitsPerSample: 8, samplesPerPixel: 3,
                                    hasAlpha: false, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 7200, bitsPerPixel: 24)!
         arc4random_buf(rep.bitmapData!, 7200 * 1200)   // 随机内容压不小，文件超过 512 KB
         let big = rep.representation(using: .png, properties: [:])!
         try? big.write(to: dir.appendingPathComponent("big.png"))
         let tag = #"<img src="big.png">"#
-        let quick = HTMLExport.embedLocalImages(tag, base: dir, maxPixel: 1600)
-        let b64 = quick.components(separatedBy: "base64,").last?.dropLast(2) ?? ""
-        let shown = Data(base64Encoded: String(b64)).flatMap(NSBitmapImageRep.init(data:))
-        check("快速查看缩小大图", "\(quick.hasPrefix("<img src=\"data:image/jpeg")) \(shown?.pixelsWide ?? 0)×\(shown?.pixelsHigh ?? 0)", "true 1600×800")
-        check("快速查看不动小图", HTMLExport.embedLocalImages(html, base: dir, maxPixel: 1600), HTMLExport.embedLocalImages(html, base: dir))
+        let shrunk = HTMLExport.previewImage(dir.appendingPathComponent("big.png"), maxPixel: 1600)
+        let shown = shrunk.flatMap { NSBitmapImageRep(data: $0.data) }
+        check("快速查看缩小大图", "\(shrunk?.mime ?? "") \(shown?.pixelsWide ?? 0)×\(shown?.pixelsHigh ?? 0)", "image/jpeg 1600×800")
+        check("快速查看不动小图", HTMLExport.previewImage(dir.appendingPathComponent("图 片/a.png"), maxPixel: 1600)?.data == Data("hi".utf8) ? "同" : "变了", "同")
+        let linked = HTMLExport.linkLocalImages(html, base: dir, scheme: "dropmd-image")
+        check("快速查看的图片地址", linked.html,
+              #"<p><img loading="lazy" decoding="async" src="dropmd-image:/2" alt="a"><img loading="lazy" decoding="async" src="https://example.com/b.png" alt=""><img loading="lazy" decoding="async" src="dropmd-image:/1" alt=""><img loading="lazy" decoding="async" width="200" src="dropmd-image:/0"></p>"#)
+        check("快速查看只读文档写到的图片", linked.images.map(\.lastPathComponent).joined(separator: " "), "a.png no.png a.png")
         check("地址有编码的本机图片能显示", RichBridge.imageString(path: "big%2Epng", alt: "", baseURL: URL(fileURLWithPath: dir.path, isDirectory: true)).attribute(.attachment, at: 0, effectiveRange: nil) != nil ? "有" : "没有", "有")
         check("导出保持原图", HTMLExport.embedLocalImages(tag, base: dir) == "<img src=\"data:image/png;base64,\(big.base64EncodedString())\">" ? "原图" : "变了", "原图")
         try? FileManager.default.removeItem(at: dir)
