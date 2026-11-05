@@ -37,7 +37,7 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
         // 网页读不到文档旁边的图片：由扩展读出来嵌进页面（扩展能只读个人文件夹和外接硬盘，见 QuickLook.entitlements）
         let content = "document.getElementById('content')"
         if let html = try await webView.callAsyncJavaScript("return \(content).innerHTML", arguments: [:], contentWorld: .page) as? String {
-            let embedded = HTMLExport.embedLocalImages(html, base: url.deletingLastPathComponent())
+            let embedded = HTMLExport.embedLocalImages(html, base: url.deletingLastPathComponent(), maxPixel: 1600)
             if embedded != html {
                 _ = try await webView.callAsyncJavaScript("\(content).innerHTML = h", arguments: ["h": embedded], contentWorld: .page)
             }
