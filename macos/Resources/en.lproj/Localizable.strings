@@ -328,3 +328,4 @@
 "重新启动 DropMD 后，界面语言才会改变。" = "The new language will be used after DropMD restarts.";
 "立即重新启动" = "Restart Now";
 "稍后" = "Later";
+"无法识别这个文件的文字编码，所以没有打开。文件没有任何改动。" = "DropMD couldn't recognize this file's text encoding, so it wasn't opened. The file hasn't been changed.";
