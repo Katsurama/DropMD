@@ -139,8 +139,28 @@ check("一行几个带链接的徽章", "[![a](a.svg)](#a) [![b](b.svg)](#b) [![
 check("链接里文字加图片", "[看 ![i](i.png) 这里](https://example.com)\n")
 check("图片地址的编码", "![a](https://x.io/%E5%B9%B3%E5%8F%B0-macOS%2014%2B?s=1&l=a) ![b](图片/a%20b.png) ![c](100%25.png)\n")
 check("图片地址没编码", "![a](图 片.png)\n", "![a](图 片.png)\n")
-check("图片地址尖括号", "![a](<图 片.png>)\n")
+check("图片地址尖括号", "![a](<图 片.png>)\n", "![a](图%20片.png)\n")
+check("图片地址尖括号和提示文字", "![a](<图 片.png> \"题\")\n", "![a](图%20片.png \"题\")\n")
 check("引用式定义不受影响","见 [1]。\n\n[1]: https://example.com\n")
+// 改过的段落用标准写法，但不能改变意思，也不多加转义
+check("金额", "价格 $99 一年\n\n$5 和 $10\n\nA$ 和 B$\n")
+check("金额和公式同在", "公式 $x$ 金额 \\$5\n")
+check("反斜杠", "路径 C:\\Users\\a 和 \\n\n")
+check("转义的反斜杠恢复", "C:\\\\Users\n", "C:\\Users\n")
+check("句尾的反斜杠", "结尾 C:\\\\\n")
+check("反斜杠后是标点", "\\\\* 不是转义\n", "\\\\\\* 不是转义\n")
+check("空格中间的星号", "2 * 3 * 4 和 *斜*\n")
+check("星号开头仍转义", "\\* 不是列表\n")
+check("小于号", "1 < 2 且 3 > 2，a<3\n", "1 < 2 且 3 > 2，a<3\n")
+check("HTML 写法仍转义", "\\<b>字\n")
+check("单个波浪号", "~近似~ 和 ~~删除~~，H~2~O\n")
+check("转义的双波浪号", "\\~\\~不是删除线\n")
+check("行内 HTML", "<span style=\"color:red\">红</span> 文字 <!-- 注 --> <a href=\"x\">链</a><br/>后\n", "<span style=\"color:red\">红</span> 文字 <!-- 注 --> <a href=\"x\">链</a><br>后\n")
+check("行内 $$", "行内 $$x$$ 公式\n")
+check("代码块信息", "```python title=\"a.py\" {1,3}\nx\n```\n")
+check("带标题的提示框", "> [!TIP] 标题\n> 内容\n")
+check("提示框写法不在开头", "见 \\[!TIP\\] 这里\n")
+
 // 保存时没改过的段落保持原文
 func checkKeep(_ name: String, _ base: String, _ want: String, edit: (inout [MDBlock]) -> Void) {
     var blocks = MarkdownCodec.parse(base)
@@ -164,13 +184,13 @@ let idx = MarkdownCodec.parse(doc).firstIndex { MarkdownCodec.serialize([$0]) ==
 checkKeep("只改一段", doc, doc.replacingOccurrences(of: "改这里", with: "新\\* 的")) { $0[idx] = body("新* 的") }
 checkKeep("在中间加一段", "a $1\n\nb $2\n", "a $1\n\n新\n\nb $2\n") { $0.insert(body("新"), at: 1) }
 checkKeep("删掉一段", "a $1\n\nb\n\n\nc $3\n", "a $1\n\nc $3\n") { $0.remove(at: 1) }
-checkKeep("交换两段", "a $1\n\nb $2\n", "b $2\n\na \\$1\n") { $0.swapAt(0, 1) }
+checkKeep("交换两段", "a $1\n\nb $2\n", "b $2\n\na $1\n") { $0.swapAt(0, 1) }
 checkKeep("改最后一段：结尾照旧", "a $1\n\nb", "a $1\n\n新") { $0[1] = body("新") }
 checkKeep("原地改紧贴的段落：间隔不变", "说明：\n- 一\n- 二\n# 题\n正文\n", "说明：\n- 改\n- 二\n# 题\n新\n") { $0[1] = .line(MDLine(kind: .bullet(0), runs: [MDRun(text: "改")])); $0[4] = body("新") }
 checkKeep("标题改成正文：不能和下一段连起来", "# 题\n正文 $\n", "新\n\n正文 $\n") { $0[0] = body("新") }
 checkKeep("连续改两段", "a\n\n\nb\n\n\nc $\n", "新\n\n\n二\n\n\nc $\n") { $0[0] = body("新"); $0[1] = body("二") }
 checkKeep("相同的段落只改第二个", "同 $\n\n同 $\n\n尾 $\n", "同 $\n\n新\n\n尾 $\n") { $0[1] = body("新") }
-checkKeep("列表中间插入：后面的编号要变", "1. 一 $\n2. 二 $\n", "1. 一 $\n2. 新\n3. 二 \\$\n") { $0.insert(.line(MDLine(kind: .ordered(0), runs: [MDRun(text: "新")])), at: 1) }
+checkKeep("列表中间插入：后面的编号要变", "1. 一 $\n2. 二 $\n", "1. 一 $\n2. 新\n3. 二 $\n") { $0.insert(.line(MDLine(kind: .ordered(0), runs: [MDRun(text: "新")])), at: 1) }
 checkKeep("CRLF 文件", "a $1\r\n\r\nb\r\n", "a $1\r\n\r\n新\r\n") { $0[1] = body("新") }
 checkKeep("BOM 文件", "\u{FEFF}a $1\n\nb\n", "\u{FEFF}a $1\n\n新\n") { $0[1] = body("新") }
 checkKeep("开头的空行和 YAML", "\n---\n\na $1\n\nb\n", "\n---\n\na $1\n\n新\n") { $0[$0.count - 1] = body("新") }

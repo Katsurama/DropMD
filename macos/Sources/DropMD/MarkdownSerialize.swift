@@ -316,6 +316,10 @@ extension MarkdownCodec {
         }
 
         let parts = merged(runs)
+        // $ 只在这一段真有公式写法时才转义，$99、$5 和 $10 照原文
+        let plain = parts.filter { !$0.literal && !$0.code && $0.image == nil }.map(\.text).joined()
+        let dollarIsRisky = plain.contains("$")
+            && (parts.contains { $0.literal && $0.text.contains("$") } || parseInline(plain).contains { $0.literal && $0.text.contains("$") })
         for (index, r) in parts.enumerated() {
             if let src = r.image {
                 transition(r.link.map { [.link($0, r.linkTitle)] } ?? [])
@@ -359,7 +363,7 @@ extension MarkdownCodec {
             transition(keep + wanted.filter { !keep.contains($0) })
             let atStart = open.isEmpty && out.trimmingCharacters(in: .whitespaces).isEmpty
             let keepEscaped = r.link != nil || (trail.isEmpty && index + 1 < parts.count && core.hasSuffix("]"))
-            out += escape(core, atStart: atStart, inCell: inCell, keepBracketsEscaped: keepEscaped)
+            out += escape(core, atStart: atStart, inCell: inCell, keepBracketsEscaped: keepEscaped, keepDollarEscaped: dollarIsRisky)
             pending = trail
         }
         transition([])
@@ -402,7 +406,7 @@ extension MarkdownCodec {
             || (atStart && s.range(of: #"^\[[ xX]\]"#, options: .regularExpression) != nil)
     }
 
-    private static func escape(_ s: String, atStart: Bool, inCell: Bool, keepBracketsEscaped: Bool) -> String {
+    private static func escape(_ s: String, atStart: Bool, inCell: Bool, keepBracketsEscaped: Bool, keepDollarEscaped: Bool) -> String {
         let chars = Array(s)
         let escapeBrackets = keepBracketsEscaped || bracketsAreRisky(s, atStart: atStart && !inCell)   // 表格里没有待办
         // 行首的“1. ”会被当成有序列表
@@ -424,8 +428,26 @@ extension MarkdownCodec {
             switch ch {
             case "[", "]":
                 out += escapeBrackets ? "\\" + String(ch) : String(ch)
-            case "\\", "*", "`", "<", "~", "$":
-                out += "\\" + String(ch)
+            case "$":
+                out += keepDollarEscaped ? "\\$" : "$"
+            case "\\":
+                // 后面不是标点时反斜杠就是它自己：C:\Users、\n
+                let literal = i + 1 < chars.count && !chars[i + 1].isNewline && !"!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~".contains(chars[i + 1])   // 行尾的反斜杠是换行
+                out += literal ? "\\" : "\\\\"
+            case "<":
+                // 后面是字母、/、! 才可能是 HTML；“1 < 2”不是
+                let inert = i + 1 < chars.count && !(chars[i + 1].isLetter || "/!?".contains(chars[i + 1]))
+                out += inert ? "<" : "\\<"
+            case "*":
+                // 前后都是空格的星号不是格式：2 * 3
+                let inert = i > 0 && i + 1 < chars.count && chars[i - 1].isWhitespace && chars[i + 1].isWhitespace
+                out += inert ? "*" : "\\*"
+            case "~":
+                // 两个连着才是删除线
+                let paired = (i > 0 && chars[i - 1] == "~") || (i + 1 < chars.count && chars[i + 1] == "~")
+                out += paired ? "\\~" : "~"
+            case "`":
+                out += "\\`"
             case "|":
                 out += inCell ? "\\|" : "|"
             case "=":

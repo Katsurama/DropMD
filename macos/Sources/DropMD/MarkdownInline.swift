@@ -136,6 +136,17 @@ private struct InlineParser {
                 continue
             }
 
+            // 带标题的提示框 [!TIP] 标题（Obsidian 等）：标记原样保留
+            if ch == "[", i == lo, lo == 0, i + 1 < hi, c[i + 1] == "!", let close = find("]", from: i + 2, hi), close > i + 2,
+               c[(i + 2)..<close].allSatisfy({ $0.isLetter }), close + 1 == hi || c[close + 1] == " " {
+                flush()
+                var r = MDRun(text: String(c[i...close]))
+                r.literal = true
+                out.append(r)
+                i = close + 1
+                continue
+            }
+
             // 脚注引用 [^1]：原样保留；行首的“[^1]:”是脚注说明，冒号一起保留，显示时不作上标
             if ch == "[", i + 1 < hi, c[i + 1] == "^", var end = footnoteEnd(i, hi) {
                 if i == 0, end < hi, c[end] == ":" { end += 1 }
@@ -198,6 +209,25 @@ private struct InlineParser {
                         continue
                     }
                 }
+                // 其他 HTML 标签和注释（<span style=…>、<!-- … -->）：原样保留
+                if let end = htmlTagEnd(i, hi) {
+                    flush()
+                    var r = MDRun(text: String(c[i..<end]))
+                    r.literal = true
+                    out.append(r)
+                    i = end
+                    continue
+                }
+            }
+
+            // $$行内公式$$：原样保留
+            if ch == "$", i + 1 < hi, c[i + 1] == "$", let close = find("$$", from: i + 2, hi), close > i + 2 {
+                flush()
+                var r = MDRun(text: String(c[i..<(close + 2)]))
+                r.literal = true
+                out.append(r)
+                i = close + 2
+                continue
             }
 
             // $公式$：原样保留
@@ -339,6 +369,18 @@ private struct InlineParser {
         return nil
     }
 
+    /// c[i] 开始的 HTML 标签或注释的结束位置（不含）。像“1 < 2 且 3 > 2”这样的不算
+    private func htmlTagEnd(_ i: Int, _ hi: Int) -> Int? {
+        if matches("<!--", at: i, hi), let close = find("-->", from: i + 4, hi) { return close + 3 }
+        var j = i + 1
+        if j < hi, c[j] == "/" { j += 1 }
+        guard j < hi, c[j].isASCII, c[j].isLetter else { return nil }
+        while j < hi, c[j].isASCII, c[j].isLetter || c[j].isNumber || c[j] == "-" { j += 1 }
+        guard j < hi, c[j] == ">" || c[j] == "/" || c[j].isWhitespace else { return nil }
+        guard let close = find(">", from: j, hi), !c[j..<close].contains("<") else { return nil }
+        return close + 1
+    }
+
     /// [^标签] 的结束位置（不含）
     private func footnoteEnd(_ i: Int, _ hi: Int) -> Int? {
         var j = i + 2
@@ -410,10 +452,12 @@ private struct InlineParser {
         guard q < hi else { return nil }
         var dest = String(c[start..<q]).trimmingCharacters(in: .whitespaces)
         var title: String?
-        if let sp = dest.firstIndex(of: " ") {
-            let rest = dest[sp...].trimmingCharacters(in: .whitespaces)
+        // <a b.png> 里可以有空格，其他写法第一个空格后是提示文字
+        let split = dest.hasPrefix("<") ? dest.firstIndex(of: ">").map { dest.index(after: $0) } : dest.firstIndex(of: " ")
+        if let split, split < dest.endIndex {
+            let rest = dest[split...].trimmingCharacters(in: .whitespaces)
             if !rest.isEmpty { title = rest }
-            dest = String(dest[..<sp])
+            dest = String(dest[..<split])
         }
         if dest.hasPrefix("<") && dest.hasSuffix(">") { dest = String(dest.dropFirst().dropLast()) }
         return LinkMatch(labelLo: open + 1, labelHi: k, url: dest, title: title, end: q + 1)

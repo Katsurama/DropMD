@@ -103,7 +103,7 @@ struct MDNumbering {
 enum MDBlock: Equatable {
     case line(MDLine)
     /// listGap：属于上面的列表项时不为 nil（AI 常写的“1. 安装：”下面的代码），true 表示前后有空行
-    case code(lang: String, lines: [String], listGap: Bool? = nil)
+    case code(lang: String, lines: [String], listGap: Bool? = nil)   // lang：``` 后面的整段文字
     case table([[[MDRun]]], align: [String] = [])   // 行 → 单元格 → 文字，第一行为表头；align：各列的 ---、:--、:-:、--:
     case rule
     case details(summary: String, body: [MDBlock], open: Bool)   // 折叠块 <details>；open：<details open>，默认展开
@@ -543,8 +543,7 @@ enum MarkdownCodec {
         guard let m = groups(fencePattern, line), let mark = m[1].first else { return nil }
         let info = m[2].trimmingCharacters(in: .whitespaces)
         if mark == "`" && info.contains("`") { return nil }
-        let lang = info.components(separatedBy: .whitespaces).first ?? ""
-        return Fence(mark: mark, count: m[1].count, lang: lang)
+        return Fence(mark: mark, count: m[1].count, lang: info)   // 整行都留着：```python title="a.py"
     }
 
     private static func isFenceClosing(_ line: String, _ fence: Fence) -> Bool {
