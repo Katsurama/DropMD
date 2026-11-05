@@ -119,6 +119,22 @@ MainActor.assumeIsolated {
         }
         check("新文档是 UTF-8", String(data: MarkdownDocument(text: "新").data(), encoding: .utf8) ?? "", "新")
     }
+    // 在原样内容后面打字是普通文字；列表显示的编号和文件一致；图片文件名编码
+    do {
+        for (src, want) in [("<span>红</span>\n", "<span>红</span>\\*字\\*\n"), ("正文[^1]\n\n[^1]: 说明\n", "正文[^1]\\*字\\*\n\n[^1]: 说明\n")] {
+            let tv = makeView(src)
+            tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "\n").location, length: 0))
+            type(tv, "*字*")
+            check("原样内容后打字 \(src.prefix(6).debugDescription)", md(tv), want)
+        }
+        let tv = makeView("5. 五\n6. 六\n\n正文\n\n3. 三\n4. 四\n\n- 项\n\n1. 甲\n2. 乙\n")
+        let s = tv.textStorage!, ns = s.string as NSString
+        let shown = ["五", "六", "三", "四", "甲", "乙"].map { ch -> Int in
+            (tv.layoutManager as! RichLayoutManager).number(at: ns.range(of: ch).location, depth: 0, in: s)
+        }
+        check("列表显示的编号", "\(shown)", "[5, 6, 3, 4, 1, 2]")
+        check("图片文件名编码", RichTextView.encodedImagePath("a%b#c?d 图.png"), "a%25b%23c%3Fd 图.png")
+    }
     // 同一批重名的文件：输出不能重复，否则后转换的会覆盖先转换的
     do {
         let names = ["a.docx", "a.pdf", "a_pdf.docx", "a.PDF", "a_pdf.html"]
