@@ -144,7 +144,7 @@ enum RichBridge {
         let s = NSMutableAttributedString()
         for r in runs {
             if let src = r.image {
-                s.append(imageString(path: src, alt: r.text, title: r.title, baseURL: baseURL))
+                s.append(imageString(path: src, alt: r.text, title: r.title, link: r.link, linkTitle: r.linkTitle, baseURL: baseURL))
             } else if r.literal, isInlineMath(r.text) {
                 s.append(mathString(r.text, display: false, attributes: RichStyle.attributes(for: r, kind: kind)))
             } else if r.literal, let c = MDCallout(header: r.text) {
@@ -215,15 +215,18 @@ enum RichBridge {
 
     static let maxImageWidth: CGFloat = 560
 
-    static func imageString(path: String, alt: String, title: String? = nil, baseURL: URL?) -> NSAttributedString {
+    static func imageString(path: String, alt: String, title: String? = nil, link: String? = nil, linkTitle: String? = nil, baseURL: URL?) -> NSAttributedString {
         var image: NSImage?
         let lower = path.lowercased()
         // 网络图片为保护隐私不加载
         if !lower.hasPrefix("http:"), !lower.hasPrefix("https:"), !lower.hasPrefix("//"), !path.isEmpty {
-            image = NSImage(contentsOf: URL(fileURLWithPath: path, relativeTo: baseURL))
+            image = NSImage(contentsOf: URL(fileURLWithPath: path.removingPercentEncoding ?? path, relativeTo: baseURL))
         }
         var marks: [NSAttributedString.Key: Any] = [DMKey.image: path, DMKey.alt: alt]
         marks[DMKey.title] = title
+        marks[DMKey.link] = link
+        marks[DMKey.linkTitle] = linkTitle
+        marks[DMKey.imageID] = UUID().uuidString
         guard let loaded = image, loaded.size.width > 0, loaded.size.height > 0 else {
             // 找不到图片时显示占位文字，保存时仍写回原来的图片地址
             var a = RichStyle.attributes(for: MDRun(), kind: .body)
@@ -290,7 +293,8 @@ enum RichBridge {
                 }
             } else if let path = a[DMKey.image] as? String {
                 let image = NSMutableAttributedString(attributedString: imageString(path: path, alt: (a[DMKey.alt] as? String) ?? "",
-                                                                                         title: a[DMKey.title] as? String, baseURL: baseURL))
+                                                                                         title: a[DMKey.title] as? String, link: a[DMKey.link] as? String,
+                                                                                         linkTitle: a[DMKey.linkTitle] as? String, baseURL: baseURL))
                 var rest = a
                 rest[.attachment] = nil
                 for (k, v) in rest where image.attribute(k, at: 0, effectiveRange: nil) == nil {
@@ -423,6 +427,7 @@ enum RichBridge {
         let ns = storage.string as NSString
         var out: [MDRun] = []
         var lastImageRange: NSRange?
+        var lastImageID: String?
         var lastCalloutEnd = -1
         storage.enumerateAttributes(in: range, options: []) { a, sub, _ in
             if let header = a[DMKey.callout] as? String {
@@ -445,12 +450,15 @@ enum RichBridge {
             }
             if let src = a[DMKey.image] as? String {
                 // 同一张图片（或其占位文字）只写一次
-                if let prev = lastImageRange, NSMaxRange(prev) == sub.location, out.last?.image == src { return }
+                if let prev = lastImageRange, NSMaxRange(prev) == sub.location, a[DMKey.imageID] as? String == lastImageID { return }
                 var r = MDRun(text: (a[DMKey.alt] as? String) ?? "")
                 r.image = src
                 r.title = a[DMKey.title] as? String
+                r.link = a[DMKey.link] as? String
+                r.linkTitle = a[DMKey.linkTitle] as? String
                 out.append(r)
                 lastImageRange = sub
+                lastImageID = a[DMKey.imageID] as? String
                 return
             }
             var text = ns.substring(with: sub)

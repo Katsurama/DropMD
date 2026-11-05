@@ -24,6 +24,8 @@ enum DMKey {
     static let link = NSAttributedString.Key("dm.link")          // String：链接地址
     static let softBreak = NSAttributedString.Key("dm.soft")     // Bool：段落里的单个换行，显示为空格，保存时写回换行
     static let title = NSAttributedString.Key("dm.title")        // String：链接、图片的提示文字原文（含引号）
+    static let linkTitle = NSAttributedString.Key("dm.linkTitle") // String：带链接的图片，链接的提示文字原文
+    static let imageID = NSAttributedString.Key("dm.imageID")    // String：每张图片不同，相邻的相同图片才分得开
     static let image = NSAttributedString.Key("dm.image")        // String：图片路径
     static let alt = NSAttributedString.Key("dm.alt")            // String：图片说明文字
     static let callout = NSAttributedString.Key("dm.callout")    // String：提示框标题行的原文（如 [!TIP]），显示为“提示”等

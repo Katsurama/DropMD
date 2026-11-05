@@ -57,8 +57,23 @@ MainActor.assumeIsolated {
                 "正文[^1]\n\n[^1]: 第一行\n    第二行\n\n    第二段\n",
                 "1. 安装：\n\n   ```bash\n   npm i\n   ```\n\n2. 运行\n",
                 "- 一\n  ```\n  x\n  ```\n- 二\n",
-                "见 [[读书会]] 和 **[[笔记#小节|别名]]**。\n"] {
+                "见 [[读书会]] 和 **[[笔记#小节|别名]]**。\n",
+                "[![徽章](a.png \"图\")](https://example.com \"链\") [![b](https://x.io/%E5%B9%B3%2B.svg)](#b)\n"] {
         check("单页往返 \(src.prefix(4).replacingOccurrences(of: "\n", with: " "))", md(makeView(src)), src)
+    }
+    // 带链接的图片后面打字：字不进链接，图片也不丢；相邻的相同图片各保留一张
+    do {
+        let src = "[![徽章](a.png)](https://example.com)\n"
+        let tv = makeView(src)
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).length - 1, length: 0))
+        type(tv, "字")
+        check("带链接的图片后打字", md(tv), "[![徽章](a.png)](https://example.com)字\n")
+        let same = "![a](x.png)![a](x.png)\n"
+        check("相邻的相同图片", md(makeView(same)), same)
+        let plain = makeView("![a](a.png)\n")
+        plain.setSelectedRange(NSRange(location: (plain.string as NSString).length - 1, length: 0))
+        type(plain, "字")
+        check("图片后打字", md(plain), "![a](a.png)字\n")
     }
     // 改别的地方再保存，[[双链]] 不变；在单页里直接打出来的也不转义
     do {
@@ -349,6 +364,7 @@ MainActor.assumeIsolated {
         let shown = Data(base64Encoded: String(b64)).flatMap(NSBitmapImageRep.init(data:))
         check("快速查看缩小大图", "\(quick.hasPrefix("<img src=\"data:image/jpeg")) \(shown?.pixelsWide ?? 0)×\(shown?.pixelsHigh ?? 0)", "true 1600×800")
         check("快速查看不动小图", HTMLExport.embedLocalImages(html, base: dir, maxPixel: 1600), HTMLExport.embedLocalImages(html, base: dir))
+        check("地址有编码的本机图片能显示", RichBridge.imageString(path: "big%2Epng", alt: "", baseURL: URL(fileURLWithPath: dir.path, isDirectory: true)).attribute(.attachment, at: 0, effectiveRange: nil) != nil ? "有" : "没有", "有")
         check("导出保持原图", HTMLExport.embedLocalImages(tag, base: dir) == "<img src=\"data:image/png;base64,\(big.base64EncodedString())\">" ? "原图" : "变了", "原图")
         try? FileManager.default.removeItem(at: dir)
     }

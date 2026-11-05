@@ -127,8 +127,10 @@ private struct InlineParser {
             if ch == "!", i + 1 < hi, c[i + 1] == "[", let m = linkAt(i + 1, hi) {
                 flush()
                 var r = MDRun(text: String(c[m.labelLo..<m.labelHi]))
-                r.image = m.url.removingPercentEncoding ?? m.url
+                r.image = m.url
                 r.title = m.title
+                r.link = st.link          // [![图](a.png)](链接)
+                r.linkTitle = st.title
                 out.append(r)
                 i = m.end
                 continue

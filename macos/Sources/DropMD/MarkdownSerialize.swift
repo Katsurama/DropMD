@@ -205,7 +205,7 @@ extension MarkdownCodec {
         let parts = merged(runs)
         for (index, r) in parts.enumerated() {
             if let src = r.image {
-                transition([])
+                transition(r.link.map { [.link($0, r.linkTitle)] } ?? [])
                 out += "![" + escapeAlt(r.text) + "](" + encodeURL(src) + (r.title.map { " " + $0 } ?? "") + ")"
                 continue
             }
