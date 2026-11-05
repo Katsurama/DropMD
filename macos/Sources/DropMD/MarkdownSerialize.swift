@@ -202,7 +202,8 @@ extension MarkdownCodec {
             }
         }
 
-        for r in merged(runs) {
+        let parts = merged(runs)
+        for (index, r) in parts.enumerated() {
             if let src = r.image {
                 transition([])
                 out += "![" + escapeAlt(r.text) + "](" + encodeURL(src) + (r.title.map { " " + $0 } ?? "") + ")"
@@ -244,7 +245,8 @@ extension MarkdownCodec {
             pending += lead
             transition(keep + wanted.filter { !keep.contains($0) })
             let atStart = open.isEmpty && out.trimmingCharacters(in: .whitespaces).isEmpty
-            out += escape(core, atStart: atStart, inCell: inCell)
+            let keepEscaped = r.link != nil || (trail.isEmpty && index + 1 < parts.count && core.hasSuffix("]"))
+            out += escape(core, atStart: atStart, inCell: inCell, keepBracketsEscaped: keepEscaped)
             pending = trail
         }
         transition([])
@@ -281,8 +283,15 @@ extension MarkdownCodec {
         return (String(chars[0..<a]), String(chars[a..<b]), String(chars[b...]))
     }
 
-    private static func escape(_ s: String, atStart: Bool, inCell: Bool) -> String {
+    /// 这段文字里的方括号会不会被读成链接、脚注、提示框、待办。不会的话（[1]、[注]、[[1,2],[3,4]]）不转义，保存后和原文一样
+    private static func bracketsAreRisky(_ s: String, atStart: Bool) -> Bool {
+        ["](", "][", "]:", "[^", "[!"].contains { s.contains($0) }
+            || (atStart && s.range(of: #"^\[[ xX]\]"#, options: .regularExpression) != nil)
+    }
+
+    private static func escape(_ s: String, atStart: Bool, inCell: Bool, keepBracketsEscaped: Bool) -> String {
         let chars = Array(s)
+        let escapeBrackets = keepBracketsEscaped || bracketsAreRisky(s, atStart: atStart && !inCell)   // 表格里没有待办
         // 行首的“1. ”会被当成有序列表
         var orderedMarker = -1
         if atStart {
@@ -300,7 +309,9 @@ extension MarkdownCodec {
                 continue
             }
             switch ch {
-            case "\\", "*", "`", "[", "]", "<", "~", "$":
+            case "[", "]":
+                out += escapeBrackets ? "\\" + String(ch) : String(ch)
+            case "\\", "*", "`", "<", "~", "$":
                 out += "\\" + String(ch)
             case "|":
                 out += inCell ? "\\|" : "|"
