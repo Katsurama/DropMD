@@ -118,9 +118,10 @@ final class AppModel: ObservableObject {
     func add(_ urls: [URL]) {
         guard !running else { return }
         let (found, skipped) = Planner.collect(urls)
-        let known = Set(items.map { $0.url.standardizedFileURL.path })
+        var known = Set(items.map { $0.url.standardizedFileURL.path })
         var added = 0
-        for (url, rel) in found where !known.contains(url.standardizedFileURL.path) {
+        // 同时拖入文件夹和其中的文件时，同一个文件只加一次
+        for (url, rel) in found where known.insert(url.standardizedFileURL.path).inserted {
             items.append(FileItem(url: url, relativePath: rel,
                                   info: supportedExtensions[url.pathExtension.lowercased()] ?? ""))
             added += 1
@@ -205,7 +206,7 @@ final class AppModel: ObservableObject {
         a.runModal()
     }
 
-    /// 确认并下载高精度模型。这是唯一的联网行为，必须先取得用户同意。
+    /// 确认并下载高精度模型。联网前必须先取得用户同意。
     func ensureModels(showWhenPresent: Bool = false) async -> Bool {
         let st: Engine.Status
         do {
@@ -224,7 +225,7 @@ final class AppModel: ObservableObject {
         a.alertStyle = .informational
         a.messageText = String(localized: "需要下载识别模型")
         a.informativeText = String(localized: """
-        高精度模式需要先下载识别模型。这是 DropMD 唯一的联网行为，只下载模型文件，不会上传您的任何文件或信息。
+        高精度模式需要先下载识别模型。这一步只下载模型文件，不会上传您的任何文件或信息。
         下载使用 macOS 系统网络（与 Safari 相同的网络和代理设置），每个文件都会校验完整性。
 
         \(list)

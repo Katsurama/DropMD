@@ -111,7 +111,9 @@ final class Engine: @unchecked Sendable {
         try p.run()
         locked { process = p }
         if let input {
-            inp.fileHandleForWriting.write(input)
+            // 引擎启动就退出时写入会失败：不能让 SIGPIPE 结束整个 App，错误由下面的退出码和“引擎意外退出”反馈
+            signal(SIGPIPE, SIG_IGN)
+            try? inp.fileHandleForWriting.write(contentsOf: input)
         }
         try? inp.fileHandleForWriting.close()
         for try await line in out.fileHandleForReading.bytes.lines {

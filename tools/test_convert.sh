@@ -60,6 +60,30 @@ with tempfile.TemporaryDirectory() as d:
           and (Path(d) / "s_t_images/image1.png").exists() and (Path(d) / "s_t_images_2/image1.png").exists())
     failed += not ok
     print("ok  " if ok else "FAIL", "清理后同名的文档不共用文件夹", "" if ok else f"\n     got:  {a.read_text()!r} {b.read_text()!r}")
+# 名字以 .md 结尾的文件夹不影响转换；没提取到内容时不动上次的图片
+with tempfile.TemporaryDirectory() as d:
+    from dropmd.converters import images_dir_name, convert_markitdown
+    from dropmd.errors import ConversionError
+    import dropmd.converters as conv
+    (Path(d) / "m_n.md").mkdir()
+    ok = images_dir_name(Path(d) / "m n.md") == "m_n_images"
+    failed += not ok
+    print("ok  " if ok else "FAIL", "名字以 .md 结尾的文件夹")
+    src, dst = Path(d) / "e.html", Path(d) / "e.md"
+    src.write_text("x")
+    dst.write_text("![](e_images/image1.png)")
+    (Path(d) / "e_images").mkdir()
+    (Path(d) / "e_images/image1.png").write_bytes(b"old")
+    class _Empty:
+        markdown = " "
+    conv._markitdown = lambda: type("M", (), {"convert_local": lambda self, *a, **k: _Empty()})()
+    try:
+        convert_markitdown(src, dst)
+        ok = False
+    except ConversionError:
+        ok = (Path(d) / "e_images/image1.png").exists() and dst.read_text() == "![](e_images/image1.png)"
+    failed += not ok
+    print("ok  " if ok else "FAIL", "转换失败不动上次的图片")
 # 引擎提示跟着界面语言：简体、繁体、英文
 import subprocess, sys, os
 for lang, want in [("zh", "找不到文件，可能已被移动或删除。"), ("zh-Hant", "找不到檔案，可能已被移動或刪除。"),
