@@ -74,6 +74,8 @@ MainActor.assumeIsolated {
         plain.setSelectedRange(NSRange(location: (plain.string as NSString).length - 1, length: 0))
         type(plain, "字")
         check("图片后打字", md(plain), "![a](a.png)字\n")
+        let typedAt = (plain.string as NSString).range(of: "字").location
+        check("图片后打字的字号", "\((plain.textStorage!.attribute(.font, at: typedAt, effectiveRange: nil) as? NSFont)?.pointSize ?? 0)", "\(RichStyle.baseFont(for: .body).pointSize)")
     }
     // 改别的地方再保存，[[双链]] 不变；在单页里直接打出来的也不转义
     do {
@@ -288,6 +290,9 @@ MainActor.assumeIsolated {
         check("粘贴网页：样式里的斜体、Word 的假斜体、实体",
               paste(rtf: "甲 & 乙 丙\n", html: "<p><span style=\"font-style: italic\">甲 &amp; 乙</span> <span style='mso-bidi-font-style:italic'>丙</span></p>"),
               "*甲 & 乙* 丙\n")
+        check("粘贴网页：中文粗体，Google 文档的假粗体",
+              paste(rtf: "甲乙丙丁\n", html: "<b style=\"font-weight:normal\"><p>甲<strong>乙</strong><span style=\"font-weight:700\">丙</span>丁</p></b>"),
+              "甲**乙丙**丁\n")
         check("标题粘贴到一行中间不改这一行",
               paste(rtf: "标题", html: "<h1>标题</h1>", into: "前后\n", at: 1), "前标题后\n")
         check("对不上的文字不标斜体", paste(rtf: "正文\n", html: "<p><i>别的</i></p>"), "正文\n")

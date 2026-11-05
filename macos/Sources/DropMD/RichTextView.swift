@@ -432,6 +432,7 @@ final class RichTextView: NSTextView {
             if newValue[DMKey.image] != nil {   // 在图片旁输入的文字不是图片，否则保存时被吞掉
                 for k in [DMKey.image, DMKey.imageID, DMKey.alt, DMKey.title, DMKey.link, DMKey.linkTitle] { newValue[k] = nil }
                 newValue[.foregroundColor] = RichStyle.bodyColor
+                newValue[.font] = RichStyle.baseFont(for: RichBridge.kind(of: newValue))   // 图片不带字体，否则变成系统默认的小字
             }
             guard newValue[DMKey.callout] != nil else { super.typingAttributes = newValue; return }
             var a = RichStyle.typingAttributes(for: RichBridge.kind(of: newValue))
@@ -451,15 +452,17 @@ final class RichTextView: NSTextView {
         listify(lists)
     }
 
-    /// HTML 里的一段文字：是否斜体、属于几级标题（0 = 不是标题）
-    static func htmlChunks(_ html: String) -> [(text: String, italic: Bool, heading: Int)] {
+    /// HTML 里的一段文字：是否粗体、斜体，属于几级标题（0 = 不是标题）
+    static func htmlChunks(_ html: String) -> [(text: String, bold: Bool, italic: Bool, heading: Int)] {
         let token = try! NSRegularExpression(pattern: #"<!--.*?-->|<(/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*)>|[^<]+"#, options: .dotMatchesLineSeparators)
         let italicStyle = try! NSRegularExpression(pattern: #"(^|[;\s"'])font-style\s*:\s*italic"#, options: .caseInsensitive)   // 不算 Word 的 mso-bidi-font-style
+        let boldStyle = try! NSRegularExpression(pattern: #"(^|[;\s"'])font-weight\s*:\s*(bold|[6-9]00)"#, options: .caseInsensitive)
+        let notBold = try! NSRegularExpression(pattern: #"(^|[;\s"'])font-weight\s*:\s*(normal|[1-4]00)"#, options: .caseInsensitive)   // Google 文档整篇包在 <b style="font-weight:normal"> 里
         let voidTags: Set<String> = ["br", "img", "meta", "link", "hr", "input", "col", "base", "wbr"]
         let hidden: Set<String> = ["head", "style", "script", "title"]
         let ns = html as NSString
-        var open: [(tag: String, italic: Bool)] = []
-        var out: [(text: String, italic: Bool, heading: Int)] = []
+        var open: [(tag: String, bold: Bool, italic: Bool)] = []
+        var out: [(text: String, bold: Bool, italic: Bool, heading: Int)] = []
         for m in token.matches(in: html, range: NSRange(location: 0, length: ns.length)) {
             if m.range(at: 2).location != NSNotFound {
                 let tag = ns.substring(with: m.range(at: 2)).lowercased()
@@ -467,8 +470,8 @@ final class RichTextView: NSTextView {
                 if ns.substring(with: m.range(at: 1)) == "/" {
                     if let i = open.lastIndex(where: { $0.tag == tag }) { open.removeSubrange(i...) }
                 } else if !voidTags.contains(tag), !attrs.hasSuffix("/") {
-                    let styled = italicStyle.firstMatch(in: attrs, range: NSRange(location: 0, length: (attrs as NSString).length)) != nil
-                    open.append((tag, tag == "em" || tag == "i" || styled))
+                    func has(_ r: NSRegularExpression) -> Bool { r.firstMatch(in: attrs, range: NSRange(location: 0, length: (attrs as NSString).length)) != nil }
+                    open.append((tag, ((tag == "b" || tag == "strong") && !has(notBold)) || has(boldStyle), tag == "em" || tag == "i" || has(italicStyle)))
                 }
             } else if ns.character(at: m.range.location) != 60, !open.contains(where: { hidden.contains($0.tag) }) {   // 60 = <，即注释
                 let text = decodeEntities(ns.substring(with: m.range))
@@ -476,7 +479,7 @@ final class RichTextView: NSTextView {
                     .trimmingCharacters(in: .whitespaces)
                 if text.isEmpty { continue }
                 let level = open.last { $0.tag.count == 2 && $0.tag.first == "h" }.flatMap { Int($0.tag.dropFirst()) } ?? 0
-                out.append((text, open.contains { $0.italic }, (1...6).contains(level) ? level : 0))
+                out.append((text, open.contains { $0.bold }, open.contains { $0.italic }, (1...6).contains(level) ? level : 0))
             }
         }
         return out
@@ -497,23 +500,24 @@ final class RichTextView: NSTextView {
         return out
     }
 
-    /// 系统读剪贴板时丢掉两样：中文的斜体（字体没有斜体）和标题（读成粗体正文）。HTML 里还写着：
+    /// 系统读剪贴板时丢掉两样：中文的粗体、斜体（网页的字体没有对应字形）和标题（读成粗体正文）。HTML 里还写着：
     /// 只读它的文字，不交给系统的网页读取。按顺序逐段对上粘贴的文字，对不上的段不处理，所以不会标错地方
     private func applyHTMLFormats(_ html: String, _ range: NSRange) {
         // shortcut: 超过 1 MB 的 HTML 不处理（只是少了斜体和标题），真有人遇到再改
         guard let storage = textStorage, html.utf8.count < 1_000_000 else { return }
         let chunks = Self.htmlChunks(html)
-        guard chunks.contains(where: { $0.italic || $0.heading > 0 }) else { return }
+        guard chunks.contains(where: { $0.bold || $0.italic || $0.heading > 0 }) else { return }
         let ns = storage.string as NSString
         let end = NSMaxRange(range)
         var from = range.location
-        var italics: [NSRange] = []
+        var italics: [NSRange] = [], bolds: [NSRange] = []
         var headings: [Int: (level: Int, text: String)] = [:]   // 段落开头 → 标题级别、这一段里属于标题的文字
         for c in chunks {
             let r = ns.range(of: c.text, range: NSRange(location: from, length: end - from))
             if r.location == NSNotFound { continue }
             from = NSMaxRange(r)
             if c.italic { italics.append(r) }
+            if c.bold, c.heading == 0 { bolds.append(r) }
             if c.heading > 0 {
                 let start = paragraphRange(at: r.location).location
                 headings[start] = (c.heading, (headings[start]?.text ?? "") + c.text)
@@ -523,6 +527,13 @@ final class RichTextView: NSTextView {
             changeAttributes(in: r) { old in
                 var a = old
                 a[.obliqueness] = RichStyle.italicObliqueness
+                return a
+            }
+        }
+        for r in bolds where storage.attribute(DMKey.inlineCode, at: r.location, effectiveRange: nil) == nil {
+            changeAttributes(in: r) { old in
+                var a = old
+                if let font = old[.font] as? NSFont { a[.font] = RichStyle.setBold(font, true) }
                 return a
             }
         }
