@@ -56,8 +56,20 @@ MainActor.assumeIsolated {
                 "第一行\n第二行，**粗\n体**\n",
                 "正文[^1]\n\n[^1]: 第一行\n    第二行\n\n    第二段\n",
                 "1. 安装：\n\n   ```bash\n   npm i\n   ```\n\n2. 运行\n",
-                "- 一\n  ```\n  x\n  ```\n- 二\n"] {
+                "- 一\n  ```\n  x\n  ```\n- 二\n",
+                "见 [[读书会]] 和 **[[笔记#小节|别名]]**。\n"] {
         check("单页往返 \(src.prefix(4).replacingOccurrences(of: "\n", with: " "))", md(makeView(src)), src)
+    }
+    // 改别的地方再保存，[[双链]] 不变；在单页里直接打出来的也不转义
+    do {
+        let tv = makeView("第一行\n\n见 [[读书会]]\n")
+        tv.setSelectedRange(NSRange(location: 3, length: 0))
+        type(tv, "改")
+        check("改别处后双链不变", md(tv), "第一行改\n\n见 [[读书会]]\n")
+        let tv2 = makeView("见\n")
+        tv2.setSelectedRange(NSRange(location: 1, length: 0))
+        type(tv2, " [[新链]]")
+        check("打出来的双链", md(tv2), "见 [[新链]]\n")
     }
     // 列表项里的代码块：在里面打字、回车后，保存时仍缩进在列表项下面
     do {

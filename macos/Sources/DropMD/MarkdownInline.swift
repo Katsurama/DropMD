@@ -7,6 +7,16 @@ extension MarkdownCodec {
         let chars = Array(s)
         return InlineParser(c: chars).parse(0, chars.count, InlineStyle())
     }
+
+    /// c[i] 开始的 [[双链]] 的结束位置（不含）。解析和保存共用这条规则。后面跟 ( 或 [ 时是链接写法，不算。
+    static func wikiLinkEnd(_ c: [Character], _ i: Int, _ hi: Int) -> Int? {
+        guard i + 2 < hi, c[i] == "[", c[i + 1] == "[" else { return nil }
+        var j = i + 2
+        while j < hi, !"[]\\".contains(c[j]), !c[j].isNewline { j += 1 }
+        guard j > i + 2, j + 1 < hi, c[j] == "]", c[j + 1] == "]" else { return nil }
+        if j + 2 < hi, c[j + 2] == "(" || c[j + 2] == "[" { return nil }
+        return j + 2
+    }
 }
 
 private struct InlineStyle {
@@ -85,6 +95,13 @@ private struct InlineParser {
             if ch == "\\", i + 1 < hi, isPunct(c[i + 1]) {
                 buf.append(c[i + 1])
                 i += 2
+                continue
+            }
+
+            // [[双链]]：里面的符号不算格式，字原样留在当前样式里
+            if let end = MarkdownCodec.wikiLinkEnd(c, i, hi) {
+                buf += String(c[i..<end])
+                i = end
                 continue
             }
 
@@ -300,6 +317,10 @@ private struct InlineParser {
         while j < hi {
             if c[j] == "\\" {
                 j += 2
+                continue
+            }
+            if let end = MarkdownCodec.wikiLinkEnd(c, j, hi) {
+                j = end
                 continue
             }
             if c[j] == ch {

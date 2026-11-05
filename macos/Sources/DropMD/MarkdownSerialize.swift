@@ -291,7 +291,14 @@ extension MarkdownCodec {
             if d > 0, d < chars.count, chars[d] == "." || chars[d] == ")" { orderedMarker = d }
         }
         var out = ""
+        var wikiEnd = 0
         for (i, ch) in chars.enumerated() {
+            // [[双链]] 原样写出；表格里的 | 仍要转义，否则会被当成分列
+            if i >= wikiEnd, let end = wikiLinkEnd(chars, i, chars.count) { wikiEnd = end }
+            if i < wikiEnd {
+                out += ch == "|" && inCell ? "\\|" : String(ch)
+                continue
+            }
             switch ch {
             case "\\", "*", "`", "[", "]", "<", "~", "$":
                 out += "\\" + String(ch)
