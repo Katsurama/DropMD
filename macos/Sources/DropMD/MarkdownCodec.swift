@@ -18,7 +18,8 @@ struct MDRun: Equatable {
     var literal = false       // 原样保存的文字（例如 $公式$），保存时不转义
     var link: String?         // 链接地址（与 Markdown 中的写法相同）
     var title: String?        // 链接、图片的提示文字，保存原文（含引号），如 "标题"
-    var image: String?        // 图片地址；此时 text 为替代文字
+    var image: String?        // 图片地址，保存原文（可能有 %20 这样的编码）；此时 text 为替代文字
+    var linkTitle: String?    // 带链接的图片：链接的提示文字（title 是图片自己的）
 }
 
 /// 提示框（GitHub 写法：引用的第一行是 [!NOTE] 等）
