@@ -30,8 +30,9 @@ struct MarkdownDocument: FileDocument {
     /// 识别不出编码时不打开：打开就是乱码，一保存原内容就没了
     init(data: Data) throws {
         guard let found = Self.detect(data) else {
-            throw CocoaError(.fileReadUnknownStringEncoding, userInfo: [
-                NSLocalizedDescriptionKey: String(localized: "无法识别这个文件的文字编码，所以没有打开。文件没有任何改动。"),
+            // 不用 CocoaError：系统会换成自己的文字（“指定一种文本编码”），而 App 没有这个选项
+            throw NSError(domain: "io.github.dropmd.document", code: 1, userInfo: [
+                NSLocalizedFailureReasonErrorKey: String(localized: "无法识别这个文件的文字编码，所以没有打开。文件没有任何改动。"),
             ])
         }
         (text, encoding, bom) = found

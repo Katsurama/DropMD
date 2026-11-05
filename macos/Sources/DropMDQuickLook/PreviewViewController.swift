@@ -8,6 +8,7 @@ import WebKit
 final class PreviewViewController: NSViewController, QLPreviewingController, WKNavigationDelegate {
     private var webView: WKWebView!
     private var loaded: CheckedContinuation<Void, Never>?
+    private let images = LocalImageHandler()
 
     /// 预览页面和字体复制在扩展自己的包里：沙盒中的扩展读不到 App 本体的文件
     private static let resources = Bundle.main.resourceURL!
@@ -16,6 +17,7 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
     override func loadView() {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
+        config.setURLSchemeHandler(images, forURLScheme: LocalImageHandler.scheme)
         webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 800, height: 600), configuration: config)
         webView.navigationDelegate = self
         view = webView
@@ -34,12 +36,13 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
         _ = try await webView.callAsyncJavaScript("DropMD.render(t, b, l, u)",
                                                   arguments: ["t": text, "b": dir, "l": lang.tag, "u": titles],
                                                   contentWorld: .page)
-        // 网页读不到文档旁边的图片：由扩展读出来嵌进页面（扩展能只读个人文件夹和外接硬盘，见 QuickLook.entitlements）
+        // 网页读不到文档旁边的图片：由扩展读出来交给页面（扩展能只读个人文件夹和外接硬盘，见 QuickLook.entitlements）
         let content = "document.getElementById('content')"
         if let html = try await webView.callAsyncJavaScript("return \(content).innerHTML", arguments: [:], contentWorld: .page) as? String {
-            let embedded = HTMLExport.embedLocalImages(html, base: url.deletingLastPathComponent(), maxPixel: 1600)
-            if embedded != html {
-                _ = try await webView.callAsyncJavaScript("\(content).innerHTML = h", arguments: ["h": embedded], contentWorld: .page)
+            let linked = HTMLExport.linkLocalImages(html, base: url.deletingLastPathComponent(), scheme: LocalImageHandler.scheme)
+            images.images = linked.images
+            if !linked.images.isEmpty {
+                _ = try await webView.callAsyncJavaScript("\(content).innerHTML = h", arguments: ["h": linked.html], contentWorld: .page)
             }
         }
     }
@@ -70,5 +73,44 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
         // 只允许加载预览页面本身（包括脚注等页内锚点）
         let path = action.request.url?.resolvingSymlinksInPath().path
         decisionHandler(path == Self.previewURL.resolvingSymlinksInPath().path ? .allow : .cancel)
+    }
+}
+
+/// 网页滚到图片附近时才来要图片：dropmd-image:/第几张。只给文档里写到的图片，大图缩小后再给
+final class LocalImageHandler: NSObject, WKURLSchemeHandler {
+    static let scheme = "dropmd-image"
+    var images: [URL] = []
+    private var stopped: Set<ObjectIdentifier> = []
+
+    func webView(_ webView: WKWebView, start task: any WKURLSchemeTask) {
+        guard let requested = task.request.url, let index = Int(requested.lastPathComponent), images.indices.contains(index) else {
+            task.didFailWithError(URLError(.fileDoesNotExist))
+            return
+        }
+        let file = images[index]
+        let box = TaskBox(task)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let image = autoreleasepool { HTMLExport.previewImage(file, maxPixel: 1600) }
+            DispatchQueue.main.async { [self] in
+                let task = box.task
+                guard stopped.remove(ObjectIdentifier(task)) == nil else { return }
+                guard let image else {
+                    task.didFailWithError(URLError(.fileDoesNotExist))
+                    return
+                }
+                task.didReceive(URLResponse(url: requested, mimeType: image.mime, expectedContentLength: image.data.count, textEncodingName: nil))
+                task.didReceive(image.data)
+                task.didFinish()
+            }
+        }
+    }
+
+    func webView(_ webView: WKWebView, stop task: any WKURLSchemeTask) {
+        stopped.insert(ObjectIdentifier(task))
+    }
+
+    private final class TaskBox: @unchecked Sendable {
+        let task: any WKURLSchemeTask
+        init(_ task: any WKURLSchemeTask) { self.task = task }
     }
 }
