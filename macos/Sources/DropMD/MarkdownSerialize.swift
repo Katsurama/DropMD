@@ -4,12 +4,125 @@ import Foundation
 
 extension MarkdownCodec {
     static func serialize(_ blocks: [MDBlock]) -> String {
+        let all = parts(blocks)
+        return all.isEmpty ? "" : all.map { $0.separator + $0.text }.joined() + "\n"
+    }
+
+    /// 保存：和原文 base 比较，没改过的块照抄原文（写法、空行都不变），只有改过的才按标准写法写。
+    /// base 可以是上次写回的结果，所以每次写回都能用
+    static func serialize(_ blocks: [MDBlock], preserving base: String) -> String {
+        let new = parts(blocks)
+        let old = parseWithSource(base)
+        let oldParts = parts(old.blocks)
+        if new.map(\.text) == oldParts.map(\.text) { return base }
+        // 每一块属于哪段原文；一段原文解析出几块时，要整段都没改才能照抄
+        var groupOf = [Int](repeating: -1, count: old.blocks.count)
+        for (g, group) in old.groups.enumerated() { for b in group.blocks { groupOf[b] = g } }
+        let match = matchedParts(oldParts.map(\.text), new.map(\.text))
+        var startsAt: [Int: (group: Int, count: Int)] = [:]   // 新内容的第几块开始是一段没改过的原文
+        var p = 0
+        while p < oldParts.count {
+            let g = groupOf[oldParts[p].block]
+            var q = p
+            while q < oldParts.count, groupOf[oldParts[q].block] == g { q += 1 }
+            if g >= 0, let first = match[p], (p..<q).allSatisfy({ match[$0] == first + $0 - p }) {
+                startsAt[first] = (g, q - p)
+            }
+            p = q
+        }
+        let kept = Set(startsAt.values.map(\.group))
+        /// 新内容第 k 块是不是原地修改了第 g 段原文：同一种块，改完前后的间隔还能照旧（标题改成正文时，紧贴的下一段会并进来）
+        func replaces(_ k: Int, _ g: Int) -> Bool {
+            guard g < old.groups.count, !kept.contains(g), old.groups[g].blocks.count == 1 else { return false }
+            return sameKind(blocks[new[k].block], old.blocks[old.groups[g].blocks.lowerBound])
+        }
         var out = ""
+        var prevGroup: Int?
+        var k = 0
+        while k < new.count {
+            let next = (prevGroup ?? -1) + 1
+            let group: Int? = startsAt[k]?.group ?? ((k == 0 || prevGroup != nil) && replaces(k, next) ? next : nil)
+            if let group {
+                let lines = old.groups[group].lines
+                if let prevGroup, prevGroup == group - 1 {
+                    let gap = old.lines[old.groups[prevGroup].lines.upperBound..<lines.lowerBound]
+                    out += gap.isEmpty ? "\n" : "\n" + gap.joined(separator: "\n") + "\n"
+                } else if k == 0, group == 0, lines.lowerBound > 0 {
+                    out += old.lines[0..<lines.lowerBound].joined(separator: "\n") + "\n"
+                } else if k > 0 {
+                    out += new[k].separator
+                }
+                out += startsAt[k] != nil ? old.lines[lines].joined(separator: "\n") : new[k].text
+                prevGroup = group
+                k += startsAt[k]?.count ?? 1
+            } else {
+                out += new[k].separator + new[k].text
+                prevGroup = nil
+                k += 1
+            }
+        }
+        // 文件结尾：最后一段没改就照原样（可能没有换行、可能有多个空行）
+        if let prevGroup, prevGroup == old.groups.count - 1 {
+            let end = old.groups[prevGroup].lines.upperBound
+            if end < old.lines.count { out += "\n" + old.lines[end...].joined(separator: "\n") }
+        } else if !out.isEmpty {
+            out += "\n"
+        }
+        if base.contains("\r\n") { out = out.replacingOccurrences(of: "\n", with: "\r\n") }
+        return base.hasPrefix("\u{FEFF}") ? "\u{FEFF}" + out : out
+    }
+
+    private static func sameKind(_ a: MDBlock, _ b: MDBlock) -> Bool {
+        switch (a, b) {
+        case (.line(let x), .line(let y)): return x.kind == y.kind
+        case (.table, .table), (.rule, .rule), (.details, .details), (.raw, .raw): return true
+        case (.code(_, _, let x), .code(_, _, let y)): return x == y
+        default: return false
+        }
+    }
+
+    /// 旧内容的第几块对应新内容的第几块（最长公共子序列）。先去掉首尾相同的部分，平常只改一处时很快
+    private static func matchedParts(_ a: [String], _ b: [String]) -> [Int: Int] {
+        var result: [Int: Int] = [:]
+        var head = 0
+        while head < a.count, head < b.count, a[head] == b[head] { result[head] = head; head += 1 }
+        var tail = 0
+        while tail < a.count - head, tail < b.count - head, a[a.count - 1 - tail] == b[b.count - 1 - tail] {
+            result[a.count - 1 - tail] = b.count - 1 - tail
+            tail += 1
+        }
+        let n = a.count - head - tail, m = b.count - head - tail
+        // shortcut: 中间超过 400 万格（如整篇大改）就不再逐块对比，改动的部分按标准写法写
+        guard n > 0, m > 0, n * m <= 4_000_000 else { return result }
+        var table = [[Int32]](repeating: [Int32](repeating: 0, count: m + 1), count: n + 1)
+        for i in stride(from: n - 1, through: 0, by: -1) {
+            for j in stride(from: m - 1, through: 0, by: -1) {
+                table[i][j] = a[head + i] == b[head + j] ? table[i + 1][j + 1] + 1 : max(table[i + 1][j], table[i][j + 1])
+            }
+        }
+        var i = 0, j = 0
+        while i < n, j < m {
+            if a[head + i] == b[head + j] {
+                result[head + i] = head + j
+                i += 1
+                j += 1
+            } else if table[i + 1][j] >= table[i][j + 1] {
+                i += 1
+            } else {
+                j += 1
+            }
+        }
+        return result
+    }
+
+    /// 按标准写法写出的每一块：前面的分隔、文字、是第几个 block（内容为空的块没有）
+    private static func parts(_ blocks: [MDBlock]) -> [(separator: String, text: String, block: Int)] {
+        var out: [(separator: String, text: String, block: Int)] = []
         var prev: MDBlock?
         var numbering = MDNumbering()
         var listTypes: [Int: Bool] = [:]   // 各层级最近一个列表项是否为有序列表
         var contentCols: [Int] = []          // 各层级项目文字开始的列：下一层缩进到这里（1. 下面 3 格），否则会被读成同级
-        for block in blocks {
+        for (blockIndex, block) in blocks.enumerated() {
             var text: String
             var newList = false
             // 列表项里的代码块：缩进到上一项的文字下面
@@ -60,11 +173,11 @@ extension MarkdownCodec {
             }
             if text.isEmpty { continue }
             // 同一层级的无序列表与有序列表之间要空行，否则会连成一个列表
-            if let p = prev { out += newList ? "\n\n" : separator(p, block) }
-            out += text
+            let sep = prev.map { newList ? "\n\n" : separator($0, block) } ?? ""
+            out.append((sep, text, blockIndex))
             prev = block
         }
-        return out.isEmpty ? "" : out + "\n"
+        return out
     }
 
     private static func separator(_ a: MDBlock, _ b: MDBlock) -> String {

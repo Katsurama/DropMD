@@ -135,7 +135,8 @@ struct RichTextEditor: NSViewRepresentable {
             document = nil
             guard let tv = pendingView, let storage = tv.textStorage else { return }
             pendingView = nil
-            let md = RichBridge.markdown(from: storage)
+            // 没改过的段落保持原文，只有改过的才按标准写法写
+            let md = MarkdownCodec.serialize(RichBridge.blocks(from: storage), preserving: parent.text)
             lastMarkdown = md
             if parent.text != md { parent.text = md }
         }

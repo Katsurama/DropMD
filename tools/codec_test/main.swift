@@ -141,5 +141,40 @@ check("图片地址的编码", "![a](https://x.io/%E5%B9%B3%E5%8F%B0-macOS%2014%
 check("图片地址没编码", "![a](图 片.png)\n", "![a](图 片.png)\n")
 check("图片地址尖括号", "![a](<图 片.png>)\n")
 check("引用式定义不受影响","见 [1]。\n\n[1]: https://example.com\n")
+// 保存时没改过的段落保持原文
+func checkKeep(_ name: String, _ base: String, _ want: String, edit: (inout [MDBlock]) -> Void) {
+    var blocks = MarkdownCodec.parse(base)
+    edit(&blocks)
+    let got = MarkdownCodec.serialize(blocks, preserving: base)
+    let again = MarkdownCodec.serialize(blocks, preserving: got)
+    if got != want || again != got {
+        failures += 1
+        print("FAIL \(name)\n--- want\n\(want.debugDescription)\n--- got\n\(got.debugDescription)\n--- again\n\(again.debugDescription)")
+    } else {
+        print("ok   \(name)")
+    }
+}
+func body(_ s: String) -> MDBlock { .line(MDLine(kind: .body, runs: [MDRun(text: s)])) }
+for src in ["**新功能**\n- 一\n", "# 标题\n正文\n", "价格 $99\n", "路径 C:\\Users\\a\n", "2 * 3 * 4\n", "<span>行内</span>\n", "行内 $$x$$\n",
+            "```python title=\"a.py\"\nx\n```\n", "- 一\n\n- 二\n", "1. 一\n1. 二\n", "    缩进\n", "没有换行", "多个空行\n\n\n\n", "\n\n开头空行\n", "a\r\nb\r\n", "\u{FEFF}带 BOM\n", "> [!TIP] 标题\n> 内容\n", "第一行  \n第二行\n"] {
+    checkKeep("不改就不动 \(src.prefix(6).debugDescription)", src, src) { _ in }
+}
+let doc = "价格 $99\n# 标题\n正文 C:\\a\n- 一\n\n- 二\n\n\n```python title=\"a\"\nx\n```\n改这里\n\n<span>尾</span>"
+let idx = MarkdownCodec.parse(doc).firstIndex { MarkdownCodec.serialize([$0]) == "改这里\n" }!
+checkKeep("只改一段", doc, doc.replacingOccurrences(of: "改这里", with: "新\\* 的")) { $0[idx] = body("新* 的") }
+checkKeep("在中间加一段", "a $1\n\nb $2\n", "a $1\n\n新\n\nb $2\n") { $0.insert(body("新"), at: 1) }
+checkKeep("删掉一段", "a $1\n\nb\n\n\nc $3\n", "a $1\n\nc $3\n") { $0.remove(at: 1) }
+checkKeep("交换两段", "a $1\n\nb $2\n", "b $2\n\na \\$1\n") { $0.swapAt(0, 1) }
+checkKeep("改最后一段：结尾照旧", "a $1\n\nb", "a $1\n\n新") { $0[1] = body("新") }
+checkKeep("原地改紧贴的段落：间隔不变", "说明：\n- 一\n- 二\n# 题\n正文\n", "说明：\n- 改\n- 二\n# 题\n新\n") { $0[1] = .line(MDLine(kind: .bullet(0), runs: [MDRun(text: "改")])); $0[4] = body("新") }
+checkKeep("标题改成正文：不能和下一段连起来", "# 题\n正文 $\n", "新\n\n正文 $\n") { $0[0] = body("新") }
+checkKeep("连续改两段", "a\n\n\nb\n\n\nc $\n", "新\n\n\n二\n\n\nc $\n") { $0[0] = body("新"); $0[1] = body("二") }
+checkKeep("相同的段落只改第二个", "同 $\n\n同 $\n\n尾 $\n", "同 $\n\n新\n\n尾 $\n") { $0[1] = body("新") }
+checkKeep("列表中间插入：后面的编号要变", "1. 一 $\n2. 二 $\n", "1. 一 $\n2. 新\n3. 二 \\$\n") { $0.insert(.line(MDLine(kind: .ordered(0), runs: [MDRun(text: "新")])), at: 1) }
+checkKeep("CRLF 文件", "a $1\r\n\r\nb\r\n", "a $1\r\n\r\n新\r\n") { $0[1] = body("新") }
+checkKeep("BOM 文件", "\u{FEFF}a $1\n\nb\n", "\u{FEFF}a $1\n\n新\n") { $0[1] = body("新") }
+checkKeep("开头的空行和 YAML", "\n---\n\na $1\n\nb\n", "\n---\n\na $1\n\n新\n") { $0[$0.count - 1] = body("新") }
+checkKeep("YAML 不变", "---\nt:  x\n---\n\n\na $1\n\nb\n", "---\nt:  x\n---\n\n\na $1\n\n新\n") { $0[$0.count - 1] = body("新") }
+checkKeep("全部删掉", "a\n\nb\n", "") { $0 = [] }
 print(failures == 0 ? "ALL PASSED" : "\(failures) FAILED")
 exit(failures == 0 ? 0 : 1)

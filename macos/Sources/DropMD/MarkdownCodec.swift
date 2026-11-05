@@ -115,6 +115,16 @@ enum MarkdownCodec {
     // MARK: - 解析（块）
 
     static func parse(_ source: String) -> [MDBlock] {
+        parseWithSource(source).blocks
+    }
+
+    /// 一段原文（lines）解析出的块（blocks）。保存时没改过的块直接写回这段原文
+    struct SourceGroup {
+        let blocks: Range<Int>
+        let lines: Range<Int>
+    }
+
+    static func parseWithSource(_ source: String) -> (blocks: [MDBlock], groups: [SourceGroup], lines: [String]) {
         var text = source
         if text.hasPrefix("\u{FEFF}") { text.removeFirst() }
         let lines = text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
@@ -127,7 +137,19 @@ enum MarkdownCodec {
             blocks.append(.raw(lines[0...end].joined(separator: "\n")))
             i = end + 1
         }
+        var sources: [SourceGroup] = []
+        var firstBlock = 0, firstLine = 0
+        func closeGroup() {
+            if blocks.count > firstBlock {
+                var end = min(i, lines.count)
+                while end > firstLine, isBlank(lines[end - 1]) { end -= 1 }
+                sources.append(SourceGroup(blocks: firstBlock..<blocks.count, lines: firstLine..<end))
+            }
+            firstBlock = blocks.count
+            firstLine = i
+        }
         while i < lines.count {
+            closeGroup()
             let line = lines[i]
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty { i += 1; continue }
@@ -365,6 +387,7 @@ enum MarkdownCodec {
             }
             blocks.append(.line(MDLine(kind: kind, runs: parseInline(text))))
         }
+        closeGroup()
         // 只在一串有序列表的第一项上记编号，且不是 1 时才记
         var numbering = MDNumbering()
         for k in blocks.indices {
@@ -373,7 +396,7 @@ enum MarkdownCodec {
                 blocks[k] = .line(l)
             }
         }
-        return blocks
+        return (blocks, sources, lines)
     }
 
     /// 列表从 start 开始；里面有单页表示不了的内容（项里空行后的续段、代码块、引用等）时返回列表的结束位置，否则返回 nil

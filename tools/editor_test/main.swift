@@ -77,6 +77,21 @@ MainActor.assumeIsolated {
         let typedAt = (plain.string as NSString).range(of: "字").location
         check("图片后打字的字号", "\((plain.textStorage!.attribute(.font, at: typedAt, effectiveRange: nil) as? NSFont)?.pointSize ?? 0)", "\(RichStyle.baseFont(for: .body).pointSize)")
     }
+    // 走真实编辑区：没改过的段落保持原文（写法、空行都不变）
+    do {
+        let src = "价格 $99\n# 标题\n路径 C:\\Users\\a\n\n\n```python title=\"a.py\"\nx\n```\n1. 甲\n1. 乙\n\n改这里\n\n<span>尾</span>"
+        let tv = makeView(src)
+        check("不改保持原文", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src), src)
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "改这里").location + 3, length: 0))
+        type(tv, "字")
+        check("只改一段其他不变", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src),
+              src.replacingOccurrences(of: "改这里", with: "改这里字"))
+        for name in ["editor_sample.md", "editor_sample.en.md"] {
+            let sample = (try? String(contentsOfFile: "packaging/samples/" + name, encoding: .utf8)) ?? ""
+            let v = makeView(sample)
+            check("样例不改保持原文 \(name)", MarkdownCodec.serialize(RichBridge.blocks(from: v.textStorage!), preserving: sample) == sample && !sample.isEmpty ? "同" : "不同", "同")
+        }
+    }
     // 改别的地方再保存，[[双链]] 不变；在单页里直接打出来的也不转义
     do {
         let tv = makeView("第一行\n\n见 [[读书会]]\n")
