@@ -57,10 +57,14 @@ enum Planner {
             } else {
                 dst = item.url.deletingPathExtension().appendingPathExtension("md")
             }
-            if used.contains(dst.path.lowercased()) {
-                let stem = item.url.deletingPathExtension().lastPathComponent
-                dst = dst.deletingLastPathComponent()
-                    .appendingPathComponent("\(stem)_\(item.url.pathExtension.lowercased()).md")
+            // 改名后还可能和别的文件重名，一直试到不重名，否则后转换的会覆盖先转换的
+            let dir = dst.deletingLastPathComponent()
+            let stem = item.url.deletingPathExtension().lastPathComponent
+            let ext = item.url.pathExtension.lowercased()
+            var n = 1
+            while used.contains(dst.path.lowercased()) {
+                dst = dir.appendingPathComponent(n == 1 ? "\(stem)_\(ext).md" : "\(stem)_\(ext)_\(n).md")
+                n += 1
             }
             used.insert(dst.path.lowercased())
             return dst

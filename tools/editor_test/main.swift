@@ -3,6 +3,7 @@ import AppKit
 
 /// 测试中不需要真正的编辑器窗口控制器（EditorAction.swift 引用了这个类型）
 @MainActor final class EditorController { func perform(_ a: EditorAction) {} }
+struct FileItem { let url: URL; let relativePath: String }
 
 @MainActor func makeView(_ md: String) -> RichTextView {
     let storage = NSTextStorage()
@@ -76,6 +77,13 @@ MainActor.assumeIsolated {
         check("图片后打字", md(plain), "![a](a.png)字\n")
         let typedAt = (plain.string as NSString).range(of: "字").location
         check("图片后打字的字号", "\((plain.textStorage!.attribute(.font, at: typedAt, effectiveRange: nil) as? NSFont)?.pointSize ?? 0)", "\(RichStyle.baseFont(for: .body).pointSize)")
+    }
+    // 同一批重名的文件：输出不能重复，否则后转换的会覆盖先转换的
+    do {
+        let names = ["a.docx", "a.pdf", "a_pdf.docx", "a.PDF", "a_pdf.html"]
+        let items = names.map { FileItem(url: URL(fileURLWithPath: "/d/" + $0), relativePath: $0) }
+        check("重名文件的输出", Planner.plan(items, outDir: nil).map(\.lastPathComponent).joined(separator: " "),
+              "a.md a_pdf.md a_pdf_docx.md a_pdf_2.md a_pdf_html.md")
     }
     // 走真实编辑区：没改过的段落保持原文（写法、空行都不变）
     do {

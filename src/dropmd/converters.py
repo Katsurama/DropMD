@@ -59,8 +59,13 @@ def images_dir_name(dst: Path) -> str:
     “a b.md”和“a_b.md”清理后同名：别的文档正在用的文件夹不共用，否则重新转换会删掉它的图片。
     """
     stem = _UNSAFE_IN_LINK.sub("_", dst.stem)
-    others = [p.read_text(encoding="utf-8", errors="ignore") for p in dst.parent.glob("*.md")
-              if p.stem != dst.stem and _UNSAFE_IN_LINK.sub("_", p.stem) == stem]
+    others = []
+    for p in dst.parent.glob("*.md"):
+        if p.stem != dst.stem and _UNSAFE_IN_LINK.sub("_", p.stem) == stem:
+            try:
+                others.append(p.read_text(encoding="utf-8", errors="ignore"))
+            except OSError:  # 名字以 .md 结尾的文件夹、读不了的文件：不影响转换
+                pass
     name, n = f"{stem}_images", 2
     while any(f"{name}/" in text for text in others):
         name, n = f"{stem}_images_{n}", n + 1
@@ -131,14 +136,14 @@ def _save_images(text: str, dst: Path) -> str:
 
 def convert_markitdown(src: Path, dst: Path) -> str:
     result = _markitdown().convert_local(str(src), keep_data_uris=True)
-    text = _save_images((result.markdown or "").strip(), dst)
-    text = fill_empty_table_headers(text)
-    if src.suffix.lower() == ".pdf":
-        text = text.replace("\t", " ")
-    if not text:
+    text = (result.markdown or "").strip()
+    if not text:  # 要在存图片之前判断：存图片时会删掉上次的图片，失败时旧的 .md 还要用
         if src.suffix.lower() == ".pdf":
             raise ConversionError(tr("未能提取到文字，可能是扫描版（图片）PDF。请改用“高精度模式”。", "No text could be extracted; this may be a scanned (image) PDF. Use High Accuracy mode instead.", "未能擷取到文字，可能是掃描版（圖片）PDF。請改用「高精度模式」。"))
         raise ConversionError(tr("文件中没有可提取的内容。", "There is no content to extract in this file.", "檔案中沒有可擷取的內容。"))
+    text = fill_empty_table_headers(_save_images(text, dst))
+    if src.suffix.lower() == ".pdf":
+        text = text.replace("\t", " ")
     _write_text(dst, text + "\n")
     return tr("快速模式", "Fast mode", "快速模式")
 
