@@ -104,6 +104,19 @@ MainActor.assumeIsolated {
         let png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0x0D, 0x49, 0x48, 0x44, 0x52, 0, 0, 1, 0])
         check("识别不出就不打开", (try? MarkdownDocument(data: png)) == nil ? "不打开" : "打开了", "不打开")
         check("快速查看仍尽量显示", MarkdownDocument.decode(png).isEmpty ? "空" : "有内容", "有内容")
+        // 正常的 UTF-8 坏了几个字节：不打开，不要猜成别的编码显示乱码；快速查看仍尽量显示
+        var damaged = Data(String(repeating: "中文内容第二行，", count: 20).utf8)
+        damaged[30] = 0xFF
+        check("损坏的 UTF-8 不打开", (try? MarkdownDocument(data: damaged)) == nil ? "不打开" : "打开了", "不打开")
+        check("损坏的 UTF-8 快速查看能看", MarkdownDocument.decode(damaged).contains("第二行") ? "能看" : "乱码", "能看")
+        check("正常 GB18030 不算损坏", (try? MarkdownDocument(data: String(repeating: "中文内容第二行，", count: 20).data(using: gb)!).text.hasPrefix("中文")) == true ? "能开" : "打不开", "能开")
+        check("正常 Latin-1 不算损坏", (try? MarkdownDocument(data: "café déjà vu\n".data(using: .isoLatin1)!).text.hasPrefix("caf")) == true ? "能开" : "打不开", "能开")
+        // 没有 BOM 的 UTF-16：能打开，保存后字节不变
+        for (name, e) in [("小端", String.Encoding.utf16LittleEndian), ("大端", .utf16BigEndian)] {
+            let raw = "# Title\nsome 中文 text\n".data(using: e)!
+            let d = try? MarkdownDocument(data: raw)
+            check("无 BOM UTF-16 \(name)", "\(d?.text.hasPrefix("# Title") == true) \(d?.data() == raw)", "true true")
+        }
         check("新文档是 UTF-8", String(data: MarkdownDocument(text: "新").data(), encoding: .utf8) ?? "", "新")
     }
     // 同一批重名的文件：输出不能重复，否则后转换的会覆盖先转换的
