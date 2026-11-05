@@ -50,10 +50,21 @@ def _markitdown():
         return _md_instance
 
 
+_UNSAFE_IN_LINK = re.compile(r"[\s#%?\[\]()<>]+")
+
+
 def images_dir_name(dst: Path) -> str:
-    """图片文件夹名：<文件名>_images，去掉会破坏 Markdown 链接的字符。"""
-    stem = re.sub(r"[\s#%?\[\]()<>]+", "_", dst.stem)
-    return f"{stem}_images"
+    """图片文件夹名：<文件名>_images，去掉会破坏 Markdown 链接的字符。
+
+    “a b.md”和“a_b.md”清理后同名：别的文档正在用的文件夹不共用，否则重新转换会删掉它的图片。
+    """
+    stem = _UNSAFE_IN_LINK.sub("_", dst.stem)
+    others = [p.read_text(encoding="utf-8", errors="ignore") for p in dst.parent.glob("*.md")
+              if p.stem != dst.stem and _UNSAFE_IN_LINK.sub("_", p.stem) == stem]
+    name, n = f"{stem}_images", 2
+    while any(f"{name}/" in text for text in others):
+        name, n = f"{stem}_images_{n}", n + 1
+    return name
 
 
 def _write_text(dst: Path, text: str) -> None:
