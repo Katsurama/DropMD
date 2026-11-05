@@ -440,10 +440,97 @@ final class RichTextView: NSTextView {
     // MARK: - 粘贴：只保留 Markdown 能保存的格式
 
     /// 刚粘贴进来的内容：去掉保存不了的格式，链接、列表转成单页的写法
-    func cleanPasted(_ range: NSRange) {
+    func cleanPasted(_ range: NSRange, html: String? = nil) {
         let lists = pastedLists(range)   // 清理格式前先记下：清理后系统的列表信息就没了
         normalizePasted(range)
+        if let html { applyHTMLFormats(html, range) }
         listify(lists)
+    }
+
+    /// HTML 里的一段文字：是否斜体、属于几级标题（0 = 不是标题）
+    static func htmlChunks(_ html: String) -> [(text: String, italic: Bool, heading: Int)] {
+        let token = try! NSRegularExpression(pattern: #"<!--.*?-->|<(/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*)>|[^<]+"#, options: .dotMatchesLineSeparators)
+        let italicStyle = try! NSRegularExpression(pattern: #"(^|[;\s"'])font-style\s*:\s*italic"#, options: .caseInsensitive)   // 不算 Word 的 mso-bidi-font-style
+        let voidTags: Set<String> = ["br", "img", "meta", "link", "hr", "input", "col", "base", "wbr"]
+        let hidden: Set<String> = ["head", "style", "script", "title"]
+        let ns = html as NSString
+        var open: [(tag: String, italic: Bool)] = []
+        var out: [(text: String, italic: Bool, heading: Int)] = []
+        for m in token.matches(in: html, range: NSRange(location: 0, length: ns.length)) {
+            if m.range(at: 2).location != NSNotFound {
+                let tag = ns.substring(with: m.range(at: 2)).lowercased()
+                let attrs = ns.substring(with: m.range(at: 3))
+                if ns.substring(with: m.range(at: 1)) == "/" {
+                    if let i = open.lastIndex(where: { $0.tag == tag }) { open.removeSubrange(i...) }
+                } else if !voidTags.contains(tag), !attrs.hasSuffix("/") {
+                    let styled = italicStyle.firstMatch(in: attrs, range: NSRange(location: 0, length: (attrs as NSString).length)) != nil
+                    open.append((tag, tag == "em" || tag == "i" || styled))
+                }
+            } else if ns.character(at: m.range.location) != 60, !open.contains(where: { hidden.contains($0.tag) }) {   // 60 = <，即注释
+                let text = decodeEntities(ns.substring(with: m.range))
+                    .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespaces)
+                if text.isEmpty { continue }
+                let level = open.last { $0.tag.count == 2 && $0.tag.first == "h" }.flatMap { Int($0.tag.dropFirst()) } ?? 0
+                out.append((text, open.contains { $0.italic }, (1...6).contains(level) ? level : 0))
+            }
+        }
+        return out
+    }
+
+    private static func decodeEntities(_ s: String) -> String {
+        guard s.contains("&") else { return s }
+        let names = ["amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": " "]
+        let entity = try! NSRegularExpression(pattern: #"&(#[0-9]+|#[xX][0-9a-fA-F]+|[a-z]+);"#)
+        var out = s
+        for m in entity.matches(in: s, range: NSRange(s.startIndex..., in: s)).reversed() {
+            guard let whole = Range(m.range, in: out), let body = Range(m.range(at: 1), in: out) else { continue }
+            let name = String(out[body])
+            let value: UInt32? = name.lowercased().hasPrefix("#x") ? UInt32(name.dropFirst(2), radix: 16) : name.hasPrefix("#") ? UInt32(name.dropFirst()) : nil
+            let char = value.flatMap(Unicode.Scalar.init).map { $0 == "\u{A0}" ? " " : String(Character($0)) } ?? names[name]
+            if let char { out.replaceSubrange(whole, with: char) }
+        }
+        return out
+    }
+
+    /// 系统读剪贴板时丢掉两样：中文的斜体（字体没有斜体）和标题（读成粗体正文）。HTML 里还写着：
+    /// 只读它的文字，不交给系统的网页读取。按顺序逐段对上粘贴的文字，对不上的段不处理，所以不会标错地方
+    private func applyHTMLFormats(_ html: String, _ range: NSRange) {
+        // shortcut: 超过 1 MB 的 HTML 不处理（只是少了斜体和标题），真有人遇到再改
+        guard let storage = textStorage, html.utf8.count < 1_000_000 else { return }
+        let chunks = Self.htmlChunks(html)
+        guard chunks.contains(where: { $0.italic || $0.heading > 0 }) else { return }
+        let ns = storage.string as NSString
+        let end = NSMaxRange(range)
+        var from = range.location
+        var italics: [NSRange] = []
+        var headings: [Int: (level: Int, text: String)] = [:]   // 段落开头 → 标题级别、这一段里属于标题的文字
+        for c in chunks {
+            let r = ns.range(of: c.text, range: NSRange(location: from, length: end - from))
+            if r.location == NSNotFound { continue }
+            from = NSMaxRange(r)
+            if c.italic { italics.append(r) }
+            if c.heading > 0 {
+                let start = paragraphRange(at: r.location).location
+                headings[start] = (c.heading, (headings[start]?.text ?? "") + c.text)
+            }
+        }
+        for r in italics where storage.attribute(DMKey.inlineCode, at: r.location, effectiveRange: nil) == nil {
+            changeAttributes(in: r) { old in
+                var a = old
+                a[.obliqueness] = RichStyle.italicObliqueness
+                return a
+            }
+        }
+        func compact(_ s: String) -> String { s.filter { !$0.isWhitespace } }
+        for (start, h) in headings {
+            let para = paragraphRange(at: start)
+            let kind = RichBridge.kind(of: paragraphAttributes(para))
+            // 整段都是标题才改：粘贴到一行中间时不动这一行
+            if kind == .body, compact(ns.substring(with: para)) == compact(h.text) {
+                restyle(para, to: .heading(h.level), from: kind)
+            }
+        }
     }
 
     /// 粘贴内容里系统标成列表的段落（文本编辑、Word、网页的列表带 NSTextList）及其层级
@@ -515,7 +602,7 @@ final class RichTextView: NSTextView {
             let sel = selectedRange(), before = textStorage?.length ?? 0
             guard super.readSelection(from: pboard, type: type) else { return false }
             let inserted = (textStorage?.length ?? 0) - before + sel.length
-            if inserted > 0 { cleanPasted(NSRange(location: sel.location, length: inserted)) }
+            if inserted > 0 { cleanPasted(NSRange(location: sel.location, length: inserted), html: pboard.string(forType: .html)) }
             return true
         }
         // 只接受文字、字体、颜色、段落样式等固定的类型（剪贴板内容可能来自别的程序）

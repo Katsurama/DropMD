@@ -117,8 +117,10 @@ MainActor.assumeIsolated {
         fixer.language = .zhCN
         fixer.apply(to: s)
         let zhCode = s.attribute(.font, at: (tv.string as NSString).range(of: "漢").location, effectiveRange: nil) as! NSFont
-        check("简体代码里的汉字", (zhCode.familyName ?? "").contains("PingFang") ? "苹方" : zhCode.familyName ?? "", "苹方")
-        check("简体正文字体", (s.attribute(.font, at: 3, effectiveRange: nil) as! NSFont).familyName ?? "", "PingFang SC")
+        // 这台电脑装了（或这次运行注册了）MiSans 时用 MiSans，否则退回苹方
+        let hasMiSans = NSFont(name: "MiSans-Regular", size: 12) != nil
+        check("简体代码里的汉字", (zhCode.familyName ?? "").contains("PingFang") ? "苹方" : zhCode.familyName ?? "", hasMiSans ? "MiSans" : "苹方")
+        check("简体正文字体", (s.attribute(.font, at: 3, effectiveRange: nil) as! NSFont).familyName ?? "", hasMiSans ? "MiSans" : "PingFang SC")
         check("换字体后保存不变", md(tv), "**今日**は晴れ `漢字`\n")
     }
     // 有 MiSans（tools/fetch_fonts.sh 下载过）时：简体、繁体换成 MiSans，粗体用 MiSans 粗体；日语仍用冠群
@@ -249,6 +251,32 @@ MainActor.assumeIsolated {
         board.releaseGlobally()
         check("粘贴富文本", md(tv), "见[链接](https://example.com)。\n\n- 列表一\n  - 子项\n\n1. 第一步\n\n1\t张三\n")
     }
+    // 从网页、Word 粘贴：RTF 里丢掉的中文斜体和标题，从同时放在剪贴板里的 HTML 补回来
+    do {
+        @MainActor func paste(rtf text: String, html: String, into src: String = "\n", at location: Int = 0) -> String {
+            let tv = makeView(src)
+            tv.setSelectedRange(NSRange(location: location, length: 0))
+            let s = NSAttributedString(string: text, attributes: [.font: NSFont(name: "PingFangSC-Regular", size: 14)!])
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDTest4-\(ProcessInfo.processInfo.processIdentifier)"))
+            board.clearContents()
+            board.setData(try! s.data(from: NSRange(location: 0, length: s.length),
+                                      documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]), forType: .rtf)
+            board.setString(html, forType: .html)
+            _ = tv.readSelection(from: board)
+            board.releaseGlobally()
+            return md(tv)
+        }
+        check("粘贴网页：标题和中文斜体",
+              paste(rtf: "大标题\n斜体和斜体\n小标题\n后面\n",
+                    html: "<meta charset=utf-8><style>h1{color:red}</style><h1 class=a>大标题</h1>\n<p>斜体和<em>斜体</em></p><h2>小<b>标</b>题</h2><p>后面</p>"),
+              "# 大标题\n\n斜体和*斜体*\n\n## 小标题\n\n后面\n")
+        check("粘贴网页：样式里的斜体、Word 的假斜体、实体",
+              paste(rtf: "甲 & 乙 丙\n", html: "<p><span style=\"font-style: italic\">甲 &amp; 乙</span> <span style='mso-bidi-font-style:italic'>丙</span></p>"),
+              "*甲 & 乙* 丙\n")
+        check("标题粘贴到一行中间不改这一行",
+              paste(rtf: "标题", html: "<h1>标题</h1>", into: "前后\n", at: 1), "前标题后\n")
+        check("对不上的文字不标斜体", paste(rtf: "正文\n", html: "<p><i>别的</i></p>"), "正文\n")
+    }
     // 复制粘贴公式（用单独的剪贴板，不影响系统剪贴板）
     do {
         let tv = makeView("甲 $x^2$ 乙\n")
@@ -309,6 +337,19 @@ MainActor.assumeIsolated {
         let html = #"<p><img src="%E5%9B%BE%20%E7%89%87/a.png" alt="a"><img src="https://example.com/b.png" alt=""><img src="no.png" alt=""><img width="200" src="%E5%9B%BE%20%E7%89%87/a.png"></p>"#
         check("导出 HTML 嵌入图片", HTMLExport.embedLocalImages(html, base: dir),
               #"<p><img src="data:image/png;base64,aGk=" alt="a"><img src="https://example.com/b.png" alt=""><img src="no.png" alt=""><img width="200" src="data:image/png;base64,aGk="></p>"#)
+        // 快速查看：大图缩小后再嵌入，小图不变；导出时大图保持原图
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 2400, pixelsHigh: 1200, bitsPerSample: 8, samplesPerPixel: 3,
+                                   hasAlpha: false, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 7200, bitsPerPixel: 24)!
+        arc4random_buf(rep.bitmapData!, 7200 * 1200)   // 随机内容压不小，文件超过 512 KB
+        let big = rep.representation(using: .png, properties: [:])!
+        try? big.write(to: dir.appendingPathComponent("big.png"))
+        let tag = #"<img src="big.png">"#
+        let quick = HTMLExport.embedLocalImages(tag, base: dir, maxPixel: 1600)
+        let b64 = quick.components(separatedBy: "base64,").last?.dropLast(2) ?? ""
+        let shown = Data(base64Encoded: String(b64)).flatMap(NSBitmapImageRep.init(data:))
+        check("快速查看缩小大图", "\(quick.hasPrefix("<img src=\"data:image/jpeg")) \(shown?.pixelsWide ?? 0)×\(shown?.pixelsHigh ?? 0)", "true 1600×800")
+        check("快速查看不动小图", HTMLExport.embedLocalImages(html, base: dir, maxPixel: 1600), HTMLExport.embedLocalImages(html, base: dir))
+        check("导出保持原图", HTMLExport.embedLocalImages(tag, base: dir) == "<img src=\"data:image/png;base64,\(big.base64EncodedString())\">" ? "原图" : "变了", "原图")
         try? FileManager.default.removeItem(at: dir)
     }
     // 光标在公式后（打字属性取自公式这个字符）：输入的文字不能变成公式
