@@ -6,6 +6,13 @@ let page = URL(fileURLWithPath: CommandLine.arguments[1])
 let calls = [
     "return DropMD.render('# 日本語\\n\\n今日は **晴れ** $x^2$', '', 'ja')",
     "return DropMD.scrollToLine(2)",
+    // 公式块后面同一行还有文字时，文字不能丢
+    """
+    DropMD.render('$$a$$ 后面的字\\n\\n$$\\nb\\n$$ 也在', '', 'zh-Hans');
+    const t = document.getElementById('content').textContent;
+    if (!t.includes('后面的字') || !t.includes('也在')) throw new Error('公式后的文字丢了：' + t);
+    return true
+    """,
     "return DropMD.exportBody('> [!TIP]\\n> 提示')",
     // 英文界面：提示框标题和网络图片说明用 App 传入的文字
     """

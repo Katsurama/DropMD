@@ -62,8 +62,9 @@
       let content = "", line = startLine, found = false;
       let rest = first.slice(open.length);
       // 单行：$$ x $$
-      const oneLine = rest.lastIndexOf(close);
+      const oneLine = rest.indexOf(close);
       if (oneLine !== -1 && rest.trim().length > 0) {
+        if (rest.slice(oneLine + close.length).trim()) return false;   // 后面还有文字：不是公式块，否则这些字会丢
         content = rest.slice(0, oneLine);
         found = true;
       } else {
@@ -73,7 +74,10 @@
           max = state.eMarks[line];
           const text = state.src.slice(pos, max);
           const idx = text.indexOf(close);
-          if (idx !== -1) { content += text.slice(0, idx); found = true; break; }
+          if (idx !== -1) {
+            if (text.slice(idx + close.length).trim()) return false;
+            content += text.slice(0, idx); found = true; break;
+          }
           content += text + "\n";
         }
       }
