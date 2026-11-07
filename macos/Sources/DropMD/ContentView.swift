@@ -23,7 +23,6 @@ struct ContentView: View {
                     fileList
                 }
                 settings
-                    .frame(width: 320)
             }
             bottomBar
         }
@@ -262,6 +261,7 @@ struct ContentView: View {
         }
         .disabled(model.running)
         .padding(20)
+        .frame(width: 364)   // 限制要在卡片里面：写在外面时，放不下的内容会把卡片撑大，盖住左边
         .frame(maxHeight: .infinity, alignment: .top)
         .glassCard()
         .animation(.smooth(duration: 0.2), value: model.mode)
@@ -270,10 +270,17 @@ struct ContentView: View {
     }
 
     private func row<C: View>(_ title: LocalizedStringKey, @ViewBuilder _ content: () -> C) -> some View {
-        HStack {
-            Text(title).foregroundStyle(.secondary)
-                .frame(width: 72, alignment: .leading)
-            content()
+        // 译文太长、一行放不下时，标签和控件改成上下排
+        ViewThatFits(in: .horizontal) {
+            HStack {
+                Text(title).foregroundStyle(.secondary)
+                    .frame(width: 72, alignment: .leading)
+                content()
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title).foregroundStyle(.secondary)
+                content()
+            }
         }
     }
 
