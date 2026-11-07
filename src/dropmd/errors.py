@@ -51,6 +51,8 @@ def describe(exc: BaseException) -> str:
     msg = str(exc)
     low = (name + " " + msg).lower()
 
+    if "out of memory" in low:  # PyTorch 在 Mac GPU 上内存不够时报的是 RuntimeError
+        return tr("内存不足，文件可能过大。", "Not enough memory. The file may be too large.", "記憶體不足，檔案可能過大。")
     if "password" in low or "encrypt" in low:
         return tr("文件已加密或设有密码，无法转换。请先解除密码保护。", "The file is encrypted or password-protected and can't be converted. Remove the password first.", "檔案已加密或設有密碼，無法轉換。請先解除密碼保護。")
     if name == "UnsupportedFormatException":

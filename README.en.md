@@ -79,7 +79,7 @@ Choose **File → Convert Files to Markdown…**, then drag in files or whole fo
 | --- | --- | --- |
 | Fast | Word, Excel, PowerPoint, HTML, text-based PDF | [MarkItDown](https://github.com/microsoft/markitdown) |
 | Word, better layout | Word documents whose layout and images should be kept | [Pandoc](https://pandoc.org/) |
-| High Accuracy | Papers, tables, formulas, scanned PDFs | [Docling](https://github.com/docling-project/docling) + OCR (RapidOCR or Apple Vision) |
+| High Accuracy | Papers, tables, formulas, scanned PDFs | [Docling](https://github.com/docling-project/docling) + OCR (RapidOCR or Apple Vision), or optionally [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0) (more accurate, slower, about 1.8 GB download) |
 
 You don't need to install Python: the conversion engine is built into the app.
 

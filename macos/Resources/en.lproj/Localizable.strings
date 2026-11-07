@@ -27,7 +27,7 @@
 "高精度模型" = "High-Accuracy Models";
 "当前设置所需的模型都已下载。" = "All models needed for the current settings are already downloaded.";
 "需要下载识别模型" = "Recognition Models Needed";
-"高精度模式需要先下载识别模型。这一步只下载模型文件，不会上传您的任何文件或信息。\n下载使用 macOS 系统网络（与 Safari 相同的网络和代理设置），每个文件都会校验完整性。\n\n%@\n\n合计约 %lld MB（实际大小可能略有出入）\n保存位置：%@\n\nOCR 使用程序内置的 RapidOCR 或系统自带的 Apple Vision，不需要下载。\n是否同意下载？" = "High Accuracy mode needs recognition models first. This step only downloads model files and never uploads your files or information.\nThe download uses the macOS system network (the same network and proxy settings as Safari), and every file is checked for integrity.\n\n%@\n\nTotal: about %lld MB (the actual size may differ slightly)\nSaved to: %@\n\nOCR uses the built-in RapidOCR or the system's Apple Vision, which need no download.\nDownload now?";
+"高精度模式需要先下载识别模型。这一步只下载模型文件，不会上传您的任何文件或信息。\n下载使用 macOS 系统网络（与 Safari 相同的网络和代理设置），每个文件都会校验完整性。\n\n%@\n\n合计约 %lld MB（实际大小可能略有出入）\n保存位置：%@\n\n%@\n是否同意下载？" = "High Accuracy mode needs recognition models first. This step only downloads model files and never uploads your files or information.\nThe download uses the macOS system network (the same network and proxy settings as Safari), and every file is checked for integrity.\n\n%@\n\nTotal: about %lld MB (the actual size may differ slightly)\nSaved to: %@\n\n%@\nDownload now?";
 "同意并下载" = "Agree and Download";
 "取消" = "Cancel";
 "正在连接 huggingface.co…" = "Connecting to huggingface.co…";
@@ -329,3 +329,8 @@
 "立即重新启动" = "Restart Now";
 "稍后" = "Later";
 "无法识别这个文件的文字编码，所以没有打开。文件没有任何改动。" = "DropMD couldn't recognize this file's text encoding, so it wasn't opened. The file hasn't been changed.";
+"OCR 使用程序内置的 RapidOCR 或系统自带的 Apple Vision，不需要下载。" = "OCR uses the built-in RapidOCR or the system's Apple Vision, which need no download.";
+"Xiaomi-OCR-0（更准，较慢）" = "Xiaomi-OCR-0 (more accurate, slower)";
+"公式和表格一起识别。需下载约 1.8 GB，不导出 PDF 里的图片，韩文和越南文错字较多。" = "Reads formulas and tables too. Needs a download of about 1.8 GB, doesn't export images from the PDF, and makes more mistakes in Korean and Vietnamese.";
+"这个模型比较大，下载一次后可以离线使用。" = "This model is large. Once downloaded, it works offline.";
+"第 %lld / %lld 页" = "Page %lld of %lld";

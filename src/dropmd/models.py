@@ -55,11 +55,21 @@ COMPONENTS: dict[str, Component] = {
             revision="ecedbe111d15c2dc60bfd4a823cbe80127b58af4",
             marker="docling-project--CodeFormulaV2/config.json",
         ),
+        Component(
+            "xiaomi", tr("文档识别模型（Xiaomi-OCR-0）", "Document recognition model (Xiaomi-OCR-0)", "文件辨識模型（Xiaomi-OCR-0）"),
+            "https://huggingface.co/xiaomi-research/Xiaomi-OCR-0",
+            size_mb=1767,
+            repo_id="xiaomi-research/Xiaomi-OCR-0",
+            revision="bbd8cf8d21f256b3644b44cb860f3a7cecb93c30",
+            marker="xiaomi-research--Xiaomi-OCR-0/config.json",
+        ),
     ]
 }
 
 
-def required_components(formulas: bool) -> list[str]:
+def required_components(formulas: bool, xiaomi: bool = False) -> list[str]:
+    if xiaomi:
+        return ["xiaomi"]  # 不经过 Docling，也不需要它的模型
     keys = ["layout", "table"]
     if formulas:
         keys.append("formula")

@@ -25,6 +25,7 @@ _cache: dict[tuple[str, bool, str], object] = {}
 
 OCR_VISION = "vision"
 OCR_RAPID = "rapidocr"
+OCR_XIAOMI = "xiaomi"  # 不经过 Docling，见 xiaomi.py
 
 # Apple Vision 一次只能以一种东亚语言为主（构建机实测：中文优先时日文行丢失，
 # 日文优先时简体中文识别错乱），因此由用户选择“主要语言”，再加上英文。
@@ -37,7 +38,7 @@ def default_ocr_engine() -> str:
 
 
 def available_ocr_engines() -> list[str]:
-    return [OCR_RAPID, OCR_VISION] if sys.platform == "darwin" else [OCR_RAPID]
+    return [OCR_RAPID, OCR_VISION, OCR_XIAOMI] if sys.platform == "darwin" else [OCR_RAPID]
 
 
 def _rapidocr_options():

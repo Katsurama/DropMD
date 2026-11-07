@@ -79,7 +79,7 @@ xattr -dr com.apple.quarantine /Applications/DropMD.app
 | --- | --- | --- |
 | 快速 | Word、Excel、PowerPoint、HTML、文字型 PDF | [MarkItDown](https://github.com/microsoft/markitdown) |
 | Word 高质量 | 需要还原排版和图片的 Word 文档 | [Pandoc](https://pandoc.org/) |
-| 高精度 | 论文、表格、公式、扫描版 PDF | [Docling](https://github.com/docling-project/docling) + OCR（RapidOCR 或 Apple Vision） |
+| 高精度 | 论文、表格、公式、扫描版 PDF | [Docling](https://github.com/docling-project/docling) + OCR（RapidOCR 或 Apple Vision），或可选的 [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0)（更准、较慢，需下载约 1.8 GB） |
 
 不需要安装 Python，转换引擎已经打包在 App 里。
 

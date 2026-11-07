@@ -86,8 +86,15 @@ def _selftest(out_dir: str, hq: bool) -> int:
 
         import docling.document_converter  # noqa: F401
         for eng in hqmod.available_ocr_engines():
-            hqmod._vision_options() if eng == hqmod.OCR_VISION else hqmod._rapidocr_options()
+            if eng == hqmod.OCR_VISION:
+                hqmod._vision_options()
+            elif eng == hqmod.OCR_RAPID:
+                hqmod._rapidocr_options()
         import rapidocr  # noqa: F401
+        # Xiaomi-OCR-0 在运行时才加载的 transformers 组件（模型要用户下载，这里只查打包是否完整）
+        from transformers.models.qwen3_5 import Qwen3_5ForConditionalGeneration  # noqa: F401
+        from transformers.models.qwen3_vl import Qwen3VLProcessor  # noqa: F401
+        import pypdfium2  # noqa: F401
         # Docling 版面模型（RT-DETR）在运行时才加载的 transformers 组件
         from transformers import AutoImageProcessor, AutoModelForObjectDetection  # noqa: F401
         from transformers.models.rt_detr import RTDetrImageProcessor  # noqa: F401
@@ -134,6 +141,13 @@ def _selftest(out_dir: str, hq: bool) -> int:
                 run(samples / "sample_multilang.pdf", o, f"pdf_multilang_vision_{lang}.md", expect)
             o = Options(mode=MODE_HQ, ocr_engine=hqmod.OCR_VISION)
             run(samples / "sample_scanned.pdf", o, "pdf_scanned_vision.md", "DropMD")
+        # Xiaomi-OCR-0：模型 1.75 GB，构建机不下载，本机有模型时才测
+        from .models import is_installed
+
+        if is_installed("xiaomi"):
+            o = Options(mode=MODE_HQ, ocr_engine=hqmod.OCR_XIAOMI)
+            run(samples / "sample_text.pdf", o, "pdf_text_xiaomi.md", ["Markdown", "| Name | Value |"])
+            run(samples / "sample_multilang.pdf", o, "pdf_multilang_xiaomi.md", MULTILANG_EXPECT)
 
     lines.append(f"失败数：{failed}")
     report = "\n".join(lines)
