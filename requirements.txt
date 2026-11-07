@@ -6,5 +6,8 @@ onnxruntime==1.31.0
 huggingface_hub==1.33.0
 torch==2.14.1
 torchvision==0.29.1
+# Xiaomi-OCR-0 直接用到，版本实测过；换版本要重新实测
+transformers==5.22.1
+pypdfium2==5.14.0
 # macOS：通过 Apple Vision（实况文本的文字识别引擎）进行 OCR
 ocrmac==1.0.1 ; sys_platform == "darwin"
