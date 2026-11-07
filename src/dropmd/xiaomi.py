@@ -4,6 +4,9 @@
 shortcut: 整页模式不导出 PDF 里的图片（官方分区模式要装 PaddlePaddle），需要时可用 Docling 的版面模型截图。
 
 模型从本机加载，不会访问网络。
+
+模型和项目：https://github.com/xiaomi-research/Xiaomi-OCR-0 （Apache-2.0，Copyright 2026 Xiaomi Corporation）。
+提示语和公式写法转换参考该项目的 postprocess/document.py，并作了修改。
 """
 
 from __future__ import annotations
