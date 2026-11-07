@@ -124,9 +124,9 @@ final class Engine: @unchecked Sendable {
         return p.terminationStatus
     }
 
-    func status(formulas: Bool) async throws -> Status {
+    func status(formulas: Bool, xiaomi: Bool = false) async throws -> Status {
         let box = Box<Status>()
-        try await run(["status"] + (formulas ? ["--formula"] : [])) { data in
+        try await run(["status"] + (formulas ? ["--formula"] : []) + (xiaomi ? ["--xiaomi"] : [])) { data in
             if let s = try? Engine.decoder.decode(Status.self, from: data) { box.value = s }
         }
         guard let s = box.value else { throw EngineError.failed(String(localized: "转换引擎没有正常响应。")) }

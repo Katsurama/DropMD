@@ -2,14 +2,14 @@
 
 协议：标准输出只输出 JSON（每行一个对象），日志等其他输出一律重定向到标准错误。
 
-  dropmd-engine --engine status [--formula]
+  dropmd-engine --engine status [--formula] [--xiaomi]
       → {"version", "pandoc", "ocr_engines", "default_ocr", "models_dir",
          "missing": [{"key","title","source","size_mb","repo_id","revision","folder","marker"}]}
       macOS 界面用这些信息通过系统网络（URLSession）自行下载模型。
 
   dropmd-engine --engine convert   （从标准输入读取一个 JSON 对象）
       输入：{"jobs":[{"src","dst"}], "options":{"mode","word_engine","ocr_engine","vision_lang","formulas"}}
-      → {"event":"start","index"} / {"event":"result","index","ok","info"} ... {"event":"finished"}
+      → {"event":"start","index"} / {"event":"page","index","i","n"} / {"event":"result","index","ok","info"} ... {"event":"finished"}
 
 取消：界面直接结束本进程即可。输出先写入 .part 临时文件，不会留下半个 .md。
 """
@@ -41,7 +41,7 @@ def _status(out: _Out, args: list[str]) -> int:
     from .model_manifest import FILES
     from .paths import models_dir, pandoc_path
 
-    keys = models.required_components("--formula" in args)
+    keys = models.required_components("--formula" in args, "--xiaomi" in args)
     out.send({
         "version": __version__,
         "pandoc": bool(pandoc_path()),
@@ -74,6 +74,7 @@ def _convert(out: _Out) -> int:
     )
     for i, job in enumerate(req.get("jobs", [])):
         out.send({"event": "start", "index": i})
+        options.on_page = lambda page, pages, i=i: out.send({"event": "page", "index": i, "i": page, "n": pages})
         try:
             info = convert(Path(job["src"]), Path(job["dst"]), options)
             out.send({"event": "result", "index": i, "ok": True, "info": info})

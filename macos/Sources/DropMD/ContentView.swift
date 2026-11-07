@@ -207,19 +207,26 @@ struct ContentView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                } else if model.ocrEngine == "xiaomi" {
+                    Text("公式和表格一起识别。需下载约 1.8 GB，不导出 PDF 里的图片，韩文和越南文错字较多。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text("中日英混合识别，无需下载。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Toggle(isOn: $model.formulas) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("识别数学公式")
-                        Text("较慢，需下载模型").font(.caption).foregroundStyle(.secondary)
+                if model.ocrEngine != "xiaomi" {
+                    Toggle(isOn: $model.formulas) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("识别数学公式")
+                            Text("较慢，需下载模型").font(.caption).foregroundStyle(.secondary)
+                        }
                     }
+                    .toggleStyle(.switch)
                 }
-                .toggleStyle(.switch)
             }
 
             Divider()

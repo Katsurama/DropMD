@@ -79,7 +79,7 @@ xattr -dr com.apple.quarantine /Applications/DropMD.app
 | --- | --- | --- |
 | 高速 | Word、Excel、PowerPoint、HTML、テキストベースの PDF | [MarkItDown](https://github.com/microsoft/markitdown) |
 | Word、レイアウト重視 | レイアウトや画像を残したい Word 文書 | [Pandoc](https://pandoc.org/) |
-| 高精度 | 論文、表、数式、スキャンした PDF | [Docling](https://github.com/docling-project/docling) + OCR（RapidOCR または Apple Vision） |
+| 高精度 | 論文、表、数式、スキャンした PDF | [Docling](https://github.com/docling-project/docling) + OCR（RapidOCR または Apple Vision）、または任意の [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0)（高精度・低速、約 1.8 GB のダウンロードが必要） |
 
 Python をインストールする必要はありません。変換エンジンはアプリに内蔵されています。
 

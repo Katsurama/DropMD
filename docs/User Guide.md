@@ -83,9 +83,10 @@ Click Convert Files in the toolbar, or choose File → Convert Files to Markdown
    - **Fast**: uses MarkItDown and is quick. Good for Word, Excel, PowerPoint, HTML, CSV and text-based PDFs.
    - **High Accuracy**: uses Docling for layout analysis, table recognition and OCR. Good for papers, PDFs with tables or formulas, and scanned PDFs. **It applies to PDF files only**; other formats are converted in Fast mode.
 3. **Word Engine** (optional): “Pandoc (better layout)” restores headings, lists, tables and other layout better. Both engines export the images in a Word file to a `filename_images` folder and link them from the Markdown with relative paths.
-4. **OCR Engine** (High Accuracy mode): neither engine needs a download.
+4. **OCR Engine** (High Accuracy mode): the first two need no download.
    - **RapidOCR (default)**: the PP-OCRv6 multilingual model, built into the app. It reads Simplified Chinese, Traditional Chinese, Japanese, English and more mixed on the same page, with no language to choose.
    - **Apple Vision**: the text recognition behind macOS Live Text, built into the system. It works with one East Asian language at a time, so you also choose a Main Language (Simplified Chinese / Traditional Chinese / Japanese; English is always included). Good for documents in one language; **for mixed Chinese and Japanese, use RapidOCR**.
+   - **Xiaomi-OCR-0**: Xiaomi's document recognition model. It is more accurate, reads Chinese, Japanese, English, French, German, Spanish and Russian mixed together, and handles formulas and tables by itself (Recognize Math Formulas isn't needed). It needs a download of about 1.8 GB the first time. It is slower than the other two: on an M4 Mac with 16 GB of memory, a full page of text takes about 20–30 seconds, and it uses about 3 GB of memory while converting. **It doesn't export images from the PDF**, and it makes more mistakes in Korean and Vietnamese.
 5. **Recognize Math Formulas** (High Accuracy mode): turns formulas into LaTeX. It is slower and needs an extra model download the first time.
 6. **Save To**:
    - by default, next to the original file, with the same name and a `.md` extension;
@@ -105,6 +106,7 @@ Click Convert Files in the toolbar, or choose File → Convert Files to Markdown
 - **The first time you use High Accuracy mode**, a window lists the recognition models to download, the **source** and **size** of each, and where they will be saved. The download starts only if you click “Agree and Download”; “Cancel” downloads nothing.
   - Only Docling's layout model (about 172 MB), table model (about 358 MB) and the optional formula model (about 640 MB) are downloaded, from Docling's official Hugging Face account (`huggingface.co/docling-project`);
   - OCR needs no download: Apple Vision is part of macOS, and RapidOCR's models come from its PyPI package and are built into the app;
+  - If you choose Xiaomi-OCR-0, only its own model (about 1.8 GB) is downloaded, from Xiaomi's official Hugging Face account (`huggingface.co/xiaomi-research`). Docling's models aren't needed;
   - Models are saved in `~/Library/Application Support/DropMD/models`;
   - The download uses the macOS system network (the same network, DNS and proxy settings as Safari, including PAC and SOCKS proxies), contacts only huggingface.co and its download servers, and keeps no cookies. Every file is checked after downloading; if the download stops halfway, files already finished aren't downloaded again when you retry.
   - After that, conversions are fully offline. You can also download models or open the models folder from the High-Accuracy Recognition Models menu. To delete the models, delete that folder.
