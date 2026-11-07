@@ -45,4 +45,15 @@ FILES: dict[str, list[dict]] = {
         {"path": "tokenizer_config.json", "size": 24952, "blob_id": "94ec944dbd1cf1eb40cfdec02d433ab3439bbc71"},
         {"path": "vocab.json", "size": 1612747, "blob_id": "3d43e13943cfbdbd6f1d50aad78c7ea229bb15a6"},
     ],
+    # xiaomi-research/Xiaomi-OCR-0 @ bbd8cf8d21f256b3644b44cb860f3a7cecb93c30（只取运行需要的文件，不下载示例图片）
+    "xiaomi": [
+        {"path": "chat_template.jinja", "size": 7755, "blob_id": "0ef09f214eaa6d9bca297988afc1454b5827b2c7"},
+        {"path": "config.json", "size": 2747, "blob_id": "87cadcf0711549f1e36a8fdf405647f787800f3f"},
+        {"path": "model.safetensors", "size": 1746937856,
+         "sha256": "d4551e9f6127ac9e35cff7b4f7a72a90410e03e6c8676a36f0e2b7eaeb5d5348"},
+        {"path": "processor_config.json", "size": 1191, "blob_id": "33818c7f9e991ad735fd240209f4fa73e6c28c50"},
+        {"path": "tokenizer.json", "size": 19989325,
+         "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523"},
+        {"path": "tokenizer_config.json", "size": 1165, "blob_id": "1d134cd298be1e3be25db393d93a1cefe80e3214"},
+    ],
 }

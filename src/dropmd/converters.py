@@ -3,7 +3,8 @@
 - 快速模式：MarkItDown（Word / Excel / PowerPoint / HTML / CSV / 文字型 PDF），
   Word / PowerPoint 里的图片导出到单独文件夹并在 Markdown 中引用
 - Word 可选 Pandoc：还原排版更好，图片同样导出
-- 高精度模式（仅对 PDF 生效）：Docling + OCR（Apple Vision 或 RapidOCR），见 hq.py
+- 高精度模式（仅对 PDF 生效）：Docling + OCR（Apple Vision 或 RapidOCR），见 hq.py；
+  也可以选 Xiaomi-OCR-0，见 xiaomi.py
 
 原始文件只会以只读方式打开，绝不会被修改。
 """
@@ -33,6 +34,7 @@ class Options:
     ocr_engine: str = ""  # 空字符串表示使用默认引擎（RapidOCR）
     vision_lang: str = "zh-Hans"  # Apple Vision 的主要语言：zh-Hans / zh-Hant / ja-JP
     formulas: bool = False
+    on_page: object = None  # Xiaomi-OCR-0 每页要几十秒，用它报告进度
 
 
 _md_lock = threading.Lock()
@@ -194,6 +196,10 @@ def convert(src: Path, dst: Path, options: Options) -> str:
     if ext == ".pdf" and options.mode == MODE_HQ:
         from . import hq
 
+        if options.ocr_engine == hq.OCR_XIAOMI:
+            from . import xiaomi
+
+            return xiaomi.convert_pdf(src, dst, options.on_page)
         dst.parent.mkdir(parents=True, exist_ok=True)
         return hq.convert_pdf(src, dst, options.ocr_engine or hq.default_ocr_engine(), options.formulas,
                               images_dir_name(dst), options.vision_lang)

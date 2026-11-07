@@ -84,6 +84,23 @@ with tempfile.TemporaryDirectory() as d:
         ok = (Path(d) / "e_images/image1.png").exists() and dst.read_text() == "![](e_images/image1.png)"
     failed += not ok
     print("ok  " if ok else "FAIL", "转换失败不动上次的图片")
+# Xiaomi-OCR-0 的输出：表格、公式转成普通 Markdown
+from dropmd.xiaomi import clean as xclean
+for name, src, want in [
+    ("OTSL 表格", "前文\n\n<fcel>名<fcel>值<nl><fcel>a|b<ecel><nl>\n\n后文", "前文\n\n| 名 | 值 |\n| --- | --- |\n| a\\|b |  |\n\n后文"),
+    ("合并单元格重复内容", "<fcel>A<lcel><fcel>C<nl><fcel>D<ucel><ucel><nl><xcel><fcel>F<nl>",
+     "| A | A | C |\n| --- | --- | --- |\n| D | A | C |\n| D | F |  |"),
+    ("行数不齐补空格", "<fcel>a<fcel>b<nl><fcel>c", "| a | b |\n| --- | --- |\n| c |  |"),
+    ("表格前后同段的文字不丢", "表1 <fcel>a<nl> 注", "表1\n\n| a |\n| --- |\n\n注"),
+    ("行内公式", r"设 \( x+1 \) 和 $\(y\)$ 成立", "设 $x+1$ 和 $y$ 成立"),
+    ("独立公式", "\\[\na=b\n\\]", "$$a=b$$"),
+    ("代码块不动", "```\n\\(x\\) <fcel>a\n\n<nl>\n```", "```\n\\(x\\) <fcel>a\n\n<nl>\n```"),
+    ("普通文字不动", "价格 $5 和 <b> 不变", "价格 $5 和 <b> 不变"),
+]:
+    got = xclean(src)
+    ok = got == want
+    failed += not ok
+    print("ok  " if ok else "FAIL", name, "" if ok else f"\n     got:  {got!r}\n     want: {want!r}")
 # 引擎提示跟着界面语言：简体、繁体、英文
 import subprocess, sys, os
 for lang, want in [("zh", "找不到文件，可能已被移动或删除。"), ("zh-Hant", "找不到檔案，可能已被移動或刪除。"),

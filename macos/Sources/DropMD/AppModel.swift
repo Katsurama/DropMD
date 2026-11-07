@@ -52,6 +52,7 @@ enum WordEngine: String, CaseIterable, Identifiable {
 let ocrEngineNames: [String: String] = [
     "rapidocr": String(localized: "RapidOCR（多语言混合）"),
     "vision": String(localized: "Apple Vision（实况文本）"),
+    "xiaomi": String(localized: "Xiaomi-OCR-0（更准，较慢）"),
 ]
 
 /// Apple Vision 一次只能以一种东亚语言为主，需要用户选择
@@ -101,7 +102,7 @@ final class AppModel: ObservableObject {
     }
 
     var pandocAvailable: Bool { engineStatus?.pandoc ?? true }
-    var ocrEngines: [String] { engineStatus?.ocrEngines ?? ["rapidocr", "vision"] }
+    var ocrEngines: [String] { engineStatus?.ocrEngines ?? ["rapidocr", "vision", "xiaomi"] }
 
     func loadStatus() async {
         do {
@@ -210,7 +211,7 @@ final class AppModel: ObservableObject {
     func ensureModels(showWhenPresent: Bool = false) async -> Bool {
         let st: Engine.Status
         do {
-            st = try await engine.status(formulas: formulas)
+            st = try await engine.status(formulas: formulas, xiaomi: ocrEngine == "xiaomi")
         } catch {
             alert(String(localized: "无法检查模型"), error.localizedDescription, style: .warning)
             return false
@@ -221,6 +222,9 @@ final class AppModel: ObservableObject {
         }
         let total = st.missing.reduce(0) { $0 + $1.sizeMb }
         let list = st.missing.map { String(localized: "• \($0.title)：约 \($0.sizeMb) MB\n   来源：\($0.source)") }.joined(separator: "\n")
+        let note = ocrEngine == "xiaomi"
+            ? String(localized: "这个模型比较大，下载一次后可以离线使用。")
+            : String(localized: "OCR 使用程序内置的 RapidOCR 或系统自带的 Apple Vision，不需要下载。")
         let a = NSAlert()
         a.alertStyle = .informational
         a.messageText = String(localized: "需要下载识别模型")
@@ -233,7 +237,7 @@ final class AppModel: ObservableObject {
         合计约 \(total) MB（实际大小可能略有出入）
         保存位置：\(st.modelsDir)
 
-        OCR 使用程序内置的 RapidOCR 或系统自带的 Apple Vision，不需要下载。
+        \(note)
         是否同意下载？
         """)
         a.addButton(withTitle: String(localized: "同意并下载"))
@@ -379,6 +383,8 @@ final class AppModel: ObservableObject {
                         guard i < self.items.count else { return }
                         if ev.event == "start" {
                             self.items[i].status = .running
+                        } else if ev.event == "page", let page = ev.i, let pages = ev.n {
+                            self.items[i].info = String(localized: "第 \(page) / \(pages) 页")
                         } else if ev.event == "result" {
                             let ok = ev.ok ?? false
                             self.items[i].status = ok ? .ok : .failed

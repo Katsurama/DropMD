@@ -9,7 +9,7 @@ import os
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_all, collect_data_files, copy_metadata, get_package_paths
+from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules, copy_metadata, get_package_paths
 
 ROOT = Path(SPECPATH).parent
 IS_MAC = sys.platform == "darwin"
@@ -49,6 +49,8 @@ for pkg in [
     hiddenimports += h
 
 datas += collect_data_files("transformers", include_py_files=False)
+# Xiaomi-OCR-0 按模型配置动态加载这些模块
+hiddenimports += collect_submodules("transformers.models.qwen3_5") + collect_submodules("transformers.models.qwen3_vl") + collect_submodules("transformers.models.qwen2_vl")
 
 # torchvision 0.29 起原生扩展改名为 _C_stable / image_stable，PyInstaller 自带的钩子仍按旧名 _C 查找，
 # 导致扩展没有被打包（运行时报 “operator torchvision::nms does not exist”）。这里显式收集。
