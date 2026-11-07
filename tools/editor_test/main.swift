@@ -157,6 +157,35 @@ MainActor.assumeIsolated {
             check("样例不改保持原文 \(name)", MarkdownCodec.serialize(RichBridge.blocks(from: v.textStorage!), preserving: sample) == sample && !sample.isEmpty ? "同" : "不同", "同")
         }
     }
+    // 相邻的同类段落：改别处再保存，不能合成一个、不能变样
+    for (name, body) in [
+        ("相邻代码块不同语言", "```sh\na\n```\n\n```py\nb\n```\n"), ("相邻代码块同语言", "```sh\na\n```\n\n```sh\nb\n```\n"),
+        ("紧挨的代码块", "```sh\na\n```\n```py\nb\n```\n"), ("相邻引用", "> a\n\n> b\n"), ("相邻列表不同类", "- a\n\n1. b\n"),
+        ("相邻表格", "| a |\n| --- |\n| 1 |\n\n| b |\n| --- |\n| 2 |\n"), ("相邻 HTML", "<div>a</div>\n\n<div>b</div>\n"),
+        ("相邻公式", "$$a$$\n\n$$b$$\n"), ("相邻折叠", "<details><summary>s</summary>\n\nx\n\n</details>\n\n<details><summary>t</summary>\n\ny\n\n</details>\n"),
+        ("内嵌图片", "![](data:image/png;base64,iVBORw0KGgo=)\n"),
+    ] {
+        let src = "改这里\n\n" + body
+        let tv = makeView(src)
+        check("\(name) 不改", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src), src)
+        tv.setSelectedRange(NSRange(location: 3, length: 0))
+        type(tv, "字")
+        check("\(name) 改别处", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src), "改这里字\n\n" + body)
+    }
+    // 在第二个代码块里打字，第一个不受影响
+    do {
+        let tv = makeView("```sh\na\n```\n\n```py\nb\n```\n")
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "b").location + 1, length: 0))
+        type(tv, "c")
+        check("改相邻代码块的第二个", md(tv), "```sh\na\n```\n\n```py\nbc\n```\n")
+    }
+    // 内嵌图片要显示出来；解不开时不能把整串编码当文字显示
+    do {
+        let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+        check("内嵌图片显示", makeView("![](data:image/png;base64,\(png))\n").textStorage!.containsAttachments ? "图片" : "文字", "图片")
+        let bad = makeView("![](data:image/png;base64,AAAA\(String(repeating: "A", count: 4000)))\n")
+        check("坏的内嵌图片不显示编码", bad.string.count < 100 ? "短" : "长 \(bad.string.count)", "短")
+    }
     // 改别的地方再保存，[[双链]] 不变；在单页里直接打出来的也不转义
     do {
         let tv = makeView("第一行\n\n见 [[读书会]]\n")

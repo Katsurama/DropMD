@@ -37,9 +37,17 @@ enum RichBridge {
                 out.append(p)
 
             case .code(let lang, let lines, let listGap):
+                // 相邻的代码块之间显示一个空行（不保存），看得出是两块，光标也能停在中间
+                if out.length > 0, out.attribute(DMKey.code, at: out.length - 1, effectiveRange: nil) != nil {
+                    let gap = NSMutableAttributedString(attributedString: paragraph(NSAttributedString(), kind: .body))
+                    gap.addAttribute(DMKey.codeGap, value: true, range: NSRange(location: 0, length: gap.length))
+                    out.append(gap)
+                }
+                let id = UUID().uuidString
                 for l in (lines.isEmpty ? [""] : lines) {
                     let p = NSMutableAttributedString(attributedString:
                         paragraph(runsString([MDRun(text: l)], kind: .code(lang), baseURL: baseURL), kind: .code(lang)))
+                    p.addAttribute(DMKey.codeBlock, value: id, range: NSRange(location: 0, length: p.length))
                     if let listGap {
                         p.addAttribute(DMKey.listCode, value: listGap, range: NSRange(location: 0, length: p.length))
                         let style = (p.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle
@@ -218,8 +226,11 @@ enum RichBridge {
     static func imageString(path: String, alt: String, title: String? = nil, link: String? = nil, linkTitle: String? = nil, baseURL: URL?) -> NSAttributedString {
         var image: NSImage?
         let lower = path.lowercased()
+        let embedded = lower.hasPrefix("data:")
+        if embedded {
+            image = URL(string: path).flatMap { try? Data(contentsOf: $0) }.flatMap { NSImage(data: $0) }
         // 网络图片为保护隐私不加载
-        if !lower.hasPrefix("http:"), !lower.hasPrefix("https:"), !lower.hasPrefix("//"), !path.isEmpty {
+        } else if !lower.hasPrefix("http:"), !lower.hasPrefix("https:"), !lower.hasPrefix("//"), !path.isEmpty {
             image = NSImage(contentsOf: URL(fileURLWithPath: path.removingPercentEncoding ?? path, relativeTo: baseURL))
         }
         var marks: [NSAttributedString.Key: Any] = [DMKey.image: path, DMKey.alt: alt]
@@ -232,7 +243,7 @@ enum RichBridge {
             var a = RichStyle.attributes(for: MDRun(), kind: .body)
             a[.foregroundColor] = NSColor.secondaryLabelColor
             for (k, v) in marks { a[k] = v }
-            return NSAttributedString(string: String(localized: "［图片：\(alt.isEmpty ? path : alt)］"), attributes: a)
+            return NSAttributedString(string: String(localized: "［图片：\(alt.isEmpty ? (embedded ? "data:" : path) : alt)］"), attributes: a)
         }
         let attachment = NSTextAttachment()
         attachment.image = loaded
@@ -328,7 +339,7 @@ enum RichBridge {
 
     private enum Item {
         case line(MDLine)
-        case code(String, String, listGap: Bool?)
+        case code(String, String, listGap: Bool?, id: String?)
         case raw(String)
         case rule
         case summary(String, open: Bool)
@@ -354,6 +365,7 @@ enum RichBridge {
                 if last == 0x0A || last == 0x2029 || last == 0x0D { content.length -= 1 }
             }
             let attrs = para.length > 0 ? storage.attributes(at: para.location, effectiveRange: nil) : [:]
+            if attrs[DMKey.codeGap] != nil, content.length == 0 { continue }
             items.append(Entry(item: classify(storage, ns, content: content, attrs: attrs),
                                inDetails: attrs[DMKey.inDetails] != nil))
         }
@@ -398,7 +410,7 @@ enum RichBridge {
         case .rule:
             return .rule
         case .code(let lang):
-            return .code(lang, plainText(ns, content), listGap: attrs[DMKey.listCode] as? Bool)
+            return .code(lang, plainText(ns, content), listGap: attrs[DMKey.listCode] as? Bool, id: attrs[DMKey.codeBlock] as? String)
         case .raw:
             return .raw(plainText(ns, content))
         case .summary:
@@ -518,10 +530,10 @@ enum RichBridge {
             case .math(let source):
                 blocks.append(.raw(source))
                 i += 1
-            case .code(let lang, _, let listGap):
+            case .code(let lang, _, let listGap, let id):
                 var lines: [String] = []
                 while let item = next(i) {
-                    guard case .code(_, let text, _) = item else { break }
+                    guard case .code(_, let text, _, let other) = item, other == id else { break }
                     lines.append(text)
                     i += 1
                 }
