@@ -277,7 +277,7 @@ enum MarkdownCodec {
                     i += 1
                 }
                 var item = MDLine(kind: kind, runs: parseInline(content))
-                if kind.isOrdered { item.start = Int(m[2].dropLast()) }
+                if m[2].first?.isNumber == true { item.start = Int(m[2].dropLast()) }   // 编号待办（1. [ ]）也记下编号
                 blocks.append(.line(item))
                 continue
             }

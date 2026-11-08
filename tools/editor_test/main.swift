@@ -161,16 +161,51 @@ MainActor.assumeIsolated {
     for (name, body) in [
         ("相邻代码块不同语言", "```sh\na\n```\n\n```py\nb\n```\n"), ("相邻代码块同语言", "```sh\na\n```\n\n```sh\nb\n```\n"),
         ("紧挨的代码块", "```sh\na\n```\n```py\nb\n```\n"), ("相邻引用", "> a\n\n> b\n"), ("相邻列表不同类", "- a\n\n1. b\n"),
-        ("相邻表格", "| a |\n| --- |\n| 1 |\n\n| b |\n| --- |\n| 2 |\n"), ("相邻 HTML", "<div>a</div>\n\n<div>b</div>\n"),
+        ("相邻表格", "| a |\n| --- |\n| 1 |\n\n| b |\n| --- |\n| 2 |\n"), ("相邻 HTML", "<div>a</div>\n\n<div>b</div>\n"), ("编号待办改字", "3. [ ] 一\n"),
         ("相邻公式", "$$a$$\n\n$$b$$\n"), ("相邻折叠", "<details><summary>s</summary>\n\nx\n\n</details>\n\n<details><summary>t</summary>\n\ny\n\n</details>\n"),
         ("内嵌图片", "![](data:image/png;base64,iVBORw0KGgo=)\n"),
+        // 其他常见写法
+        ("嵌套引用", "> 外\n>\n> > 内\n"), ("引用里的代码块", "> ```js\n> x\n> ```\n"), ("列表后的代码块", "- a\n\n```sh\nb\n```\n"),
+        ("表格后的列表", "| a |\n| --- |\n| 1 |\n\n- b\n"), ("HTML 注释", "<!-- 注释 -->\n\n正文\n"), ("脚注定义", "正文[^1]\n\n[^1]: 说明\n"),
+        ("标题结尾 #", "## 标题 ##\n"), ("下划线强调", "_斜_ 和 __粗__\n"), ("尖括号链接", "<https://example.com>\n"),
+        ("行尾两空格换行", "一  \n二\n"), ("编号用括号", "1) 一\n2) 二\n"), ("编号里的待办", "1. [ ] 一\n2. [x] 二\n"),
+        ("星号分隔线", "***\n"), ("下划线分隔线", "___\n"), ("TOML 开头", "+++\ntitle = \"a\"\n+++\n\n正文\n"),
+        ("br 换行", "一<br>二\n"), ("表格里的公式", "| a |\n| --- |\n| $x$ |\n"), ("转义竖线", "| a\\|b |\n| --- |\n| 1 |\n"),
+        ("Tab 缩进列表", "- a\n\t- b\n"), ("加号列表", "+ a\n+ b\n"), ("引用里的列表", "> - a\n> - b\n"),
+        ("待办嵌套", "- [ ] a\n  - [x] b\n"), ("链接定义", "[a][1]\n\n[1]: https://example.com \"标题\"\n"),
+        ("图片带尺寸 HTML", "<img src=\"a.png\" width=\"200\">\n"), ("删除线单波浪", "~删~\n"), ("行内代码里的反引号", "`` a`b ``\n"),
+        ("缩进代码块", "    code\n    more\n"), ("emoji 短码", ":smile: 好\n"), ("全角标点", "（括号）、“引号”。\n"),
+        ("Mermaid", "```mermaid\ngraph TD\nA-->B\n```\n"), ("波浪线围栏", "~~~py\nx\n~~~\n"), ("四个反引号", "````md\n```\nx\n```\n````\n"),
     ] {
         let src = "改这里\n\n" + body
+        // 在这段里面打字：保存后重新打开，显示的内容要和保存前一样（写法可以变，意思不能变）
+        do {
+            let tv = makeView(src)
+            tv.setSelectedRange(NSRange(location: 4, length: 0))
+            type(tv, "字")
+            let saved = MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src)
+            // 空行、换行可以变；在待办方框前打的字会挪到方框后面，方框单独数
+            let plain = { (s: String) in s.filter { !$0.isWhitespace && $0 != "☐" && $0 != "☑" } + s.filter { $0 == "☐" || $0 == "☑" } }
+            check("\(name) 段内改字后重开", plain(makeView(saved).string), plain(tv.string))
+        }
         let tv = makeView(src)
         check("\(name) 不改", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src), src)
         tv.setSelectedRange(NSRange(location: 3, length: 0))
         type(tv, "字")
         check("\(name) 改别处", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src), "改这里字\n\n" + body)
+    }
+    // 段内改字后的文件内容：编号待办留编号；公式块、分隔线那一行打的字单独成段，公式和分隔线不丢
+    for (src, word, want) in [("3. [ ] 一\n", "一", "3. [ ] 一字\n"), ("1. [ ] 一\n2. [x] 二\n", "二", "1. [ ] 一\n2. [x] 二字\n")] {
+        let tv = makeView(src)
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: word).location + 1, length: 0))
+        type(tv, "字")
+        check("编号待办改字 \(src.debugDescription)", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src), want)
+    }
+    for (src, want) in [("$$a$$\n", "字\n\n$$a$$\n"), ("***\n", "字\n\n***\n"), ("- [ ] 一\n", "- [ ] 字一\n")] {
+        let tv = makeView(src)
+        tv.setSelectedRange(NSRange(location: 0, length: 0))
+        type(tv, "字")
+        check("行首打字 \(src.debugDescription)", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src), want)
     }
     // 在第二个代码块里打字，第一个不受影响
     do {

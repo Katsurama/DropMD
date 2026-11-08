@@ -366,8 +366,18 @@ enum RichBridge {
             }
             let attrs = para.length > 0 ? storage.attributes(at: para.location, effectiveRange: nil) : [:]
             if attrs[DMKey.codeGap] != nil, content.length == 0 { continue }
-            items.append(Entry(item: classify(storage, ns, content: content, attrs: attrs),
-                               inDetails: attrs[DMKey.inDetails] != nil))
+            let inDetails = attrs[DMKey.inDetails] != nil
+            // 分隔线、公式块那一行里又打了字：字单独成段，分隔线和公式都不丢
+            if let at = blockAttachment(storage, ns, content), content.length > 1 {
+                let before = NSRange(location: content.location, length: at.location - content.location)
+                let after = NSRange(location: NSMaxRange(at), length: NSMaxRange(content) - NSMaxRange(at))
+                if before.length > 0 { items.append(Entry(item: .line(MDLine(kind: .body, runs: runs(storage, before))), inDetails: inDetails)) }
+                let source = storage.attribute(DMKey.math, at: at.location, effectiveRange: nil) as? String
+                items.append(Entry(item: source.map { .math($0) } ?? .rule, inDetails: inDetails))
+                if after.length > 0 { items.append(Entry(item: .line(MDLine(kind: .body, runs: runs(storage, after))), inDetails: inDetails)) }
+                continue
+            }
+            items.append(Entry(item: classify(storage, ns, content: content, attrs: attrs), inDetails: inDetails))
         }
         // 末尾的空段落没有意义，不写入文件
         while let last = items.last {
@@ -376,6 +386,22 @@ enum RichBridge {
             items.removeLast()
         }
         return group(items)
+    }
+
+    /// 段落里的分隔线或公式块（占一个字符）
+    private static func blockAttachment(_ storage: NSAttributedString, _ ns: NSString, _ content: NSRange) -> NSRange? {
+        var found: NSRange?
+        let text = ns.substring(with: content) as NSString
+        var from = 0
+        while found == nil {
+            let r = text.range(of: "\u{FFFC}", range: NSRange(location: from, length: text.length - from))
+            guard r.location != NSNotFound else { break }
+            let at = NSRange(location: content.location + r.location, length: 1)
+            let a = storage.attributes(at: at.location, effectiveRange: nil)
+            if a[DMKey.rule] != nil || (a[DMKey.math] as? String).map(isMathBlock) == true { found = at }
+            from = NSMaxRange(r)
+        }
+        return found
     }
 
     /// 段落的样式（以段落第一个字符的属性为准）
@@ -416,15 +442,18 @@ enum RichBridge {
         case .summary:
             return .summary(plainText(ns, content), open: attrs[DMKey.detailsOpen] != nil)
         case .task:
-            var r = content
-            if r.length >= 2 {
-                let box = ns.substring(with: NSRange(location: r.location, length: 1))
-                if box == RichStyle.taskTodo || box == RichStyle.taskDone {
-                    let skip = ns.substring(with: NSRange(location: r.location + 1, length: 1)) == " " ? 2 : 1
-                    r = NSRange(location: r.location + skip, length: r.length - skip)
-                }
+            // 去掉方框（光标在方框前打了字时，方框不在最前面）
+            let text = ns.substring(with: content) as NSString
+            var box = text.range(of: RichStyle.taskTodo)
+            let done = text.range(of: RichStyle.taskDone)
+            if box.location == NSNotFound || (done.location != NSNotFound && done.location < box.location) { box = done }
+            guard box.location != NSNotFound else {
+                return .line(MDLine(kind: k.lineKind, runs: runs(storage, content), start: attrs[DMKey.start] as? Int))
             }
-            return .line(MDLine(kind: k.lineKind, runs: runs(storage, r)))
+            if NSMaxRange(box) < text.length, text.substring(with: NSRange(location: NSMaxRange(box), length: 1)) == " " { box.length += 1 }
+            let before = NSRange(location: content.location, length: box.location)
+            let after = NSRange(location: content.location + NSMaxRange(box), length: content.length - NSMaxRange(box))
+            return .line(MDLine(kind: k.lineKind, runs: runs(storage, before) + runs(storage, after), start: attrs[DMKey.start] as? Int))
         default:
             return .line(MDLine(kind: k.lineKind, runs: runs(storage, content), start: attrs[DMKey.start] as? Int))
         }
