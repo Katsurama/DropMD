@@ -44,7 +44,7 @@ pip freeze --exclude-editable > build/requirements-frozen.txt
 echo "== Pandoc"
 if [ ! -x packaging/pandoc/pandoc ] || ! packaging/pandoc/pandoc --version | grep -q "pandoc $PANDOC_VERSION"; then
   f="build/pandoc-${PANDOC_VERSION}-arm64-macOS.zip"
-  curl -fsSL -o "$f" "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/$(basename "$f")"
+  curl -fsSL --retry 3 --retry-all-errors -o "$f" "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/$(basename "$f")"
   echo "$PANDOC_SHA256  $f" | shasum -a 256 -c -
   rm -rf build/pandoc_x && mkdir -p build/pandoc_x packaging/pandoc
   unzip -q "$f" -d build/pandoc_x
