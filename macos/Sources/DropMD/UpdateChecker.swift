@@ -67,7 +67,7 @@ func releaseNotes(_ body: String, language: String) -> String {
 struct ReleaseInfo: Decodable, Identifiable {
     struct Asset: Decodable {
         let name: String
-        let browserDownloadUrl: URL
+        let url: URL   // 走 api.github.com 下载：github.com 的下载地址偶尔对小文件一直返回 504
         let size: Int64
     }
 
@@ -368,7 +368,8 @@ final class UpdateChecker: ObservableObject {
     }
 
     private func assetRequest(_ asset: ReleaseInfo.Asset) -> URLRequest {
-        var request = URLRequest(url: asset.browserDownloadUrl)
+        var request = URLRequest(url: asset.url)
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
         authorize(&request)
         return request
     }
