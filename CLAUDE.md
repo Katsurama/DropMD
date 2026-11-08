@@ -55,7 +55,7 @@ tools/build_local.sh vX.Y.Z-beta.N     # 构建后直接创建 GitHub Release（
 - 简体中文、繁体中文、英文和日文，跟随系统语言（都不是时用英文）。源码里写中文原文：SwiftUI 的 `Text("…")`、`Button("…")` 等自动翻译，其他地方用 `String(localized: "…")`。
 - 英文、日文、繁体译文在 `macos/Resources/{en,ja,zh-Hant}.lproj/Localizable.strings`，键就是中文原文（繁体用台湾用语）；改了界面文字要同步改这三处，`tools/test_l10n.sh` 会检查。
 - 简体中文的翻译表在构建时生成（原文 = 原文），否则系统会退回英文。
-- 转换引擎的提示用 `errors.tr(简体, 英文, 繁体)`，App 启动引擎时传 `DROPMD_LANG`（`zh` / `zh-Hant` / `en`；日文界面时引擎提示用英文）。使用说明有中文版和英文版（`docs/User Guide.md`）。
+- 转换引擎的提示用 `errors.tr(简体, 英文, 繁体)`，App 启动引擎时传 `DROPMD_LANG`（`zh` / `zh-Hant` / `en`；日文界面时引擎提示用英文）。使用说明有简体、繁体（`docs/使用說明.md`）、英文（`docs/User Guide.md`）、日文（`docs/ユーザーガイド.md`）四版，改一版要同步改其他三版。
 
 ## 图标
 

@@ -233,7 +233,7 @@ enum HelpDocs {
         NSDocumentController.shared.openDocument(withContentsOf: dst, display: true) { _, _, _ in }
     }
 
-    // 文件名也随界面语言：英文界面打开英文版使用说明（App 包中的 User Guide.md）
+    // 文件名也随界面语言：英文界面打开 User Guide.md，日文 ユーザーガイド.md，繁体 使用說明.md（都在 App 包里）
     static func openGuide() { openCopy(of: String(localized: "使用说明.md")) }
     static func openLicenses() { openCopy(of: "THIRD_PARTY_LICENSES.md") }
     static func openAppLicense() { openCopy(of: "LICENSE", as: String(localized: "DropMD 许可证.md")) }
