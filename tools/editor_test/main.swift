@@ -235,6 +235,73 @@ MainActor.assumeIsolated {
         type(tv, "字")
         check("段首改字 \(line)", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src), "第一段\n\n字" + line + "\n")
     }
+    // 段落样式：改成各种样式，存出来的写法对；再改回正文，和原来一样
+    for (kind, want) in [(RichKind.heading(2), "## 甲乙\n\n丙\n"), (.quote, "> 甲乙\n\n丙\n"), (.bullet(0), "- 甲乙\n\n丙\n"),
+                         (.ordered(0), "1. 甲乙\n\n丙\n"), (.task(0, false), "- [ ] 甲乙\n\n丙\n"), (.code(""), "```\n甲乙\n```\n\n丙\n")] {
+        let tv = makeView("甲乙\n\n丙\n")
+        tv.setSelectedRange(NSRange(location: 1, length: 0))
+        tv.setKind(kind)
+        check("设为 \(kind)", md(tv), want)
+        tv.setSelectedRange(NSRange(location: 1, length: 0))
+        tv.setKind(.body)
+        check("\(kind) 改回正文", md(tv), "甲乙\n\n丙\n")
+    }
+    // 选中两段一起改：两段都变，列表连在一起
+    do {
+        let tv = makeView("甲\n\n乙\n")
+        tv.setSelectedRange(NSRange(location: 0, length: 3))
+        tv.setKind(.bullet(0))
+        check("两段设为列表", md(tv), "- 甲\n- 乙\n")
+        tv.setSelectedRange(NSRange(location: 0, length: 3))
+        tv.setKind(.code("py"))
+        check("两段设为代码块", md(tv), "```py\n甲\n乙\n```\n")
+    }
+    // 文字格式：加上再去掉，回到原样
+    for (trait, want) in [(RichTrait.bold, "甲**乙**丙\n"), (.italic, "甲*乙*丙\n"), (.strike, "甲~~乙~~丙\n"), (.highlight, "甲==乙==丙\n"),
+                          (.underline, "甲<u>乙</u>丙\n"), (.sup, "甲<sup>乙</sup>丙\n"), (.sub, "甲<sub>乙</sub>丙\n"), (.kbd, "甲<kbd>乙</kbd>丙\n")] {
+        let tv = makeView("甲乙丙\n")
+        tv.setSelectedRange(NSRange(location: 1, length: 1))
+        tv.toggle(trait)
+        check("加 \(trait)", md(tv), want)
+        tv.setSelectedRange(NSRange(location: 1, length: 1))
+        tv.toggle(trait)
+        check("去 \(trait)", md(tv), "甲乙丙\n")
+    }
+    do {
+        let tv = makeView("甲乙丙\n")
+        tv.setSelectedRange(NSRange(location: 1, length: 1))
+        tv.toggleInlineCode()
+        check("加行内代码", md(tv), "甲`乙`丙\n")
+        tv.setSelectedRange(NSRange(location: 1, length: 1))
+        tv.toggleInlineCode()
+        check("去行内代码", md(tv), "甲乙丙\n")
+        tv.setSelectedRange(NSRange(location: 1, length: 1))
+        tv.setLink("https://example.com/a_(b)")
+        check("加链接", md(tv), "甲[乙](https://example.com/a_(b))丙\n")
+        tv.setSelectedRange(NSRange(location: 1, length: 1))
+        tv.setLink(nil)
+        check("去链接", md(tv), "甲乙丙\n")
+        // 粗体里再加斜体，再去掉粗体
+        tv.setSelectedRange(NSRange(location: 0, length: 3))
+        tv.toggle(.bold)
+        tv.setSelectedRange(NSRange(location: 1, length: 1))
+        tv.toggle(.italic)
+        check("粗体里加斜体", md(tv), "**甲*乙*丙**\n")
+        tv.setSelectedRange(NSRange(location: 0, length: 3))
+        tv.toggle(.bold)
+        check("再去掉粗体", md(tv), "甲*乙*丙\n")
+    }
+    // 列表缩进：加一层、减一层
+    do {
+        let tv = makeView("- 甲\n- 乙\n")
+        tv.setSelectedRange(NSRange(location: 3, length: 0))
+        tv.changeDepth(1)
+        check("缩进一层", md(tv), "- 甲\n  - 乙\n")
+        tv.changeDepth(-1)
+        check("减一层", md(tv), "- 甲\n- 乙\n")
+        tv.changeDepth(-1)
+        check("再减就成正文", md(tv), "- 甲\n\n乙\n")
+    }
     // 改别的地方再保存，[[双链]] 不变；在单页里直接打出来的也不转义
     do {
         let tv = makeView("第一行\n\n见 [[读书会]]\n")
