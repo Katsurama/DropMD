@@ -221,6 +221,20 @@ MainActor.assumeIsolated {
         let bad = makeView("![](data:image/png;base64,AAAA\(String(repeating: "A", count: 4000)))\n")
         check("坏的内嵌图片不显示编码", bad.string.count < 100 ? "短" : "长 \(bad.string.count)", "短")
     }
+    // 在段首打一个字：这段会重写，但文字里的网址、路径、符号都不能多出反斜杠或变样
+    for line in [
+        "见 https://example.com/a_b_c?x=1&y=2#top 页", "变量 my_var_name", "路径 C:\\Users\\a 和 ~/Documents/*.md",
+        "邮箱 a_b@example.com", "算式 2*3*4 和 a*b", "比较 a < b > c", "实体 &nbsp; 和 &amp;", "按 <kbd>⌘</kbd> 键",
+        "脚注[^1]", "正文 **粗体**、*斜体*、`代码`", "正文**“重点”**内容", "链接 [文字](https://example.com/a_(b))", "图 ![说明](a b.png)",
+        "反引号 `a`b` 里", "井号 #标签 和 C#", "百分号 100% 和 $5", "下划线 _ 单独", "竖线 a|b", "波浪 ~ 单独和 ~~删~~",
+        "== 不是高亮", "第 1. 条", "中文，标点：“引号”（括号）", "维基 [词条](https://en.wikipedia.org/wiki/Foo_(bar))", "emoji 🎉 和 :tada:",
+    ] {
+        let src = "第一段\n\n" + line + "\n"
+        let tv = makeView(src)
+        tv.setSelectedRange(NSRange(location: 4, length: 0))
+        type(tv, "字")
+        check("段首改字 \(line)", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src), "第一段\n\n字" + line + "\n")
+    }
     // 改别的地方再保存，[[双链]] 不变；在单页里直接打出来的也不转义
     do {
         let tv = makeView("第一行\n\n见 [[读书会]]\n")
