@@ -4,5 +4,5 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT="$(mktemp -d)"
-swiftc -O -o "$OUT/update_test" tools/update_test/main.swift macos/Sources/DropMD/AppUpdateInstaller.swift macos/Sources/DropMD/UpdateChecker.swift
+swiftc -O -o "$OUT/update_test" tools/update_test/main.swift macos/Sources/DropMD/AppUpdateInstaller.swift macos/Sources/DropMD/UpdateChecker.swift macos/Sources/DropMD/ModelDownloader.swift macos/Sources/DropMD/Engine.swift
 "$OUT/update_test" "$OUT"

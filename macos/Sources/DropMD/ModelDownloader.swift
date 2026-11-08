@@ -12,23 +12,18 @@ private final class TaskHolder: @unchecked Sendable {
 /// - 版本固定为具体提交号；每个文件下载后校验完整性
 ///   （大文件校验官方提供的 SHA-256，小文件校验 Git 文件哈希）。
 final class ModelDownloader: @unchecked Sendable {
-    struct Sibling: Decodable {
+    struct Sibling {
         let rfilename: String
         let size: Int64?
         let blobId: String?
         let lfs: LFS?
 
-        struct LFS: Decodable {
+        struct LFS {
             let sha256: String
             let size: Int64
         }
 
         var byteCount: Int64 { lfs?.size ?? size ?? 0 }
-    }
-
-    struct ModelInfo: Decodable {
-        let sha: String?
-        let siblings: [Sibling]
     }
 
     enum DownloadError: LocalizedError {
@@ -109,18 +104,6 @@ final class ModelDownloader: @unchecked Sendable {
         }
     }
 
-    private func fetchInfo(repo: String, revision: String) async throws -> ModelInfo {
-        let url = URL(string: "https://huggingface.co/api/models/\(Self.encodePath(repo))/revision/\(revision)?blobs=true")!
-        let (data, resp) = try await session.data(from: url)
-        let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
-        guard code == 200 else { throw DownloadError.http(code, repo) }
-        do {
-            return try JSONDecoder().decode(ModelInfo.self, from: data)
-        } catch {
-            throw DownloadError.badResponse(repo)
-        }
-    }
-
     /// 下载单个文件到 dest，期间回调已接收字节数
     private func downloadFile(_ url: URL, to dest: URL, onBytes: @escaping @Sendable (Int64) -> Void) async throws {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
@@ -156,7 +139,7 @@ final class ModelDownloader: @unchecked Sendable {
         }
     }
 
-    private static func verify(_ file: URL, sibling: Sibling) throws {
+    static func verify(_ file: URL, sibling: Sibling) throws {
         guard let handle = try? FileHandle(forReadingFrom: file) else { throw DownloadError.integrity(sibling.rfilename) }
         defer { try? handle.close() }
         if let lfs = sibling.lfs {
@@ -181,17 +164,12 @@ final class ModelDownloader: @unchecked Sendable {
         // 1. 先取得所有文件清单，计算总大小
         var plans: [(Engine.Missing, [Sibling])] = []
         for c in components {
-            if let files = c.files, !files.isEmpty {
-                // 使用程序内置的固定版本清单（文件名、大小、哈希），无需查询接口
-                plans.append((c, files.map { f in
-                    Sibling(rfilename: f.path, size: f.size, blobId: f.blobId,
-                            lfs: f.sha256.map { Sibling.LFS(sha256: $0, size: f.size) })
-                }))
-            } else {
-                progress(0, 0, String(localized: "正在获取文件清单：\(c.title)"))
-                let info = try await withRetry(c.repoId) { try await fetchInfo(repo: c.repoId, revision: c.revision) }
-                plans.append((c, info.siblings.filter { !$0.rfilename.hasPrefix(".") }))
-            }
+            // 只用程序内置的固定版本清单（文件名、大小、哈希），不信服务器返回的校验值
+            guard let files = c.files, !files.isEmpty else { throw DownloadError.badResponse(c.title) }
+            plans.append((c, files.map { f in
+                Sibling(rfilename: f.path, size: f.size, blobId: f.blobId,
+                        lfs: f.sha256.map { Sibling.LFS(sha256: $0, size: f.size) })
+            }))
         }
         let total = plans.flatMap { $0.1 }.reduce(Int64(0)) { $0 + $1.byteCount }
         var done: Int64 = 0

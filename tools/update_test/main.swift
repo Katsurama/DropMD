@@ -19,6 +19,17 @@ func makeApp(at url: URL, id: String, version: String) {
     info.write(to: contents.appendingPathComponent("Info.plist"), atomically: true)
 }
 
+// 模型下载的指纹核对：小文件用 Git 文件哈希，大文件用 SHA-256；对的放行、错的拒绝
+do {
+    let f = work.appendingPathComponent("model-file.txt")
+    try! Data("hello\n".utf8).write(to: f)
+    let ok = { (s: ModelDownloader.Sibling) in (try? ModelDownloader.verify(f, sibling: s)) != nil }
+    check(ok(.init(rfilename: "a", size: 6, blobId: "ce013625030ba8dba906f756967f9e9ca394464a", lfs: nil)), "模型文件：Git 哈希正确时放行")
+    check(!ok(.init(rfilename: "a", size: 6, blobId: "0000000000000000000000000000000000000000", lfs: nil)), "模型文件：Git 哈希不对时拒绝")
+    check(ok(.init(rfilename: "a", size: 6, blobId: nil, lfs: .init(sha256: "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03", size: 6))), "模型文件：SHA-256 正确时放行")
+    check(!ok(.init(rfilename: "a", size: 6, blobId: nil, lfs: .init(sha256: String(repeating: "0", count: 64), size: 6))), "模型文件：SHA-256 不对时拒绝")
+}
+
 func version(of app: URL) -> String? {
     NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))?["CFBundleShortVersionString"] as? String
 }
