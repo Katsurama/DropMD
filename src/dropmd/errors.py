@@ -61,7 +61,8 @@ def describe(exc: BaseException) -> str:
         return tr("缺少处理该格式所需的组件。", "A component needed for this format is missing.", "缺少處理該格式所需的元件。")
     if name in ("BadZipFile", "BadZipfile") or "not a zip file" in low:
         return tr("文件已损坏或不是有效的 Office 文档（.docx/.xlsx/.pptx 本质上是 ZIP 压缩包）。", "The file is damaged or not a valid Office document (.docx/.xlsx/.pptx files are ZIP archives).", "檔案已損毀或不是有效的 Office 文件（.docx/.xlsx/.pptx 本質上是 ZIP 壓縮檔）。")
-    if "pdfsyntaxerror" in low or "no /root object" in low or "invalid pdf" in low:
+    # pdfminer（快速模式）、docling-parse（高精度）、PDFium（Xiaomi-OCR-0）各自的“读不了这个 PDF”
+    if any(k in low for k in ("pdfsyntaxerror", "no /root object", "invalid pdf", "pseof", "could not load document", "failed to load document")):
         return tr("PDF 文件已损坏或格式无效。", "The PDF file is damaged or invalid.", "PDF 檔案已損毀或格式無效。")
 
     detail = msg.strip().splitlines()[0][:200] if msg.strip() else ""
