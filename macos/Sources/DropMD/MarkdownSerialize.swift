@@ -298,6 +298,14 @@ extension MarkdownCodec {
 
     /// 标题和表头本身就是粗体，其中的粗体不再单独标记
     static func inline(_ runs: [MDRun], heading: Bool = false, inCell: Bool = false) -> String {
+        // 先试不加多余反斜杠的写法：读回来和原来一样才用（*.md、单独的 _、== 不必转义），否则用保守写法
+        let light = render(runs, heading: heading, inCell: inCell, minimal: true)
+        let back = merged(MarkdownCodec.parseInline(light).map { r in var r = r; if heading { r.bold = false }; return r })
+        let want = merged(runs.map { r in var r = r; if heading { r.bold = false }; return r })
+        return back == want ? light : render(runs, heading: heading, inCell: inCell, minimal: false)
+    }
+
+    private static func render(_ runs: [MDRun], heading: Bool, inCell: Bool, minimal: Bool) -> String {
         var out = ""
         var open: [Mark] = []
         var pending = ""   // 尚未输出的空白：标记不能紧挨空白，需要把空白移到标记外面
@@ -363,7 +371,7 @@ extension MarkdownCodec {
             transition(keep + wanted.filter { !keep.contains($0) })
             let atStart = open.isEmpty && out.trimmingCharacters(in: .whitespaces).isEmpty
             let keepEscaped = r.link != nil || (trail.isEmpty && index + 1 < parts.count && core.hasSuffix("]"))
-            out += escape(core, atStart: atStart, inCell: inCell, keepBracketsEscaped: keepEscaped, keepDollarEscaped: dollarIsRisky)
+            out += escape(core, atStart: atStart, inCell: inCell, keepBracketsEscaped: keepEscaped, keepDollarEscaped: dollarIsRisky, minimal: minimal)
             pending = trail
         }
         transition([])
@@ -406,7 +414,7 @@ extension MarkdownCodec {
             || (atStart && s.range(of: #"^\[[ xX]\]"#, options: .regularExpression) != nil)
     }
 
-    private static func escape(_ s: String, atStart: Bool, inCell: Bool, keepBracketsEscaped: Bool, keepDollarEscaped: Bool) -> String {
+    private static func escape(_ s: String, atStart: Bool, inCell: Bool, keepBracketsEscaped: Bool, keepDollarEscaped: Bool, minimal: Bool) -> String {
         let chars = Array(s)
         let escapeBrackets = keepBracketsEscaped || bracketsAreRisky(s, atStart: atStart && !inCell)   // 表格里没有待办
         // 行首的“1. ”会被当成有序列表
@@ -423,6 +431,12 @@ extension MarkdownCodec {
             if i >= wikiEnd, let end = wikiLinkEnd(chars, i, chars.count) { wikiEnd = end }
             if i < wikiEnd {
                 out += ch == "|" && inCell ? "\\|" : String(ch)
+                continue
+            }
+            // 由 inline() 读回来检查过；行首的不算（* 会变列表，=== 会变标题，``` 会变代码块，读行内时看不出来）
+            let lineStart = (atStart && i == 0) || (i > 0 && chars[i - 1].isNewline)
+            if minimal, !lineStart, "*_=~`".contains(ch) {
+                out += String(ch)
                 continue
             }
             switch ch {
@@ -475,9 +489,13 @@ extension MarkdownCodec {
     }
 
     static func encodeURL(_ s: String) -> String {
-        s.replacingOccurrences(of: " ", with: "%20")
-            .replacingOccurrences(of: "(", with: "%28")
-            .replacingOccurrences(of: ")", with: "%29")
+        let spaced = s.replacingOccurrences(of: " ", with: "%20")
+        // 成对的括号可以直接写（维基百科的 Foo_(bar)）；不成对才编码
+        var depth = 0
+        for ch in spaced {
+            if ch == "(" { depth += 1 } else if ch == ")" { depth -= 1; if depth < 0 { break } }
+        }
+        return depth == 0 ? spaced : spaced.replacingOccurrences(of: "(", with: "%28").replacingOccurrences(of: ")", with: "%29")
     }
 
     private static func codeSpan(_ text: String) -> String {

@@ -53,7 +53,7 @@ if soft != "a - b =\nc\n" { failures += 1 }
 
 check("bullet then ordered nested", "- a\n  1. x\n  2. y\n- b\n")
 check("triple fallback", "***a* b**\n")
-check("highlight", "==重点== a = b, x \\=\\= y\n")
+check("highlight", "==重点== a = b, x \\=\\= y\n", "==重点== a = b, x == y\n")   // 后面没有成对的 ==，不用转义
 check("footnote", "正文[^1]\n\n[^1]: 脚注内容\n")
 check("details", "<details>\n<summary>点击展开 & 查看</summary>\n\n- 项目\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n</details>\n", "<details>\n<summary>点击展开 &amp; 查看</summary>\n\n- 项目\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n</details>\n")
 // 单页表示不了的写法：原样保存，或换成意思相同的写法
@@ -148,13 +148,13 @@ check("金额和公式同在", "公式 $x$ 金额 \\$5\n")
 check("反斜杠", "路径 C:\\Users\\a 和 \\n\n")
 check("转义的反斜杠恢复", "C:\\\\Users\n", "C:\\Users\n")
 check("句尾的反斜杠", "结尾 C:\\\\\n")
-check("反斜杠后是标点", "\\\\* 不是转义\n", "\\\\\\* 不是转义\n")
+check("反斜杠后是标点", "\\\\* 不是转义\n")
 check("空格中间的星号", "2 * 3 * 4 和 *斜*\n")
 check("星号开头仍转义", "\\* 不是列表\n")
 check("小于号", "1 < 2 且 3 > 2，a<3\n", "1 < 2 且 3 > 2，a<3\n")
 check("HTML 写法仍转义", "\\<b>字\n")
 check("单个波浪号", "~近似~ 和 ~~删除~~，H~2~O\n")
-check("转义的双波浪号", "\\~\\~不是删除线\n")
+check("转义的双波浪号", "\\~\\~不是删除线\n", "\\~~不是删除线\n")   // 行首的仍转义
 check("行内 HTML", "<span style=\"color:red\">红</span> 文字 <!-- 注 --> <a href=\"x\">链</a><br/>后\n", "<span style=\"color:red\">红</span> 文字 <!-- 注 --> <a href=\"x\">链</a><br>后\n")
 check("行内 $$", "行内 $$x$$ 公式\n")
 check("代码块信息", "```python title=\"a.py\" {1,3}\nx\n```\n")
@@ -181,7 +181,7 @@ for src in ["**新功能**\n- 一\n", "# 标题\n正文\n", "价格 $99\n", "路
 }
 let doc = "价格 $99\n# 标题\n正文 C:\\a\n- 一\n\n- 二\n\n\n```python title=\"a\"\nx\n```\n改这里\n\n<span>尾</span>"
 let idx = MarkdownCodec.parse(doc).firstIndex { MarkdownCodec.serialize([$0]) == "改这里\n" }!
-checkKeep("只改一段", doc, doc.replacingOccurrences(of: "改这里", with: "新\\* 的")) { $0[idx] = body("新* 的") }
+checkKeep("只改一段", doc, doc.replacingOccurrences(of: "改这里", with: "新* 的")) { $0[idx] = body("新* 的") }
 checkKeep("在中间加一段", "a $1\n\nb $2\n", "a $1\n\n新\n\nb $2\n") { $0.insert(body("新"), at: 1) }
 checkKeep("删掉一段", "a $1\n\nb\n\n\nc $3\n", "a $1\n\nc $3\n") { $0.remove(at: 1) }
 checkKeep("交换两段", "a $1\n\nb $2\n", "b $2\n\na $1\n") { $0.swapAt(0, 1) }
