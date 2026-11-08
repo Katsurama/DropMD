@@ -75,7 +75,7 @@ jobs:
       - name: 下载 Pandoc（官方 GitHub Releases，校验 SHA-256）
         run: |
           f="pandoc-${PANDOC_VERSION}-arm64-macOS.zip"
-          curl -fsSL -o "$f" "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/$f"
+          curl -fsSL --retry 3 --retry-all-errors -o "$f" "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/$f"
           echo "6e9eca844076bcbb599bbeebbba78a70f93b5307782b85c2c272872812c88875  $f" | shasum -a 256 -c -
           mkdir -p pandoc_x packaging/pandoc
           unzip -q "$f" -d pandoc_x
