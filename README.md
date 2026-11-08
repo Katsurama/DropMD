@@ -121,7 +121,7 @@ macos/                 界面（Swift / SwiftUI）
 src/dropmd/            转换引擎（Python：MarkItDown / Pandoc / Docling）
 tools/                 测试脚本
 .github/workflows/     构建 .dmg、自检、发布
-docs/                  使用说明（中文、英文）、发行说明、依赖清单
+docs/                  使用说明（简体、繁体、英文、日文）、发行说明、依赖清单
 ```
 
 Swift 界面把转换任务交给 App 里的本机引擎（子进程，通过标准输入输出交换 JSON）。依赖及版本见 [依赖清单](docs/依赖清单.md)。

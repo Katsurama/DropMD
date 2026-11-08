@@ -59,6 +59,8 @@ cp "$ROOT/LICENSE" "$APP/Contents/Resources/LICENSE"
 cp -R Resources/preview "$APP/Contents/Resources/preview"
 cp "$ROOT/docs/使用说明.md" "$APP/Contents/Resources/使用说明.md"
 cp "$ROOT/docs/User Guide.md" "$APP/Contents/Resources/User Guide.md"
+cp "$ROOT/docs/ユーザーガイド.md" "$APP/Contents/Resources/ユーザーガイド.md"
+cp "$ROOT/docs/使用說明.md" "$APP/Contents/Resources/使用說明.md"
 cp "$ROOT/THIRD_PARTY_LICENSES.md" "$APP/Contents/Resources/THIRD_PARTY_LICENSES.md"
 # “关于 DropMD”中的开源致谢：按界面语言放进 .lproj（放在 Resources 根目录时系统总是先用它）
 cp Resources/Credits.html "$APP/Contents/Resources/zh-Hans.lproj/Credits.html"
