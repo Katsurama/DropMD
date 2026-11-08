@@ -213,7 +213,7 @@ extension MarkdownCodec {
         case .ordered:
             return item(indent, "\(number).", keepingBreaks(inline(line.runs)))
         case .task(_, let done):
-            return item(indent, done ? "- [x]" : "- [ ]", keepingBreaks(inline(line.runs)))
+            return item(indent, (line.start.map { "\($0)." } ?? "-") + (done ? " [x]" : " [ ]"), keepingBreaks(inline(line.runs)))
         }
     }
 
