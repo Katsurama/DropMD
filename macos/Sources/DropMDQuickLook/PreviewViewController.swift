@@ -90,7 +90,7 @@ final class LocalImageHandler: NSObject, WKURLSchemeHandler {
         let file = images[index]
         let box = TaskBox(task)
         DispatchQueue.global(qos: .userInitiated).async {
-            let image = autoreleasepool { HTMLExport.previewImage(file, maxPixel: 1600) }
+            let image = HTMLExport.previewImage(file, maxPixel: 1600)
             DispatchQueue.main.async { [self] in
                 let task = box.task
                 guard stopped.remove(ObjectIdentifier(task)) == nil else { return }

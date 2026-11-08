@@ -233,13 +233,16 @@ final class UpdateChecker: ObservableObject {
         downloadTask = Task {
             do {
                 let file = try await download(package)
-                if let checksum = release.checksum(for: package) {
-                    let expected = try await fetchChecksum(checksum)
-                    let actual = try await Task.detached { try UpdateChecker.sha256(of: file) }.value
-                    guard expected == actual else {
-                        try? FileManager.default.removeItem(at: file)
-                        throw UpdateError.checksum
-                    }
+                // 没有校验文件就不装：宁可不更新，也不装没核对过的安装包
+                guard let checksum = release.checksum(for: package) else {
+                    try? FileManager.default.removeItem(at: file)
+                    throw UpdateError.checksum
+                }
+                let expected = try await fetchChecksum(checksum)
+                let actual = try await Task.detached { try UpdateChecker.sha256(of: file) }.value
+                guard expected == actual else {
+                    try? FileManager.default.removeItem(at: file)
+                    throw UpdateError.checksum
                 }
                 try Task.checkCancellation()
                 var reason = String(localized: "DropMD 所在的位置不能写入，无法自动替换。")

@@ -13,6 +13,7 @@ from pathlib import Path
 from huggingface_hub import HfApi
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from dropmd.model_manifest import FILES  # noqa: E402
 from dropmd.models import COMPONENTS  # noqa: E402
 
 api = HfApi()
@@ -22,8 +23,9 @@ print("|---|---|---|---|---|")
 for c in COMPONENTS.values():
     info = api.model_info(c.repo_id, revision=c.revision, files_metadata=True)
     files = []
+    keep = {f["path"] for f in FILES.get(c.key, [])}   # 已有清单的只更新这些文件：仓库里的示例图片、说明文档 App 用不到
     for s in info.siblings:
-        if s.rfilename.startswith("."):
+        if s.rfilename.startswith(".") or (keep and s.rfilename not in keep):
             continue
         entry = {"path": s.rfilename, "size": s.size or 0}
         if s.lfs:
