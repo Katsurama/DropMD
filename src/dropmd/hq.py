@@ -120,6 +120,13 @@ def convert_pdf(src: Path, dst: Path, ocr_engine: str, formulas: bool, images_di
     )
     # 保险起见，图片引用统一使用 Markdown 通用的正斜杠
     text = tmp.read_text(encoding="utf-8")
+    if not text.strip():  # 空白页：不生成空文件，也不覆盖原来的 .md
+        tmp.unlink()
+        if (dst.parent / images_dir_name).is_dir() and not any((dst.parent / images_dir_name).iterdir()):
+            (dst.parent / images_dir_name).rmdir()
+        from .errors import ConversionError, tr
+
+        raise ConversionError(tr("没有识别到文字。", "No text was recognized.", "沒有辨識到文字。"))
     fixed = text.replace(images_dir_name + "\\", images_dir_name + "/")
     if fixed != text:
         tmp.write_text(fixed, encoding="utf-8")

@@ -101,6 +101,18 @@ for name, src, want in [
     ok = got == want
     failed += not ok
     print("ok  " if ok else "FAIL", name, "" if ok else f"\n     got:  {got!r}\n     want: {want!r}")
+# 读不了的 PDF：三种引擎的英文报错都换成同一句话；加了密码的仍说密码
+from dropmd.errors import describe
+for cls, msg, want in [
+    ("FileConversionException", "File conversion failed after 1 attempts:\n - PdfConverter threw PSEOF with message: Unexpected EOF\n", "PDF 文件已损坏或格式无效。"),
+    ("ConversionError", "Conversion failed for: a.pdf with status: failure. Errors: docling-parse could not load document abc", "PDF 文件已损坏或格式无效。"),
+    ("PdfiumError", "Failed to load document (PDFium: Data format error).", "PDF 文件已损坏或格式无效。"),
+    ("PdfiumError", "Failed to load document (PDFium: Incorrect password error).", "文件已加密或设有密码，无法转换。请先解除密码保护。"),
+]:
+    got = describe(type(cls, (Exception,), {})(msg))
+    ok = got == want
+    failed += not ok
+    print("ok  " if ok else "FAIL", "读不了的 PDF", cls, "" if ok else f"\n     got:  {got!r}")
 # 引擎提示跟着界面语言：简体、繁体、英文
 import subprocess, sys, os
 for lang, want in [("zh", "找不到文件，可能已被移动或删除。"), ("zh-Hant", "找不到檔案，可能已被移動或刪除。"),
