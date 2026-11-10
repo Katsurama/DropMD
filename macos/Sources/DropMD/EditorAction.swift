@@ -185,3 +185,25 @@ struct ActionMenuItems: View {
         }
     }
 }
+
+/// 双页原文：给选中的几行加上或去掉引用、列表、编号、待办的标记（只处理文字，方便测试）。
+/// 缩进保留；空行不加标记；已有别的列表标记时换成新的；待办去掉标记时不管勾没勾
+func toggledPrefixLines(_ lines: [String], prefix: String, numbered: Bool) -> [String] {
+    if prefix == "> " {   // 引用：每一行（包括空行）都加，才是同一段引用
+        let all = lines.allSatisfy { $0.hasPrefix("> ") || $0 == ">" }
+        return lines.map { all ? String($0.dropFirst($0.hasPrefix("> ") ? 2 : 1)) : "> " + $0 }
+    }
+    let own = numbered ? #"^(\s*)\d+[.)] "# : prefix.hasPrefix("- [") ? #"^(\s*)[-*+] \[[ xX]\] "# : #"^(\s*)[-*+] (?!\[[ xX]\] )"#
+    let any = #"^(\s*)(?:[-*+] \[[ xX]\] |[-*+] |\d+[.)] )?"#
+    func has(_ l: String) -> Bool { l.range(of: own, options: .regularExpression) != nil }
+    let blank = { (l: String) in l.trimmingCharacters(in: .whitespaces).isEmpty }
+    let content = lines.contains { !blank($0) } ? lines.filter { !blank($0) } : lines
+    let remove = content.allSatisfy(has)
+    var n = 0
+    return lines.map { l in
+        if blank(l) && lines.contains(where: { !blank($0) }) { return l }
+        if remove { return l.replacingOccurrences(of: own, with: "$1", options: .regularExpression) }
+        n += 1
+        return l.replacingOccurrences(of: any, with: "$1" + NSRegularExpression.escapedTemplate(for: numbered ? "\(n). " : prefix), options: .regularExpression)
+    }
+}
