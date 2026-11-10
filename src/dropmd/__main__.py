@@ -40,6 +40,7 @@ MULTILANG_EXPECT = ["简体中文", "日本語", "繁體中文", "English"]
 
 def _selftest(out_dir: str, hq: bool) -> int:
     import socket
+    import traceback
     from pathlib import Path
 
     from . import netguard
@@ -102,7 +103,10 @@ def _selftest(out_dir: str, hq: bool) -> int:
     except Exception as exc:  # noqa: BLE001
         chain, e = [], exc
         while e is not None and len(chain) < 6:
-            chain.append(repr(e))
+            # 缺文件时把文件名和出错的位置也写出来：打包漏了哪个文件，一眼能看到
+            where = traceback.extract_tb(e.__traceback__)[-1:] if e.__traceback__ else []
+            chain.append(repr(e) + (f" 文件：{e.filename}" if getattr(e, "filename", None) else "")
+                         + "".join(f" @ {f.filename}:{f.lineno}" for f in where))
             e = e.__cause__ or e.__context__
         try:  # 直接导入以取得原始错误
             import importlib
