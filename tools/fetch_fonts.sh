@@ -18,9 +18,73 @@ if check; then echo "MiSans 已就绪：$DEST"; exit 0; fi
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-# The Xiaomi endpoint intermittently breaks HTTP/2 streams on GitHub-hosted runners.
-curl --http1.1 -fsSL --retry 5 --retry-all-errors -o "$TMP/MiSans.zip" https://hyperos.mi.com/font-download/MiSans.zip
-curl --http1.1 -fsSL --retry 5 --retry-all-errors -o "$TMP/MiSans_TC.zip" https://hyperos.mi.com/font-download/MiSans_TC.zip
+# 小米的服务器在 GitHub Actions 上经常传到一半就断开（curl 退出码 18）。
+# curl 自己的 --retry 会从头再下，两百多 MB 的文件很难成功；这里按已下载的字节续传，
+# 直到文件大小与服务器一致。最后仍由下面的 SHA-256 校验兜底。
+fetch_zip() {
+  local url="$1" dest="$2" total size attempt=0 stall=0 newsize
+  total=$(curl --http1.1 -fsSL --max-time 60 -r 0-0 -D - -o /dev/null "$url" \
+    | tr -d '\r' \
+    | awk 'tolower($1) == "content-range:" { split($3, part, "/"); print part[2]; exit }') || total=""
+  case "$total" in
+    ''|*[!0-9]*)
+      echo "取不到文件大小：$url" >&2
+      return 1
+      ;;
+  esac
+
+  : > "$dest"
+  while :; do
+    size=$(wc -c < "$dest" | tr -d ' ')
+    if [ "$size" -eq "$total" ]; then
+      return 0
+    fi
+    if [ "$size" -gt "$total" ]; then
+      : > "$dest"
+      continue
+    fi
+
+    attempt=$((attempt + 1))
+    if [ "$attempt" -gt 300 ]; then
+      echo "下载中断次数过多：$url" >&2
+      return 1
+    fi
+    if [ "$attempt" -gt 1 ] && [ $((attempt % 10)) -eq 0 ]; then
+      echo "续传 $(basename "$dest")：$size / $total 字节"
+    fi
+
+    # 每次只连一次；连接被对端断开时 curl 返回非 0，已写下的部分留给下一轮续传
+    if [ "$size" -eq 0 ]; then
+      curl --http1.1 -fsSL --connect-timeout 30 --max-time 300 --retry 0 -o "$dest" "$url" || true
+    else
+      curl --http1.1 -fsSL --connect-timeout 30 --max-time 300 --retry 0 -C "$size" -o "$dest" "$url" || true
+    fi
+
+    newsize=$(wc -c < "$dest" | tr -d ' ')
+    if [ "$newsize" -le "$size" ]; then
+      # 服务器没接受续传，或文件已经坏了：清空后从头下；连续没有进展就放弃
+      stall=$((stall + 1))
+      if [ "$stall" -ge 10 ]; then
+        echo "下载没有进展：$url" >&2
+        return 1
+      fi
+      : > "$dest"
+      sleep 2
+    else
+      stall=0
+    fi
+  done
+}
+
+# 两个字体包同时下，缩短构建时间
+fetch_zip https://hyperos.mi.com/font-download/MiSans.zip "$TMP/MiSans.zip" &
+pid_fonts=$!
+fetch_zip https://hyperos.mi.com/font-download/MiSans_TC.zip "$TMP/MiSans_TC.zip" &
+pid_fonts_tc=$!
+status=0
+wait "$pid_fonts" || status=1
+wait "$pid_fonts_tc" || status=1
+[ "$status" -eq 0 ] || exit 1
 unzip -o -q -j "$TMP/MiSans.zip" "MiSans/otf/MiSans-Regular.otf" "MiSans/otf/MiSans-Bold.otf" -d "$DEST"
 unzip -o -q -j "$TMP/MiSans_TC.zip" "MiSans TC/otf/MisansTC-Regular.otf" "MiSans TC/otf/MisansTC-Bold.otf" -d "$DEST"
 (cd "$DEST" && echo "$SUMS" | shasum -a 256 -c -)
