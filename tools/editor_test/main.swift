@@ -207,6 +207,18 @@ MainActor.assumeIsolated {
         type(tv, "字")
         check("行首打字 \(src.debugDescription)", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src), want)
     }
+    // 代码块后面的段落设成代码块：屏幕上连成一块，保存也是一块；原来就分开的两块仍分开
+    do {
+        let tv = makeView("```\na\n```\n\n乙\n")
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "乙").location, length: 0))
+        tv.setKind(.code(""))
+        check("代码块后新设的代码块并进去", md(tv), "```\na\n乙\n```\n")
+        let two = makeView("```sh\na\n```\n\n```py\nb\n```\n")
+        let gap = (two.string as NSString).range(of: "\n\n").location + 1
+        two.setSelectedRange(NSRange(location: gap, length: 0))
+        two.setKind(.code(""))
+        check("两块之间的空行设成代码块后两块仍分开", md(two), "```sh\na\n```\n\n```py\nb\n```\n")
+    }
     // 在第二个代码块里打字，第一个不受影响
     do {
         let tv = makeView("```sh\na\n```\n\n```py\nb\n```\n")
