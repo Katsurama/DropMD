@@ -101,6 +101,7 @@ struct RichTextEditor: NSViewRepresentable {
         private weak var pendingView: NSTextView?
         private weak var document: NSDocument?
         private var work: DispatchWorkItem?
+        private var lastFlushSeconds = 0.0
 
         init(_ parent: RichTextEditor) { self.parent = parent }
 
@@ -116,7 +117,8 @@ struct RichTextEditor: NSViewRepresentable {
             work?.cancel()
             let item = DispatchWorkItem { [weak self] in self?.flush() }
             work = item
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: item)
+            // 文档越大转换越久：等待时间跟着上次的耗时变长，长文档里不会每次停顿都卡一下（保存、关窗前仍立刻写回）
+            DispatchQueue.main.asyncAfter(deadline: .now() + max(0.25, min(3, lastFlushSeconds * 8)), execute: item)
         }
 
         func textDidEndEditing(_ notification: Notification) {
@@ -136,7 +138,9 @@ struct RichTextEditor: NSViewRepresentable {
             guard let tv = pendingView, let storage = tv.textStorage else { return }
             pendingView = nil
             // 没改过的段落保持原文，只有改过的才按标准写法写
+            let started = Date()
             let md = MarkdownCodec.serialize(RichBridge.blocks(from: storage), preserving: parent.text)
+            lastFlushSeconds = Date().timeIntervalSince(started)
             lastMarkdown = md
             if parent.text != md { parent.text = md }
         }
