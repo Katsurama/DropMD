@@ -79,9 +79,24 @@ Choose **File → Convert Files to Markdown…**, then drag in files or whole fo
 | --- | --- | --- |
 | Fast | Word, Excel, PowerPoint, HTML, text-based PDF | [MarkItDown](https://github.com/microsoft/markitdown) |
 | Word, better layout | Word documents whose layout and images should be kept | [Pandoc](https://pandoc.org/) |
-| High Accuracy | Papers, tables, formulas, scanned PDFs | [Docling](https://github.com/docling-project/docling) + OCR (RapidOCR or Apple Vision), or optionally [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0) (more accurate, slower, about 1.8 GB download) |
+| High Accuracy | Papers, tables, formulas, scanned PDFs | [Docling](https://github.com/docling-project/docling) + OCR (RapidOCR, Apple Vision), or [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0) |
 
 You don't need to install Python: the conversion engine is built into the app.
+
+### 🆕 New: Xiaomi-OCR-0
+
+High Accuracy mode can now use [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0), an open source document recognition model from Xiaomi (Apache-2.0). Choose it under OCR Engine. The first time, it downloads about 1.8 GB after you agree; after that it works fully offline.
+
+| | Xiaomi-OCR-0 | RapidOCR (default) |
+| --- | --- | --- |
+| Text | More accurate; reads formulas and tables too | Fine for everyday use; formulas are a separate option |
+| Mixed languages | Chinese, Japanese, English, French, German, Spanish, Russian, even on one line | Chinese, Japanese, English |
+| Speed (10-page test document) | About 155 seconds | About 30 seconds |
+| Extra download | About 1.8 GB | None |
+| Images in the PDF | Not exported | Exported |
+
+> [!NOTE]
+> Speed was measured on an M4 Mac with 16 GB of memory using clean test pages; real scans will differ. Xiaomi-OCR-0 makes more mistakes in Korean and Vietnamese. DropMD is an independent project and isn't affiliated with Xiaomi.
 
 ## 🔒 Privacy
 
