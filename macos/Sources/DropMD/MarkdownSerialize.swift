@@ -150,9 +150,12 @@ extension MarkdownCodec {
                 }
                 text = render(line, number: number, indent: indent)
             case .code(let lang, let lines, _):
-                let longest = lines.map { longestRun(of: "`", in: $0) }.max() ?? 0
-                let fence = String(repeating: "`", count: max(3, longest + 1))
-                text = fence + lang + "\n" + lines.joined(separator: "\n") + (lines.isEmpty ? "" : "\n") + fence
+                // 语言那一行里有反引号时（原文是 ~~~ 围栏）不能用 ``` 围栏，否则读回来不是代码块
+                let mark: Character = lang.contains("`") ? "~" : "`"
+                let longest = lines.map { longestRun(of: mark, in: $0) }.max() ?? 0
+                let fence = String(repeating: mark, count: max(3, longest + 1))
+                // 空代码块在单页里显示成一个空行，读回来是 [""]：和没有内容一样写，否则不改也会被改写
+                text = fence + lang + "\n" + (lines.isEmpty || lines == [""] ? "" : lines.joined(separator: "\n") + "\n") + fence
                 if let n = codeIndent {
                     let pad = String(repeating: " ", count: n)
                     text = text.components(separatedBy: "\n").map { $0.isEmpty ? $0 : pad + $0 }.joined(separator: "\n")
@@ -300,8 +303,15 @@ extension MarkdownCodec {
     static func inline(_ runs: [MDRun], heading: Bool = false, inCell: Bool = false) -> String {
         // 先试不加多余反斜杠的写法：读回来和原来一样才用（*.md、单独的 _、== 不必转义），否则用保守写法
         let light = render(runs, heading: heading, inCell: inCell, minimal: true)
-        let back = merged(MarkdownCodec.parseInline(light).map { r in var r = r; if heading { r.bold = false }; return r })
-        let want = merged(runs.map { r in var r = r; if heading { r.bold = false }; return r })
+        // 原样文字（脚注编号、HTML 标签等）只比文字：单页里脚注显示成上标、提示框标题显示成粗体，这些不算格式
+        func plain(_ r: MDRun) -> MDRun {
+            if r.literal { return MDRun(text: r.text, literal: true) }
+            var r = r
+            if heading { r.bold = false }
+            return r
+        }
+        let back = merged(MarkdownCodec.parseInline(light).map(plain))
+        let want = merged(runs.map(plain))
         return back == want ? light : render(runs, heading: heading, inCell: inCell, minimal: false)
     }
 
