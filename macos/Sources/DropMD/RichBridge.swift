@@ -561,8 +561,10 @@ enum RichBridge {
                 i += 1
             case .code(let lang, _, let listGap, let id):
                 var lines: [String] = []
+                var current = id   // 刚设成代码块的段落没有编号：算进紧挨着的代码块，屏幕上它们也连在一起
                 while let item = next(i) {
-                    guard case .code(_, let text, _, let other) = item, other == id else { break }
+                    guard case .code(_, let text, _, let other) = item, other == current || other == nil || current == nil else { break }
+                    current = current ?? other
                     lines.append(text)
                     i += 1
                 }
