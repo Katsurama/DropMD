@@ -160,6 +160,12 @@ check("行内 $$", "行内 $$x$$ 公式\n")
 check("代码块信息", "```python title=\"a.py\" {1,3}\nx\n```\n")
 check("带标题的提示框", "> [!TIP] 标题\n> 内容\n")
 check("提示框写法不在开头", "见 \\[!TIP\\] 这里\n")
+check("空代码块", "```\n```\n")
+check("围栏语言行里有反引号", "~~~a `b`\nx\n~~~\n")
+// 列表项下面缩进写引用、标题、HTML、分隔线、公式：以前打开就崩溃（解析没完没了地调用自己），现在整块原样保存
+for s in ["- a\n  > 引用\n", "- a\n  # 标题\n", "1. 步骤\n   <br>\n", "- a\n <div>\n", "- a\n  ---\n", "- a\n  $$x$$\n", "- a\n  - b\n    > q\n", "- a\n <details>\nx\n</details>\n"] {
+    check("列表项下的缩进内容 \(s.debugDescription)", s)
+}
 
 // 保存时没改过的段落保持原文
 func checkKeep(_ name: String, _ base: String, _ want: String, edit: (inout [MDBlock]) -> Void) {

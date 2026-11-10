@@ -432,6 +432,8 @@ enum MarkdownCodec {
         var contentCol = 0         // 上一个列表项文字开始的列
         func flush() -> Bool {
             guard !chunk.isEmpty else { return true }
+            // 这几行自己还是“复杂列表”（列表项下面缩进写了引用、标题、HTML 等）：交给 parse 会回到这里，没完没了直到崩溃。整块原样保存
+            guard complexListEnd(chunk, 0) == nil else { return false }
             let parsed = parse(chunk.joined(separator: "\n"))
             chunk = []
             guard parsed.allSatisfy({ if case .line(let l) = $0 { return l.kind.listDepth != nil } else { return false } }) else { return false }
