@@ -79,9 +79,24 @@ xattr -dr com.apple.quarantine /Applications/DropMD.app
 | --- | --- | --- |
 | 高速 | Word、Excel、PowerPoint、HTML、テキストベースの PDF | [MarkItDown](https://github.com/microsoft/markitdown) |
 | Word、レイアウト重視 | レイアウトや画像を残したい Word 文書 | [Pandoc](https://pandoc.org/) |
-| 高精度 | 論文、表、数式、スキャンした PDF | [Docling](https://github.com/docling-project/docling) + OCR（RapidOCR または Apple Vision）、または任意の [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0)（高精度・低速、約 1.8 GB のダウンロードが必要） |
+| 高精度 | 論文、表、数式、スキャンした PDF | [Docling](https://github.com/docling-project/docling) + OCR（RapidOCR、Apple Vision）、または [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0) |
 
 Python をインストールする必要はありません。変換エンジンはアプリに内蔵されています。
+
+### 🆕 新機能：Xiaomi-OCR-0
+
+高精度モードで [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0) を選べるようになりました。Xiaomi（小米）がオープンソースで公開している文書認識モデルです（Apache-2.0）。「OCR エンジン」で選びます。初回は同意のうえ約 1.8 GB をダウンロードし、その後は完全にオフラインで動きます。
+
+| | Xiaomi-OCR-0 | RapidOCR（標準） |
+| --- | --- | --- |
+| 文字認識 | より正確。数式と表も一緒に認識 | 普段使いには十分。数式は別のオプション |
+| 複数の言語 | 中国語、日本語、英語、フランス語、ドイツ語、スペイン語、ロシア語。同じ行に混ざっていても可 | 中国語、日本語、英語 |
+| 速さ（10 ページのテスト文書） | 約 155 秒 | 約 30 秒 |
+| 追加のダウンロード | 約 1.8 GB | 不要 |
+| PDF 内の画像 | 書き出さない | 書き出す |
+
+> [!NOTE]
+> 速さは M4 チップ、メモリ 16 GB の Mac で、きれいなテストページを使って測ったものです。実際のスキャンでは変わります。Xiaomi-OCR-0 は韓国語とベトナム語で誤字が多くなります。DropMD は独立したプロジェクトで、Xiaomi とは関係ありません。
 
 ## 🔒 プライバシー
 

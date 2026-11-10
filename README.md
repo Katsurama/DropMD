@@ -36,6 +36,7 @@
 - **界面语言**：简体中文、繁体中文、英文或日文，跟随系统，也可以在“设置”里单独选择
 - **中文输入法友好**：段首输入“－ ”“》 ”“1。 ”“【】 ”“＃ ”也能自动变成列表、引用、待办、标题
 - **原生 Mac 界面**：SwiftUI 开发，macOS 26 起使用 Liquid Glass，浅色 / 深色都有专门配色
+- **文件转换**：Word、Excel、PowerPoint、PDF 转成 Markdown；扫描版 PDF 可选 [Xiaomi-OCR-0](#-新接入xiaomi-ocr-0) 识别 🆕
 - **快速查看**：在访达里选中 .md 文件按空格，不用打开就能看到排版效果
 - **导出**：PDF、HTML；自动保存和版本历史
 - **软件更新**：在 App 里检查新版本，下载后校验完整性，点“重新启动”即完成
@@ -79,9 +80,26 @@ xattr -dr com.apple.quarantine /Applications/DropMD.app
 | --- | --- | --- |
 | 快速 | Word、Excel、PowerPoint、HTML、文字型 PDF | [MarkItDown](https://github.com/microsoft/markitdown) |
 | Word 高质量 | 需要还原排版和图片的 Word 文档 | [Pandoc](https://pandoc.org/) |
-| 高精度 | 论文、表格、公式、扫描版 PDF | [Docling](https://github.com/docling-project/docling) + OCR（RapidOCR 或 Apple Vision），或可选的 [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0)（更准、较慢，需下载约 1.8 GB） |
+| 高精度 | 论文、表格、公式、扫描版 PDF | [Docling](https://github.com/docling-project/docling) + OCR（RapidOCR、Apple Vision），或 [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0) |
 
 不需要安装 Python，转换引擎已经打包在 App 里。
+
+### 🆕 新接入：Xiaomi-OCR-0
+
+<p align="center"><img src="docs/images/convert-xiaomi.jpg" alt="转换窗口：高精度模式下选择 Xiaomi-OCR-0" width="82%"></p>
+
+高精度模式现在可以选 [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0)：小米开源的文档识别模型（Apache-2.0）。在“OCR 引擎”里选它，第一次用时同意后下载约 1.8 GB，之后完全离线。
+
+| | Xiaomi-OCR-0 | RapidOCR（默认） |
+| --- | --- | --- |
+| 认字 | 更准，公式和表格一起识别 | 日常够用，公式要另外打开 |
+| 多语言混排 | 中、日、繁、英、法、德、西、俄，写在同一行也能认 | 中、日、繁、英 |
+| 速度（10 页测试文档） | 约 155 秒 | 约 30 秒 |
+| 额外下载 | 约 1.8 GB | 不用 |
+| PDF 里的图片 | 不导出 | 导出 |
+
+> [!NOTE]
+> 速度是在 M4 芯片、16 GB 内存的 Mac 上用干净的测试页测的，真实扫描件会有出入。Xiaomi-OCR-0 认韩文和越南文错字较多。DropMD 是独立项目，与小米没有关联。
 
 ## 🔒 隐私
 
