@@ -231,23 +231,7 @@ final class EditorController: ObservableObject {
         var block = ns.substring(with: lineRange)
         let hadNewline = block.hasSuffix("\n")
         if hadNewline { block.removeLast() }
-        var lines = block.components(separatedBy: "\n")
-        let pattern = numbered ? #"^\d+\. "# : "^" + NSRegularExpression.escapedPattern(for: prefix)
-        let re = try? NSRegularExpression(pattern: pattern)
-        let allHave = lines.allSatisfy { l in
-            re?.firstMatch(in: l, range: NSRange(location: 0, length: (l as NSString).length)) != nil
-        }
-        for (i, l) in lines.enumerated() {
-            let r = NSRange(location: 0, length: (l as NSString).length)
-            if allHave {
-                lines[i] = re?.stringByReplacingMatches(in: l, range: r, withTemplate: "") ?? l
-            } else {
-                // 修复：部分行已有列表标记时，先去掉旧标记，避免出现“- - 文字”“1. 1. 文字”
-                let bare = prefix == "> " ? l : l.replacingOccurrences(
-                    of: #"^([-*+] \[[ xX]\] |[-*+] |\d+\. )"#, with: "", options: .regularExpression)
-                lines[i] = (numbered ? "\(i + 1). " : prefix) + bare
-            }
-        }
+        let lines = toggledPrefixLines(block.components(separatedBy: "\n"), prefix: prefix, numbered: numbered)
         let result = lines.joined(separator: "\n") + (hadNewline ? "\n" : "")
         replace(lineRange, with: result, select: NSRange(location: lineRange.location, length: (result as NSString).length))
     }

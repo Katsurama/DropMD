@@ -219,6 +219,35 @@ MainActor.assumeIsolated {
         two.setKind(.code(""))
         check("两块之间的空行设成代码块后两块仍分开", md(two), "```sh\na\n```\n\n```py\nb\n```\n")
     }
+    // 双页原文的列表按钮：缩进保留，空行不加标记，勾选状态不丢
+    for (name, lines, prefix, numbered, want) in [
+        ("加列表", ["a", "", "b"], "- ", false, ["- a", "", "- b"]),
+        ("去列表", ["- a", "* b"], "- ", false, ["a", "b"]),
+        ("嵌套列表换成编号", ["- a", "  - b"], "", true, ["1. a", "  2. b"]),
+        ("待办去标记不管勾没勾", ["- [x] a", "- [ ] b"], "- [ ] ", false, ["a", "b"]),
+        ("列表改待办", ["- a", "1. b"], "- [ ] ", false, ["- [ ] a", "- [ ] b"]),
+        ("待办改列表", ["- [x] a"], "- ", false, ["- a"]),
+        ("空行上加列表", [""], "- ", false, ["- "]),
+        ("加引用", ["a", "", "b"], "> ", false, ["> a", "> ", "> b"]),
+        ("去引用", ["> a", ">", "> b"], "> ", false, ["a", "", "b"]),
+        ("文字里的美元和反斜杠", ["$1 \\n"], "- ", false, ["- $1 \\n"]),
+    ] as [(String, [String], String, Bool, [String])] {
+        check("原文 \(name)", toggledPrefixLines(lines, prefix: prefix, numbered: numbered).joined(separator: "|"), want.joined(separator: "|"))
+    }
+    // 有脚注的段落不改就保存：不能多出反斜杠（脚注在单页里显示成上标，不算改过）
+    for src in ["见 ~/a/*.md 文件[^1]\n", "网址 https://x.y/z_(1) 说明[^2]\n", "> [!TIP]\n> 用 a*b 和 _ 表示\n"] {
+        check("带脚注或提示框不改 \(src.debugDescription)", MarkdownCodec.serialize(RichBridge.blocks(from: makeView(src).textStorage!), preserving: src), src)
+    }
+    // 空代码块、没写完的代码块：不改就保存，原文不变；文档只有一条分隔线时，在后面打的字不会变成分隔线
+    for src in ["```\n```\n", "前\n\n```py\n```\n\n后\n", "```py"] {
+        check("空代码块不改 \(src.debugDescription)", MarkdownCodec.serialize(RichBridge.blocks(from: makeView(src).textStorage!), preserving: src), src)
+    }
+    do {
+        let tv = makeView("---")
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).length, length: 0))
+        type(tv, "字")
+        check("分隔线后打字", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: "---").contains("字") ? "在" : "丢了", "在")
+    }
     // 在第二个代码块里打字，第一个不受影响
     do {
         let tv = makeView("```sh\na\n```\n\n```py\nb\n```\n")
