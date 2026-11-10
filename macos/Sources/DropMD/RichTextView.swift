@@ -443,6 +443,9 @@ final class RichTextView: NSTextView {
                     newValue[.font] = RichStyle.baseFont(for: RichBridge.kind(of: newValue))
                 }
             }
+            if newValue[DMKey.rule] != nil {   // 在分隔线旁输入的文字不是分隔线，否则保存时变成另一条线
+                newValue = RichStyle.typingAttributes(for: .body)
+            }
             if newValue[DMKey.image] != nil {   // 在图片旁输入的文字不是图片，否则保存时被吞掉
                 for k in [DMKey.image, DMKey.imageID, DMKey.alt, DMKey.title, DMKey.link, DMKey.linkTitle] { newValue[k] = nil }
                 newValue[.foregroundColor] = RichStyle.bodyColor
