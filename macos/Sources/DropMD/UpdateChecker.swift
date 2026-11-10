@@ -118,6 +118,7 @@ final class UpdateChecker: ObservableObject {
     @Published var includeBeta: Bool { didSet { defaults.set(includeBeta, forKey: "includeBetaUpdates") } }
 
     private var downloadTask: Task<Void, Never>?
+    private var replaceScheduled = false
 
     /// 发布安装包的 GitHub 仓库（Info.plist 中的 DropMDUpdateRepository，格式 owner/repo）
     static var repository: String? {
@@ -232,13 +233,11 @@ final class UpdateChecker: ObservableObject {
         progress = 0
         downloadTask = Task {
             do {
-                let file = try await download(package)
-                // 没有校验文件就不装：宁可不更新，也不装没核对过的安装包
-                guard let checksum = release.checksum(for: package) else {
-                    try? FileManager.default.removeItem(at: file)
-                    throw UpdateError.checksum
-                }
+                // 没有校验文件就不装：宁可不更新，也不装没核对过的安装包。
+                // 先取校验文件（很小）：取不到就不用白下几百 MB 的安装包
+                guard let checksum = release.checksum(for: package) else { throw UpdateError.checksum }
                 let expected = try await fetchChecksum(checksum)
+                let file = try await download(package)
                 let actual = try await Task.detached { try UpdateChecker.sha256(of: file) }.value
                 guard expected == actual else {
                     try? FileManager.default.removeItem(at: file)
@@ -297,12 +296,16 @@ final class UpdateChecker: ObservableObject {
             state = .failed(String(localized: "新版本文件不见了，请重新下载。"))
             return
         }
-        do {
-            try AppUpdateInstaller.replaceAfterExit(pid: ProcessInfo.processInfo.processIdentifier,
-                                                    app: Self.appURL, staged: staged, relaunch: true)
-        } catch {
-            state = .failed(String(localized: "无法启动更新：\(error.localizedDescription)"))
-            return
+        // 替换脚本只启动一次：取消退出后再点“重新启动”，两个脚本同时替换会把 App 弄坏
+        if !replaceScheduled {
+            do {
+                try AppUpdateInstaller.replaceAfterExit(pid: ProcessInfo.processInfo.processIdentifier,
+                                                        app: Self.appURL, staged: staged, relaunch: true)
+                replaceScheduled = true
+            } catch {
+                state = .failed(String(localized: "无法启动更新：\(error.localizedDescription)"))
+                return
+            }
         }
         NSApp.terminate(nil)
     }
@@ -378,7 +381,11 @@ final class UpdateChecker: ObservableObject {
     }
 
     private func fetchChecksum(_ asset: ReleaseInfo.Asset) async throws -> String {
-        let (data, _) = try await URLSession.shared.data(for: assetRequest(asset), delegate: TaskCapture())
+        let (data, response) = try await URLSession.shared.data(for: assetRequest(asset), delegate: TaskCapture())
+        // 服务器出错时返回的是一页错误说明，不是校验值：按服务器错误报，不说“安装包校验失败”
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw UpdateError.http((response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
         let text = String(decoding: data, as: UTF8.self)
         guard let hex = text.split(whereSeparator: { $0.isWhitespace }).first.map(String.init),
               hex.count == 64 else { throw UpdateError.checksum }
