@@ -18,8 +18,9 @@ if check; then echo "MiSans 已就绪：$DEST"; exit 0; fi
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-curl -fsSL --retry 3 --retry-all-errors -o "$TMP/MiSans.zip" https://hyperos.mi.com/font-download/MiSans.zip
-curl -fsSL --retry 3 --retry-all-errors -o "$TMP/MiSans_TC.zip" https://hyperos.mi.com/font-download/MiSans_TC.zip
+# The Xiaomi endpoint intermittently breaks HTTP/2 streams on GitHub-hosted runners.
+curl --http1.1 -fsSL --retry 5 --retry-all-errors -o "$TMP/MiSans.zip" https://hyperos.mi.com/font-download/MiSans.zip
+curl --http1.1 -fsSL --retry 5 --retry-all-errors -o "$TMP/MiSans_TC.zip" https://hyperos.mi.com/font-download/MiSans_TC.zip
 unzip -o -q -j "$TMP/MiSans.zip" "MiSans/otf/MiSans-Regular.otf" "MiSans/otf/MiSans-Bold.otf" -d "$DEST"
 unzip -o -q -j "$TMP/MiSans_TC.zip" "MiSans TC/otf/MisansTC-Regular.otf" "MiSans TC/otf/MisansTC-Bold.otf" -d "$DEST"
 (cd "$DEST" && echo "$SUMS" | shasum -a 256 -c -)
