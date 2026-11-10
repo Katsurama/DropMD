@@ -49,6 +49,8 @@ for pkg in [
     hiddenimports += h
 
 datas += collect_data_files("transformers", include_py_files=False)
+# Docling 2.142 起用它把公式转成 MathML，符号表是个数据文件（unimathsymbols.txt），不收集就报找不到文件
+datas += collect_data_files("latex2mathml")
 # Xiaomi-OCR-0 按模型配置动态加载这些模块
 hiddenimports += collect_submodules("transformers.models.qwen3_5") + collect_submodules("transformers.models.qwen3_vl") + collect_submodules("transformers.models.qwen2_vl")
 
