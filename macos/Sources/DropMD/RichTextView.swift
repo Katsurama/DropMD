@@ -363,14 +363,25 @@ final class RichTextView: NSTextView {
 
     // MARK: - 页面外观：整个编辑区同一底色，文字在居中的版心中
 
-    private static let columnWidth: CGFloat = 672   // 版心最大宽度
-    private static let minMargin: CGFloat = 32      // 窗口较窄时左右至少留出的距离
     private static let topMargin: CGFloat = 56
+    private var marginObserver: NSObjectProtocol?
+
+    /// 在“显示 → 页边距”或设置里改了页边距：马上重新排版
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard marginObserver == nil, window != nil else { return }
+        marginObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.needsLayout = true }
+        }
+    }
+
+    deinit {
+        if let marginObserver { NotificationCenter.default.removeObserver(marginObserver) }
+    }
 
     override func layout() {
         super.layout()
-        let margin = max(Self.minMargin, ((bounds.width - Self.columnWidth) / 2).rounded())
-        let inset = NSSize(width: margin, height: Self.topMargin)
+        let inset = NSSize(width: PageMargin.current.margin(for: bounds.width), height: Self.topMargin)
         if abs(textContainerInset.width - inset.width) > 0.5 || textContainerInset.height != inset.height {
             textContainerInset = inset
         }
