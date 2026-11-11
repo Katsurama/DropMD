@@ -82,7 +82,14 @@ jobs:
           cp pandoc_x/*/bin/pandoc packaging/pandoc/
           chmod +x packaging/pandoc/pandoc
 
-      - name: 下载 MiSans 字体（小米官网，校验 SHA-256）
+      # 小米官网在构建机上经常传到一半断开：下载成功一次后存进构建缓存，以后的构建直接用（脚本仍会校验 SHA-256）。
+      # 缓存只有本仓库的构建能读，不是公开下载，字体文件仍不进仓库
+      - uses: actions/cache@v4
+        with:
+          path: build/fonts
+          key: misans-${{ hashFiles('tools/fetch_fonts.sh') }}
+
+      - name: 下载 MiSans 字体（小米官网，校验 SHA-256；缓存里有就不下载）
         run: tools/fetch_fonts.sh
 
       - name: 生成第三方许可证清单
