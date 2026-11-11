@@ -333,3 +333,11 @@
 "公式和表格一起识别。需下载约 1.8 GB，不导出 PDF 里的图片，韩文和越南文错字较多。" = "Reads formulas and tables too. Needs a download of about 1.8 GB, doesn't export images from the PDF, and makes more mistakes in Korean and Vietnamese.";
 "这个模型比较大，下载一次后可以离线使用。" = "This model is large. Once downloaded, it works offline.";
 "第 %lld / %lld 页" = "Page %lld of %lld";
+"页边距" = "Page Margins";
+"宽" = "Wide";
+"标准" = "Standard";
+"窄" = "Narrow";
+"最窄" = "Narrowest";
+"页边距只影响单页。选“自动”时，窗口越大，文字那一栏越宽。" = "Page margins apply to Page view only. With Automatic, the text column gets wider as the window grows.";
+"默认打开程序" = "Default App";
+"显示" = "Display";

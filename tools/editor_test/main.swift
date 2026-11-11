@@ -219,6 +219,11 @@ MainActor.assumeIsolated {
         two.setKind(.code(""))
         check("两块之间的空行设成代码块后两块仍分开", md(two), "```sh\na\n```\n\n```py\nb\n```\n")
     }
+    // 页边距：窗口窄时最少留 32；自动时窗口越宽文字栏越宽，但不超过 900；最窄时铺满
+    for (m, w, want) in [(PageMargin.auto, 700, 32), (.auto, 1000, 164), (.auto, 1357, 258), (.auto, 1700, 400), (.auto, 2400, 750),
+                         (.wide, 1700, 514), (.standard, 1700, 450), (.narrow, 1700, 370), (.none, 1700, 32), (.wide, 500, 32)] as [(PageMargin, CGFloat, CGFloat)] {
+        check("页边距 \(m.rawValue) \(Int(w))", "\(Int(m.margin(for: w)))", "\(Int(want))")
+    }
     // 双页原文的列表按钮：缩进保留，空行不加标记，勾选状态不丢
     for (name, lines, prefix, numbered, want) in [
         ("加列表", ["a", "", "b"], "- ", false, ["- a", "", "- b"]),
