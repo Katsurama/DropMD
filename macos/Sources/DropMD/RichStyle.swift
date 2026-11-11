@@ -36,6 +36,37 @@ enum DMKey {
     static let paragraphKeys = [heading, quote, code, task, list, depth, raw, rule, summary, detailsOpen, collapsed, start, listCode, codeBlock]
 }
 
+/// 单页的页边距（“显示 → 页边距”、设置）：实际控制的是文字那一栏最宽多少，两边剩下的就是页边距
+enum PageMargin: String, CaseIterable, Identifiable {
+    case auto, wide, standard, narrow, none
+    var id: String { rawValue }
+
+    static var current: PageMargin { PageMargin(rawValue: UserDefaults.standard.string(forKey: "pageMargin") ?? "") ?? .auto }
+
+    var title: String {
+        switch self {
+        case .auto: return String(localized: "自动")
+        case .wide: return String(localized: "宽")
+        case .standard: return String(localized: "标准")
+        case .narrow: return String(localized: "窄")
+        case .none: return String(localized: "最窄")
+        }
+    }
+
+    /// 编辑区这么宽时，左右各留多少。自动：窗口越大文字栏越宽，但一行不超过 900（用户试过 1100，太宽不好读）
+    func margin(for width: CGFloat) -> CGFloat {
+        let column: CGFloat
+        switch self {
+        case .auto: column = min(max(672, width * 0.62), 900)
+        case .wide: column = 672
+        case .standard: column = 800
+        case .narrow: column = 960
+        case .none: column = .greatestFiniteMagnitude
+        }
+        return max(32, ((width - column) / 2).rounded())   // 窗口再窄也留 32
+    }
+}
+
 /// 段落样式
 enum RichKind: Equatable {
     case body

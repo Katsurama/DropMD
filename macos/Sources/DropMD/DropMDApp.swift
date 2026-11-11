@@ -113,6 +113,17 @@ struct AppearanceMenu: View {
     }
 }
 
+/// 菜单“显示 → 页边距”（单页）
+struct PageMarginMenu: View {
+    @AppStorage("pageMargin") private var margin = PageMargin.auto.rawValue
+
+    var body: some View {
+        Picker("页边距", selection: $margin) {
+            ForEach(PageMargin.allCases) { Text($0.title).tag($0.rawValue) }
+        }
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated { AppAppearance.apply(UserDefaults.standard.string(forKey: "appearance")) }
@@ -173,6 +184,7 @@ struct FormatCommands: Commands {
                 .keyboardShortcut("i", modifiers: [.command, .option])
                 .disabled(toggleInspector == nil)
             AppearanceMenu()
+            PageMarginMenu()
             Divider()
         }
         CommandMenu("格式") {

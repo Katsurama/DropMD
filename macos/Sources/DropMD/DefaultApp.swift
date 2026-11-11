@@ -95,34 +95,46 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            AppearanceMenu()
-            Picker("界面语言", selection: $language) {
-                Text("跟随系统").tag("")
-                Divider()
-                ForEach(AppLanguage.choices, id: \.0) { Text(verbatim: $0.1).tag($0.0) }
+            // 按用途分成几组，和“系统设置”一样一眼能找到
+            Section("显示") {
+                AppearanceMenu()
+                PageMarginMenu()
+                Text("页边距只影响单页。选“自动”时，窗口越大，文字那一栏越宽。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .onChange(of: language) { _, newValue in AppLanguage.set(newValue) }
-
-            LabeledContent("Markdown 文件") {
-                if isDefault {
-                    Label("DropMD 是默认打开程序", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                } else {
-                    Button("将 DropMD 设为默认") {
-                        working = true
-                        Task {
-                            await DefaultApp.makeDefault()
-                            isDefault = DefaultApp.isDefault
-                            working = false
-                        }
-                    }
-                    .disabled(working)
+            Section("语言") {
+                Picker("界面语言", selection: $language) {
+                    Text("跟随系统").tag("")
+                    Divider()
+                    ForEach(AppLanguage.choices, id: \.0) { Text(verbatim: $0.1).tag($0.0) }
                 }
+                .onChange(of: language) { _, newValue in AppLanguage.set(newValue) }
             }
-            Text("在访达中双击 .md 文件时，用默认打开程序打开。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Toggle("启动时自动检查更新", isOn: $updater.autoCheck)
+            Section("Markdown 文件") {
+                LabeledContent("默认打开程序") {
+                    if isDefault {
+                        Label("DropMD 是默认打开程序", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Button("将 DropMD 设为默认") {
+                            working = true
+                            Task {
+                                await DefaultApp.makeDefault()
+                                isDefault = DefaultApp.isDefault
+                                working = false
+                            }
+                        }
+                        .disabled(working)
+                    }
+                }
+                Text("在访达中双击 .md 文件时，用默认打开程序打开。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Section("软件更新") {
+                Toggle("启动时自动检查更新", isOn: $updater.autoCheck)
+            }
         }
         .formStyle(.grouped)
         .frame(width: 460)

@@ -55,6 +55,7 @@ You can switch at any time; the content stays in sync. The Format panel on the r
 - **Automatic formatting**: at the start of a paragraph, type `- `, `1. `, `# `, `> ` or `[] ` and the paragraph becomes a list, numbered list, heading, quote or checklist. The full-width forms typed with Chinese input methods (`－ `, `1。 `, `＃ `, `》 `, `【】 `) work too.
 - **Pasting**: text pasted from web pages or Word keeps bold, italic, links and so on. Formatting Markdown can't store, such as colors and fonts, is removed.
 - **Links**: ⌘-click a link to open it; a normal click is for editing the text.
+- **Page margins**: choose them under View → Page Margins or in DropMD → Settings…. With Automatic, the text column gets wider as the window grows; you can also pick Wide, Standard, Narrow or Narrowest (text fills the window).
 
 ### Split view
 
