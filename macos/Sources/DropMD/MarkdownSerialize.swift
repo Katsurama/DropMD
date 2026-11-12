@@ -269,6 +269,7 @@ extension MarkdownCodec {
 
     private enum Mark: Equatable {
         case link(String, String?), underline, sup, sub, kbd, strike, highlight, bold, italic
+        case htmlBold, htmlItalic   // 紧跟在 * 后面时用：***** 读回来会乱
 
         var opening: String {
             switch self {
@@ -281,6 +282,8 @@ extension MarkdownCodec {
             case .highlight: return "=="
             case .bold: return "**"
             case .italic: return "*"
+            case .htmlBold: return "<b>"
+            case .htmlItalic: return "<i>"
             }
         }
 
@@ -295,6 +298,8 @@ extension MarkdownCodec {
             case .highlight: return "=="
             case .bold: return "**"
             case .italic: return "*"
+            case .htmlBold: return "</b>"
+            case .htmlItalic: return "</i>"
             }
         }
     }
@@ -324,10 +329,13 @@ extension MarkdownCodec {
             var k = 0
             while k < open.count && k < needed.count && open[k] == needed[k] { k += 1 }
             for m in open[k...].reversed() { out += m.closing }
+            var afterStar = k < open.count && pending.isEmpty && out.hasSuffix("*")
             open.removeSubrange(k...)
             out += pending
             pending = ""
-            for m in needed[k...] {
+            for var m in needed[k...] {
+                if afterStar { m = m == .bold ? .htmlBold : m == .italic ? .htmlItalic : m }
+                afterStar = false
                 out += m.opening
                 open.append(m)
             }
@@ -351,7 +359,8 @@ extension MarkdownCodec {
             }
             if r.code {
                 transition(r.link.map { [.link($0, r.title)] } ?? [])
-                out += codeSpan(r.text)
+                // 段内换行不能写进代码里（`a<br>b` 会原样显示 <br>），在换行处断开
+                out += r.text.components(separatedBy: "\u{2028}").map { $0.isEmpty ? "" : codeSpan($0) }.joined(separator: "\u{2028}")
                 continue
             }
             var wanted: [Mark] = []
@@ -395,10 +404,11 @@ extension MarkdownCodec {
     private static func merged(_ runs: [MDRun]) -> [MDRun] {
         var out: [MDRun] = []
         for r in runs where !r.text.isEmpty || r.image != nil {
+            // 行内代码不写其他样式，相邻两段代码要合成一段，否则写成 `a``b` 重开就变了
             if var last = out.last, last.image == nil, r.image == nil, !last.literal, !r.literal,
-               last.code == r.code, last.bold == r.bold, last.italic == r.italic,
-               last.underline == r.underline, last.strike == r.strike, last.highlight == r.highlight,
-               last.sup == r.sup, last.sub == r.sub, last.kbd == r.kbd,
+               last.code == r.code, last.code || (last.bold == r.bold && last.italic == r.italic &&
+               last.underline == r.underline && last.strike == r.strike && last.highlight == r.highlight &&
+               last.sup == r.sup && last.sub == r.sub && last.kbd == r.kbd),
                last.link == r.link, last.title == r.title {
                 last.text += r.text
                 out[out.count - 1] = last

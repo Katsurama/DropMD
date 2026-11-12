@@ -244,6 +244,17 @@ MainActor.assumeIsolated {
         check("全选改标题不动公式块", save(tv, s), "## 正文\n\n$$\nE=mc^2\n$$\n")
         s = "![a](x.png)![a](x.png)\n"
         check("相邻两张相同的图仍是两张", save(makeView(s), s), s)
+        // 行内代码里一部分加了高亮：仍是一段代码，不能写成 `代``码`
+        s = "`代码` 后\n"; tv = makeView(s)
+        tv.setSelectedRange(NSRange(location: 0, length: 1)); tv.toggle(.highlight)
+        check("行内代码一部分加样式", save(tv, s), s)
+        s = "一行<br>两行\n"; tv = makeView(s)
+        tv.setSelectedRange(NSRange(location: 0, length: (tv.string as NSString).length - 1)); tv.toggleInlineCode()
+        check("带段内换行的文字改成行内代码", save(tv, s), "`一行`<br>`两行`\n")
+        // 跨两格选中后打字：前一格的字不能丢
+        s = "| a | b |\n| --- | --- |\n| 1 | 2 |\n"; tv = makeView(s)
+        tv.setSelectedRange(NSRange(location: 5, length: 2)); type(tv, "字")
+        check("跨格选中后打字", save(tv, s).contains("1") && save(tv, s).contains("字") ? "都在" : save(tv, s), "都在")
     }
     // 页边距：窗口窄时最少留 32；自动时窗口越宽文字栏越宽，但不超过 900；最窄时铺满
     for (m, w, want) in [(PageMargin.auto, 700, 32), (.auto, 1000, 164), (.auto, 1357, 258), (.auto, 1700, 400), (.auto, 2400, 750),
