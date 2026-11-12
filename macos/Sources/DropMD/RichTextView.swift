@@ -860,7 +860,10 @@ final class RichTextView: NSTextView {
         // 表格内的段落和分隔线不改样式
         let paragraphs = all.filter { p in
             let a = storage.attributes(at: p.location, effectiveRange: nil)
-            return RichBridge.tableBlock(of: a) == nil && RichBridge.kind(of: a) != .rule
+            // 真正的分隔线有那条线（附件）；在分隔线后按回车得到的空行只是带着它的标记，要能改回正文
+            // 公式块也不改：改成标题等样式后，保存出来就不再是公式了
+            let mathBlock = (a[DMKey.math] as? String).map(RichBridge.isMathBlock) ?? false
+            return RichBridge.tableBlock(of: a) == nil && (RichBridge.kind(of: a) != .rule || a[.attachment] == nil) && !mathBlock
         }
         guard !paragraphs.isEmpty else {
             NSSound.beep()
