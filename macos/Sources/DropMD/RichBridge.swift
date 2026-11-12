@@ -601,7 +601,9 @@ enum RichBridge {
                 let cols = max(table.numberOfColumns, (cells.map { $0.col }.max() ?? -1) + 1)
                 var grid = Array(repeating: Array(repeating: [MDRun](), count: cols), count: rows)
                 for cell in cells where cell.row >= 0 && cell.col >= 0 {
-                    grid[cell.row][cell.col] = cell.runs
+                    // 跨格选中后打字，一格里会有好几段：用换行连起来，不能后一段盖掉前一段
+                    let had = grid[cell.row][cell.col]
+                    grid[cell.row][cell.col] = had.isEmpty || cell.runs.isEmpty ? had + cell.runs : had + [MDRun(text: "\u{2028}")] + cell.runs
                 }
                 blocks.append(.table(grid, align: (0..<cols).map { marker(aligns[$0] ?? .natural) }))
             }

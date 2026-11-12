@@ -361,6 +361,10 @@ private struct InlineParser {
                    ch != "_" || !(j + m < hi && isWordChar(c[j + m])) {
                     return j
                 }
+                // *斜**体***：*** 里前面的 ** 关里面的粗体，最后的 * 关这个斜体
+                if m == 3, n < 3, ch == "*", j > start, !c[j - 1].isWhitespace, (start..<j).contains(where: { c[$0] == ch }) {
+                    return j + m - n
+                }
                 j += m
                 continue
             }

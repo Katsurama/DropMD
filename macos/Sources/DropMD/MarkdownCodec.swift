@@ -430,13 +430,16 @@ enum MarkdownCodec {
         var out: [MDBlock] = []
         var chunk: [String] = []   // 连续的列表行，交给 parse
         var contentCol = 0         // 上一个列表项文字开始的列
+        var lastChunk: [String] = []   // 代码块前的列表行：代码块后的嵌套项要连着它解析，层级才对
         func flush() -> Bool {
             guard !chunk.isEmpty else { return true }
+            let context = !out.isEmpty && leadingWidth(chunk[0]) > 0 ? lastChunk : []
             // 这几行自己还是“复杂列表”（列表项下面缩进写了引用、标题、HTML 等）：交给 parse 会回到这里，没完没了直到崩溃。整块原样保存
-            guard complexListEnd(chunk, 0) == nil else { return false }
-            let parsed = parse(chunk.joined(separator: "\n"))
+            guard complexListEnd(context + chunk, 0) == nil else { return false }
+            let parsed = Array(parse((context + chunk).joined(separator: "\n")).dropFirst(context.isEmpty ? 0 : parse(context.joined(separator: "\n")).count))
+            lastChunk = context + chunk
             chunk = []
-            guard parsed.allSatisfy({ if case .line(let l) = $0 { return l.kind.listDepth != nil } else { return false } }) else { return false }
+            guard !parsed.isEmpty, parsed.allSatisfy({ if case .line(let l) = $0 { return l.kind.listDepth != nil } else { return false } }) else { return false }
             out += parsed
             return true
         }
@@ -446,8 +449,6 @@ enum MarkdownCodec {
             if isBlank(l) { j += 1; continue }
             let w = leadingWidth(l)
             if let m = groups(listPattern, l) {
-                // 代码块后面的嵌套项：层级算不准，整块原样保存
-                if chunk.isEmpty, !out.isEmpty, w > 0 { return nil }
                 let gap = l.dropFirst(m[1].count + m[2].count).prefix(while: { $0 == " " }).count
                 contentCol = indentWidth(m[1]) + m[2].count + min(max(gap, 1), 4)
                 chunk.append(l)
@@ -473,6 +474,10 @@ enum MarkdownCodec {
                 chunk.append(l)
                 j += 1
                 continue
+            }
+            // 代码块后面紧跟不缩进的正文：列表到这里结束（代码块后面不能续行）
+            if chunk.isEmpty, !out.isEmpty, w == 0 {
+                return out + parse(lines[j...].joined(separator: "\n"))
             }
             return nil
         }
