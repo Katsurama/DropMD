@@ -219,6 +219,32 @@ MainActor.assumeIsolated {
         two.setKind(.code(""))
         check("两块之间的空行设成代码块后两块仍分开", md(two), "```sh\na\n```\n\n```py\nb\n```\n")
     }
+    // 分隔线后回车得到的是普通空行，不是第二条分隔线；图片占位、提示框标题中间打字不会存出两份
+    do {
+        func save(_ tv: RichTextView, _ s: String) -> String { MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: s) }
+        var s = "---\n\n正文\n"
+        var tv = makeView(s)
+        tv.setSelectedRange(NSRange(location: 1, length: 0))
+        tv.insertNewline(nil)
+        check("分隔线后回车", save(tv, s).components(separatedBy: "---").count == 2 ? "一条" : save(tv, s), "一条")
+        type(tv, "字")
+        check("分隔线后回车再打字", save(tv, s), "---\n\n字\n\n正文\n")
+        s = "![图](a.png)\n"; tv = makeView(s)
+        tv.setSelectedRange(NSRange(location: 3, length: 0)); type(tv, "字")
+        check("图片占位中间打字", save(tv, s).components(separatedBy: "![图](a.png)").count == 2 ? "一张" : save(tv, s), "一张")
+        s = "> [!TIP]\n> 内容\n"; tv = makeView(s)
+        tv.setSelectedRange(NSRange(location: 1, length: 0)); type(tv, "字")
+        check("提示框标题中间打字", save(tv, s), "> [!TIP]\n> 字\n> 内容\n")
+        tv = makeView(s); tv.setSelectedRange(NSRange(location: 2, length: 0)); type(tv, "尾")
+        check("提示框标题后面打字", save(tv, s), "> [!TIP]\n> 尾\n> 内容\n")
+        check("提示框保存后仍是提示框", makeView(save(tv, s)).string.hasPrefix("提示\n") ? "是" : makeView(save(tv, s)).string, "是")
+        // 全选后改成标题：公式块保持是公式
+        s = "正文\n\n$$\nE=mc^2\n$$\n"; tv = makeView(s)
+        tv.setSelectedRange(NSRange(location: 0, length: (tv.string as NSString).length)); tv.setKind(.heading(2))
+        check("全选改标题不动公式块", save(tv, s), "## 正文\n\n$$\nE=mc^2\n$$\n")
+        s = "![a](x.png)![a](x.png)\n"
+        check("相邻两张相同的图仍是两张", save(makeView(s), s), s)
+    }
     // 页边距：窗口窄时最少留 32；自动时窗口越宽文字栏越宽，但不超过 900；最窄时铺满
     for (m, w, want) in [(PageMargin.auto, 700, 32), (.auto, 1000, 164), (.auto, 1357, 258), (.auto, 1700, 400), (.auto, 2400, 750),
                          (.wide, 1700, 514), (.standard, 1700, 450), (.narrow, 1700, 370), (.none, 1700, 32), (.wide, 500, 32)] as [(PageMargin, CGFloat, CGFloat)] {

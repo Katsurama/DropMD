@@ -377,7 +377,19 @@ enum RichBridge {
                 if after.length > 0 { items.append(Entry(item: .line(MDLine(kind: .body, runs: runs(storage, after))), inDetails: inDetails)) }
                 continue
             }
-            items.append(Entry(item: classify(storage, ns, content: content, attrs: attrs), inDetails: inDetails))
+            let item = classify(storage, ns, content: content, attrs: attrs)
+            // 提示框的标题要单独一行才算提示框：这一行里打的别的字另起一行，放进提示框的内容里
+            if case .line(let l) = item, l.kind == .quote, l.runs.count > 1,
+               let h = l.runs.firstIndex(where: { $0.literal && MDCallout(header: $0.text) != nil }) {
+                var rest = l.runs
+                let header = rest.remove(at: h)
+                items.append(Entry(item: .line(MDLine(kind: .quote, runs: [header])), inDetails: inDetails))
+                if rest.contains(where: { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty || $0.image != nil }) {
+                    items.append(Entry(item: .line(MDLine(kind: .quote, runs: rest)), inDetails: inDetails))
+                }
+                continue
+            }
+            items.append(Entry(item: item, inDetails: inDetails))
         }
         // 末尾的空段落没有意义，不写入文件
         while let last = items.last {
@@ -434,6 +446,8 @@ enum RichBridge {
         if k == .raw, let source = attrs[DMKey.math] as? String { return .math(source) }
         switch k {
         case .rule:
+            // 只带分隔线标记、没有那条线的段落不是分隔线（否则存出一条屏幕上看不到的线）
+            guard ns.substring(with: content).contains("\u{FFFC}") else { return .line(MDLine(kind: .body, runs: runs(storage, content))) }
             return .rule
         case .code(let lang):
             return .code(lang, plainText(ns, content), listGap: attrs[DMKey.listCode] as? Bool, id: attrs[DMKey.codeBlock] as? String)
@@ -467,17 +481,16 @@ enum RichBridge {
         guard range.length > 0 else { return [] }
         let ns = storage.string as NSString
         var out: [MDRun] = []
-        var lastImageRange: NSRange?
-        var lastImageID: String?
-        var lastCalloutEnd = -1
+        var seenImages: Set<String> = []   // 在图片占位文字中间打字会把它分成两段：同一张图只写一次
+        var calloutDone = false            // 提示框标题同理
         storage.enumerateAttributes(in: range, options: []) { a, sub, _ in
             if let header = a[DMKey.callout] as? String {
-                // 标题文字被拆成几段（如改了其中一个字的格式）时也只写一次
-                if lastCalloutEnd == sub.location, out.last?.text == header { lastCalloutEnd = NSMaxRange(sub); return }
+                // 标题文字被拆成几段（改了其中一个字的格式、在中间打了字）时也只写一次
+                if calloutDone { return }
+                calloutDone = true
                 var r = MDRun(text: header)
                 r.literal = true
                 out.append(r)
-                lastCalloutEnd = NSMaxRange(sub)
                 return
             }
             if let source = a[DMKey.math] as? String {
@@ -490,16 +503,14 @@ enum RichBridge {
                 return
             }
             if let src = a[DMKey.image] as? String {
-                // 同一张图片（或其占位文字）只写一次
-                if let prev = lastImageRange, NSMaxRange(prev) == sub.location, a[DMKey.imageID] as? String == lastImageID { return }
+                // 同一张图片（或其占位文字）只写一次；没有编号的（旧剪贴板内容）按路径算
+                guard seenImages.insert((a[DMKey.imageID] as? String) ?? "path:" + src).inserted else { return }
                 var r = MDRun(text: (a[DMKey.alt] as? String) ?? "")
                 r.image = src
                 r.title = a[DMKey.title] as? String
                 r.link = a[DMKey.link] as? String
                 r.linkTitle = a[DMKey.linkTitle] as? String
                 out.append(r)
-                lastImageRange = sub
-                lastImageID = a[DMKey.imageID] as? String
                 return
             }
             var text = ns.substring(with: sub)
