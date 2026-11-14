@@ -20,6 +20,10 @@
 
 <img src="docs/images/demo.gif" alt="演示：单页输入时自动变格式，双页显示原文与预览，拖入 Word 一键转换" width="100%">
 
+<br>
+
+[![在 B 站看 3 分钟介绍视频](https://img.shields.io/badge/B%E7%AB%99-3%20%E5%88%86%E9%92%9F%E4%BB%8B%E7%BB%8D%E8%A7%86%E9%A2%91-00A1D6?style=for-the-badge&logo=bilibili&logoColor=white)](https://www.bilibili.com/video/BV1pTxQ6SEP4)
+
 </div>
 
 > [!NOTE]
