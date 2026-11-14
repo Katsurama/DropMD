@@ -1,5 +1,7 @@
 <p align="right">🌐 <a href="README.md">简体中文</a> | <a href="README.en.md">English</a> | <b>日本語</b></p>
 
+<div lang="ja">
+
 <div align="center">
 
 <img src="docs/images/icon.png" width="112" alt="DropMD のアイコン">
@@ -146,3 +148,5 @@ Swift のインターフェイスは、アプリ内のローカルエンジン�
 ## 📄 ライセンス
 
 [MIT](LICENSE) © 2026 DropMD contributors。サードパーティのライセンスは [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) と、アプリの **ヘルプ → オープンソースライセンス** にあります。
+
+</div>
