@@ -354,6 +354,7 @@ enum RichBridge {
 
     static func blocks(from storage: NSAttributedString) -> [MDBlock] {
         let ns = storage.string as NSString
+        var seen: Set<String> = []
         var items: [Entry] = []
         var index = 0
         while index < ns.length {
@@ -371,13 +372,13 @@ enum RichBridge {
             if let at = blockAttachment(storage, ns, content), content.length > 1 {
                 let before = NSRange(location: content.location, length: at.location - content.location)
                 let after = NSRange(location: NSMaxRange(at), length: NSMaxRange(content) - NSMaxRange(at))
-                if before.length > 0 { items.append(Entry(item: .line(MDLine(kind: .body, runs: runs(storage, before))), inDetails: inDetails)) }
+                if before.length > 0 { items.append(Entry(item: .line(MDLine(kind: .body, runs: runs(storage, &seen, before))), inDetails: inDetails)) }
                 let source = storage.attribute(DMKey.math, at: at.location, effectiveRange: nil) as? String
                 items.append(Entry(item: source.map { .math($0) } ?? .rule, inDetails: inDetails))
-                if after.length > 0 { items.append(Entry(item: .line(MDLine(kind: .body, runs: runs(storage, after))), inDetails: inDetails)) }
+                if after.length > 0 { items.append(Entry(item: .line(MDLine(kind: .body, runs: runs(storage, &seen, after))), inDetails: inDetails)) }
                 continue
             }
-            let item = classify(storage, ns, content: content, attrs: attrs)
+            let item = classify(storage, ns, content: content, attrs: attrs, seen: &seen)
             // 提示框的标题要单独一行才算提示框：这一行里打的别的字另起一行，放进提示框的内容里
             if case .line(let l) = item, l.kind == .quote, l.runs.count > 1,
                let h = l.runs.firstIndex(where: { $0.literal && MDCallout(header: $0.text) != nil }) {
@@ -437,9 +438,9 @@ enum RichBridge {
     }
 
     private static func classify(_ storage: NSAttributedString, _ ns: NSString, content: NSRange,
-                                 attrs: [NSAttributedString.Key: Any]) -> Item {
+                                 attrs: [NSAttributedString.Key: Any], seen: inout Set<String>) -> Item {
         if let block = tableBlock(of: attrs) {
-            return .cell(block.table, block.startingRow, block.startingColumn, runs(storage, content),
+            return .cell(block.table, block.startingRow, block.startingColumn, runs(storage, &seen, content),
                          (attrs[.paragraphStyle] as? NSParagraphStyle)?.alignment ?? .natural)
         }
         let k = kind(of: attrs)
@@ -447,7 +448,7 @@ enum RichBridge {
         switch k {
         case .rule:
             // 只带分隔线标记、没有那条线的段落不是分隔线（否则存出一条屏幕上看不到的线）
-            guard ns.substring(with: content).contains("\u{FFFC}") else { return .line(MDLine(kind: .body, runs: runs(storage, content))) }
+            guard ns.substring(with: content).contains("\u{FFFC}") else { return .line(MDLine(kind: .body, runs: runs(storage, &seen, content))) }
             return .rule
         case .code(let lang):
             return .code(lang, plainText(ns, content), listGap: attrs[DMKey.listCode] as? Bool, id: attrs[DMKey.codeBlock] as? String)
@@ -462,14 +463,15 @@ enum RichBridge {
             let done = text.range(of: RichStyle.taskDone)
             if box.location == NSNotFound || (done.location != NSNotFound && done.location < box.location) { box = done }
             guard box.location != NSNotFound else {
-                return .line(MDLine(kind: k.lineKind, runs: runs(storage, content), start: attrs[DMKey.start] as? Int))
+                return .line(MDLine(kind: k.lineKind, runs: runs(storage, &seen, content), start: attrs[DMKey.start] as? Int))
             }
             if NSMaxRange(box) < text.length, text.substring(with: NSRange(location: NSMaxRange(box), length: 1)) == " " { box.length += 1 }
             let before = NSRange(location: content.location, length: box.location)
             let after = NSRange(location: content.location + NSMaxRange(box), length: content.length - NSMaxRange(box))
-            return .line(MDLine(kind: k.lineKind, runs: runs(storage, before) + runs(storage, after), start: attrs[DMKey.start] as? Int))
+            let head = runs(storage, &seen, before)
+            return .line(MDLine(kind: k.lineKind, runs: head + runs(storage, &seen, after), start: attrs[DMKey.start] as? Int))
         default:
-            return .line(MDLine(kind: k.lineKind, runs: runs(storage, content), start: attrs[DMKey.start] as? Int))
+            return .line(MDLine(kind: k.lineKind, runs: runs(storage, &seen, content), start: attrs[DMKey.start] as? Int))
         }
     }
 
@@ -477,11 +479,12 @@ enum RichBridge {
         ns.substring(with: range).replacingOccurrences(of: "\u{FFFC}", with: "")
     }
 
-    private static func runs(_ storage: NSAttributedString, _ range: NSRange) -> [MDRun] {
+    /// seen：整篇里已经写过的图片编号。在找不到的图片的占位文字中间按回车会把它分到两段，同一张图也只写一次
+    private static func runs(_ storage: NSAttributedString, _ seen: inout Set<String>, _ range: NSRange) -> [MDRun] {
         guard range.length > 0 else { return [] }
         let ns = storage.string as NSString
         var out: [MDRun] = []
-        var seenImages: Set<String> = []   // 在图片占位文字中间打字会把它分成两段：同一张图只写一次
+        var seenPaths: Set<String> = []   // 没有编号的图片（旧剪贴板内容）按路径算，只在同一段里去重
         var calloutDone = false            // 提示框标题同理
         storage.enumerateAttributes(in: range, options: []) { a, sub, _ in
             if let header = a[DMKey.callout] as? String {
@@ -504,7 +507,8 @@ enum RichBridge {
             }
             if let src = a[DMKey.image] as? String {
                 // 同一张图片（或其占位文字）只写一次；没有编号的（旧剪贴板内容）按路径算
-                guard seenImages.insert((a[DMKey.imageID] as? String) ?? "path:" + src).inserted else { return }
+                let fresh = (a[DMKey.imageID] as? String).map { seen.insert($0).inserted } ?? seenPaths.insert(src).inserted
+                guard fresh else { return }
                 var r = MDRun(text: (a[DMKey.alt] as? String) ?? "")
                 r.image = src
                 r.title = a[DMKey.title] as? String
