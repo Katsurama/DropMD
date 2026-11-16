@@ -197,6 +197,8 @@ jobs:
           # Release 说明只放本版（文件最上面一段）：App 的更新窗口显示的就是它
           awk '/^## /{n++} n==1' docs/发行说明.md > release-notes.md
           [ -s release-notes.md ] || { echo "docs/发行说明.md 里没有找到本版说明"; exit 1; }
+          # 忘了写本版说明时，最上面一段是上一版的：不发布，免得更新窗口显示旧说明
+          head -1 release-notes.md | grep -qF "DropMD ${TAG#v}" || { echo "docs/发行说明.md 最上面一段不是 ${TAG#v} 的说明"; exit 1; }
           gh release create "$TAG" \
             DropMD-macOS-AppleSilicon.dmg DropMD-macOS-AppleSilicon.dmg.sha256 \
             DropMD-macOS-AppleSilicon.zip DropMD-macOS-AppleSilicon.zip.sha256 \

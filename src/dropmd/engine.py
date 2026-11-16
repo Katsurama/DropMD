@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import sys
@@ -79,6 +80,9 @@ def _convert(out: _Out) -> int:
             info = convert(Path(job["src"]), Path(job["dst"]), options)
             out.send({"event": "result", "index": i, "ok": True, "info": info})
         except Exception as exc:  # noqa: BLE001 — 任何错误都以中文反馈
+            # 写到一半出错（如磁盘满）时不在用户的文件夹里留下半截的临时文件
+            with contextlib.suppress(OSError, KeyError, TypeError):
+                Path(job["dst"] + ".part").unlink(missing_ok=True)
             out.send({"event": "result", "index": i, "ok": False, "info": describe(exc)})
     out.send({"event": "finished"})
     return 0
