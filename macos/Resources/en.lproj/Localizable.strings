@@ -341,3 +341,8 @@
 "页边距只影响单页。选“自动”时，窗口越大，文字那一栏越宽。" = "Page margins apply to Page view only. With Automatic, the text column gets wider as the window grows.";
 "默认打开程序" = "Default App";
 "显示" = "Display";
+"反馈问题…" = "Report an Issue…";
+"当前版本" = "Current Version";
+"关于" = "About";
+"GitHub 仓库" = "GitHub Repository";
+"遇到问题" = "Found a Problem?";

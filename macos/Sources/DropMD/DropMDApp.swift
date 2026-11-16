@@ -51,6 +51,9 @@ struct DropMDApp: App {
                     a.addButton(withTitle: String(localized: "好"))
                     a.runModal()
                 }
+                if let url = HelpDocs.repoURL(path: "/issues") {
+                    Button("反馈问题…") { NSWorkspace.shared.open(url) }
+                }
                 Divider()
                 Menu("开源许可") {
                     Button("DropMD（MIT 许可证）") { HelpDocs.openAppLicense() }
@@ -248,5 +251,10 @@ enum HelpDocs {
     // 文件名也随界面语言：英文界面打开 User Guide.md，日文 ユーザーガイド.md，繁体 使用說明.md（都在 App 包里）
     static func openGuide() { openCopy(of: String(localized: "使用说明.md")) }
     static func openLicenses() { openCopy(of: "THIRD_PARTY_LICENSES.md") }
+
+    /// GitHub 仓库网页（仓库名取自 Info.plist，和软件更新同一处）
+    @MainActor static func repoURL(path: String = "") -> URL? {
+        UpdateChecker.repository.flatMap { URL(string: "https://github.com/\($0)\(path)") }
+    }
     static func openAppLicense() { openCopy(of: "LICENSE", as: String(localized: "DropMD 许可证.md")) }
 }

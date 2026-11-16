@@ -32,6 +32,44 @@ final class EditorController: ObservableObject {
             guard fileURL != oldValue, let path = fileURL?.path else { return }
             language = DocLanguage.forPath(path, current: language, saved: Self.savedLanguages)
             saveLanguage()
+            watchDeletion()
+        }
+    }
+
+    // MARK: 文件被别的程序删掉
+
+    /// 改过的文件被别的程序删掉时（如 Edge 删除下载记录会删掉临时文件），马上把内容存回原处。
+    /// 否则在系统下次自动保存之前关窗口、选“还原更改”，系统找不到原文件，报“无法保存”，窗口关不掉。
+    nonisolated(unsafe) private var deletionWatch: DispatchSourceFileSystemObject?
+    deinit { deletionWatch?.cancel() }   // 不取消的话监视一直在，文件也一直开着
+    /// 开始监视时磁盘上的内容，用来判断有没有改过（系统标记“已修改”要晚一会儿，靠不住）
+    private var diskText: String?
+
+    private func watchDeletion() {
+        deletionWatch?.cancel()
+        deletionWatch = nil
+        guard let url = fileURL else { return }
+        let fd = open(url.path, O_EVTONLY)
+        guard fd >= 0 else { return }
+        diskText = (try? Data(contentsOf: url)).map(MarkdownDocument.decode)
+        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.delete, .rename], queue: .main)
+        source.setEventHandler { [weak self] in
+            MainActor.assumeIsolated { self?.fileWentAway() }
+        }
+        source.setCancelHandler { close(fd) }
+        source.resume()
+        deletionWatch = source
+    }
+
+    private func fileWentAway() {
+        guard let url = fileURL else { return }
+        // 系统保存时会用新文件替换旧文件，旧文件的监视随之失效：文件还在就换成监视新文件
+        if FileManager.default.fileExists(atPath: url.path) { return watchDeletion() }
+        // 没改过就不写回：用户可能就是想删掉这个文件
+        guard let doc = NSDocumentController.shared.document(for: url), let type = doc.fileType,
+              doc.isDocumentEdited || pendingText != diskText else { return }
+        doc.save(to: url, ofType: type, for: .saveOperation) { [weak self] _ in
+            MainActor.assumeIsolated { self?.watchDeletion() }
         }
     }
 
