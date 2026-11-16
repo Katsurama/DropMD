@@ -244,6 +244,12 @@ MainActor.assumeIsolated {
         check("全选改标题不动公式块", save(tv, s), "## 正文\n\n$$\nE=mc^2\n$$\n")
         s = "![a](x.png)![a](x.png)\n"
         check("相邻两张相同的图仍是两张", save(makeView(s), s), s)
+        // 找不到的图片显示占位文字：在占位文字中间按回车，图片不能存成两张
+        s = "文字\n\n![图](a.png)\n\n后文\n"; tv = makeView(s)
+        tv.setSelectedRange(NSRange(location: 6, length: 0)); tv.insertNewline(nil)
+        check("图片占位文字中间回车", save(tv, s).components(separatedBy: "![图](a.png)").count - 1 == 1 ? "一张" : save(tv, s), "一张")
+        s = "![a](x.png)\n\n![a](x.png)\n"
+        check("两段各一张相同的图仍是两张", save(makeView(s), s), s)
         // 行内代码里一部分加了高亮：仍是一段代码，不能写成 `代``码`
         s = "`代码` 后\n"; tv = makeView(s)
         tv.setSelectedRange(NSRange(location: 0, length: 1)); tv.toggle(.highlight)
