@@ -52,7 +52,8 @@ final class EditorController: ObservableObject {
         let fd = open(url.path, O_EVTONLY)
         guard fd >= 0 else { return }
         diskText = (try? Data(contentsOf: url)).map(MarkdownDocument.decode)
-        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.delete, .rename], queue: .main)
+        // 只管删除：在访达里移动、扔进废纸篓算改名，那是用户自己挪走的，不能在原处再写一份
+        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: .delete, queue: .main)
         source.setEventHandler { [weak self] in
             MainActor.assumeIsolated { self?.fileWentAway() }
         }
@@ -140,6 +141,8 @@ final class EditorController: ObservableObject {
         pendingText = text
         updateStats(text)
         if language == .auto { updateLanguage() }
+        // 单页打的字停一下才交给文档：文件恰好在这之前被删时，监视那一刻还看不出改过，这里补上
+        if let url = fileURL, !FileManager.default.fileExists(atPath: url.path) { fileWentAway() }
         // 单页时预览是隐藏的，不需要渲染
         guard !isRichMode else { return }
         renderWork?.cancel()
