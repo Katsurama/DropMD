@@ -295,7 +295,6 @@
 /* UpdateView.swift */
 "检查更新只向 GitHub 查询版本信息，不发送任何文件或个人信息。" = "Checking for updates only asks GitHub for version information and never sends any files or personal information.";
 "启动时自动检查更新" = "Check for updates when DropMD starts";
-"包括测试版（beta）" = "Include beta versions";
 "立即检查" = "Check Now";
 "上次检查：%@" = "Last checked: %@";
 "此版本没有更新来源。" = "This version has no update source.";
