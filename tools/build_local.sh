@@ -106,6 +106,8 @@ GH=(gh)
 if command -v op >/dev/null && [ -f "$HOME/.config/op/plugins.sh" ]; then GH=(op plugin run -- gh); fi
 # Release 说明只放本版（文件最上面一段）
 awk '/^## /{n++} n==1' docs/发行说明.md > build/release-notes.md
+# 忘了写本版说明时，最上面一段是上一版的：不发布，免得更新窗口显示旧说明
+head -1 build/release-notes.md | grep -qF "DropMD ${TAG#v}" || { echo "docs/发行说明.md 最上面一段不是 ${TAG#v} 的说明"; exit 1; }
 "${GH[@]}" release create "$TAG" \
   DropMD-macOS-AppleSilicon.dmg DropMD-macOS-AppleSilicon.dmg.sha256 \
   DropMD-macOS-AppleSilicon.zip DropMD-macOS-AppleSilicon.zip.sha256 \
