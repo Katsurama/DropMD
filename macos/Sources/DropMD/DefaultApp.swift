@@ -92,6 +92,7 @@ struct SettingsView: View {
     @State private var working = false
     @State private var language = AppLanguage.current
     @ObservedObject private var updater = UpdateChecker.shared
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Form {
@@ -133,7 +134,29 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
             Section("软件更新") {
-                Toggle("启动时自动检查更新", isOn: $updater.autoCheck)
+                LabeledContent("当前版本") {
+                    HStack {
+                        Text(verbatim: UpdateChecker.currentVersionText)
+                            .foregroundStyle(.secondary)
+                        Button("检查更新…") {
+                            openWindow(id: "updates")
+                            Task { await updater.check() }
+                        }
+                        .disabled(UpdateChecker.repository == nil || updater.state == .checking)
+                    }
+                }
+            }
+            if let repo = UpdateChecker.repository, let url = HelpDocs.repoURL() {
+                Section("关于") {
+                    LabeledContent("GitHub 仓库") {
+                        Link(destination: url) { Text(verbatim: "github.com/\(repo)") }
+                    }
+                    if let issues = HelpDocs.repoURL(path: "/issues") {
+                        LabeledContent("遇到问题") {
+                            Link("反馈问题…", destination: issues)
+                        }
+                    }
+                }
             }
         }
         .formStyle(.grouped)
