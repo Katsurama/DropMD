@@ -12,7 +12,7 @@
 
 Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換することもできます。すべてお使いの Mac 上で処理します
 
-[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-インストール) [![Version](https://img.shields.io/badge/Version-0.6.0-0a84ff?style=flat-square)](docs/发行说明.md) [![UI](https://img.shields.io/badge/UI-SwiftUI%20%C2%B7%20Liquid%20Glass-f05138?style=flat-square&logo=swift&logoColor=white)](macos) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-インストール) [![Version](https://img.shields.io/badge/Version-0.6.0-0a84ff?style=flat-square)](docs/发行说明.md) [![UI](https://img.shields.io/badge/UI-SwiftUI%20%C2%B7%20Liquid%20Glass-f05138?style=flat-square&logo=swift&logoColor=white)](macos) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE) [![Patreon](https://img.shields.io/badge/Patreon-%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-F96854?style=flat-square&logo=patreon&logoColor=white)](https://www.patreon.com/c/katsurama/membership)
 
 <br>
 
@@ -144,6 +144,16 @@ docs/                  ユーザガイド、リリースノート、依存関係
 Swift のインターフェイスは、アプリ内のローカルエンジン（標準入出力で JSON をやり取りする子プロセス）に変換を任せます。依存関係とバージョンは[依存関係の一覧](docs/依赖清单.md)（中国語）を参照してください。
 
 </details>
+
+## ☕ サポート
+
+<div align="center">
+
+DropMD がお役に立てたら、Patreon でコーヒー一杯分の支援をいただけるとうれしいです ☕
+
+<a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/Patreon%20%E3%81%A7%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-F96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Patreon で支援する" height="40"></a>
+
+</div>
 
 ## 📄 ライセンス
 
