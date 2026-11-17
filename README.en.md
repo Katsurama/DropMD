@@ -10,7 +10,7 @@
 
 It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all on your own Mac
 
-[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-install) [![Version](https://img.shields.io/badge/Version-0.6.0-0a84ff?style=flat-square)](docs/发行说明.md) [![UI](https://img.shields.io/badge/UI-SwiftUI%20%C2%B7%20Liquid%20Glass-f05138?style=flat-square&logo=swift&logoColor=white)](macos) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-install) [![Version](https://img.shields.io/badge/Version-0.6.0-0a84ff?style=flat-square)](docs/发行说明.md) [![UI](https://img.shields.io/badge/UI-SwiftUI%20%C2%B7%20Liquid%20Glass-f05138?style=flat-square&logo=swift&logoColor=white)](macos) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE) [![Patreon](https://img.shields.io/badge/Patreon-Support%20me-F96854?style=flat-square&logo=patreon&logoColor=white)](https://www.patreon.com/c/katsurama/membership)
 
 <br>
 
@@ -142,6 +142,16 @@ docs/                  User guides, release notes, dependency list
 The Swift interface hands conversions to the local engine inside the app (a child process that exchanges JSON over standard input and output). For dependencies and versions, see the [dependency list](docs/依赖清单.md) (in Chinese).
 
 </details>
+
+## ☕ Support
+
+<div align="center">
+
+If DropMD helps you, you can buy me a coffee on Patreon ☕
+
+<a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/Support%20me%20on%20Patreon-F96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Support me on Patreon" height="40"></a>
+
+</div>
 
 ## 📄 License
 
