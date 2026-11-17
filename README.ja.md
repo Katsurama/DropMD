@@ -73,7 +73,7 @@ xattr -dr com.apple.quarantine /Applications/DropMD.app
 > この操作は一度だけで構いません。アプリ内からインストールした新しいバージョンはブロックされません。
 
 
-## ☕ サポート
+## ☕ 支援
 
 <div align="center">
 
