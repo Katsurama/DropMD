@@ -24,9 +24,13 @@ Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換す�
 
 </div>
 
+</div>
+
 > [!NOTE]
 > 問題があれば Issues で報告してください。
 > 表示言語は Mac の言語設定に合わせて、日本語・英語・中国語（簡体字 / 繁体字）から自動で選ばれます。「DropMD → 設定…」で個別に選ぶこともできます。
+
+<div lang="ja">
 
 ## ✨ 機能
 
@@ -69,17 +73,25 @@ xattr -dr com.apple.quarantine /Applications/DropMD.app
 
 これは、インターネットからダウンロードしたファイルに macOS が付ける印を外すだけです。以後はダブルクリックで開けます。
 
+</div>
+
 > [!NOTE]
 > この操作は一度だけで構いません。アプリ内からインストールした新しいバージョンはブロックされません。
 
+<div lang="ja">
+
 
 ## ☕ 支援
+
+</div>
 
 > [!TIP]
 > **DropMD を気に入っていただけましたか？**<br>
 > お役に立てたら、Patreon でコーヒー一杯分の支援をいただけると、今後の開発の励みになります ❤️
 >
 > <a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/Patreon%20%E3%81%A7%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-F96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Patreon で支援する" height="40"></a>
+
+<div lang="ja">
 
 ## 🔄 ファイル変換
 
@@ -105,8 +117,12 @@ Python をインストールする必要はありません。変換エンジン�
 | 追加のダウンロード | 約 1.8 GB | 不要 |
 | PDF 内の画像 | 書き出さない | 書き出す |
 
+</div>
+
 > [!NOTE]
 > 速さは M4 チップ、メモリ 16 GB の Mac で、きれいなテストページを使って測ったものです。実際のスキャンでは変わります。Xiaomi-OCR-0 は韓国語とベトナム語で誤字が多くなります。DropMD は独立したプロジェクトで、Xiaomi とは関係ありません。
+
+<div lang="ja">
 
 ## 🔒 プライバシー
 
