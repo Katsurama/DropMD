@@ -361,7 +361,9 @@ enum MarkdownCodec {
             }
             var parts = [line]
             i += 1
-            while i < lines.count && !isBlank(lines[i]) && !startsBlock(lines[i]) && groups(setextPattern, lines[i]) == nil {
+            // 表格可以紧跟在段落后面（不空行），GitHub 和预览都这样显示
+            func startsTable(_ k: Int) -> Bool { lines[k].contains("|") && k + 1 < lines.count && isTableDelimiter(lines[k + 1]) }
+            while i < lines.count && !isBlank(lines[i]) && !startsBlock(lines[i]) && groups(setextPattern, lines[i]) == nil && !startsTable(i) {
                 parts.append(lines[i])
                 i += 1
             }
