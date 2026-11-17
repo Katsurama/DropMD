@@ -12,11 +12,11 @@
 
 Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換することもできます。すべてお使いの Mac 上で処理します
 
-[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-インストール) [![Version](https://img.shields.io/badge/Version-0.6.0-0a84ff?style=flat-square)](docs/发行说明.md) [![UI](https://img.shields.io/badge/UI-SwiftUI%20%C2%B7%20Liquid%20Glass-f05138?style=flat-square&logo=swift&logoColor=white)](macos) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE) [![Patreon](https://img.shields.io/badge/Patreon-%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-F96854?style=flat-square&logo=patreon&logoColor=white)](https://www.patreon.com/c/katsurama/membership)
+[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-インストール) [![Version](https://img.shields.io/badge/Version-0.6.0-0a84ff?style=flat-square)](docs/发行说明.md) [![UI](https://img.shields.io/badge/UI-SwiftUI%20%C2%B7%20Liquid%20Glass-f05138?style=flat-square&logo=swift&logoColor=white)](macos) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE) [![Patreon](https://img.shields.io/badge/Patreon-%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-F96854?style=flat-square&logo=patreon&logoColor=white)](https://www.patreon.com/c/katsurama/membership) [![Discord](https://img.shields.io/badge/Discord-%E5%8F%82%E5%8A%A0%E3%81%99%E3%82%8B-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/VUne62RvrJ)
 
 <br>
 
-📦 [**インストール**](#-インストール) &nbsp;·&nbsp; ✨ [機能](#-機能) &nbsp;·&nbsp; 🔄 [ファイル変換](#-ファイル変換) &nbsp;·&nbsp; 🔒 [プライバシー](#-プライバシー) &nbsp;·&nbsp; 🛠️ [ソースからビルド](#️-ソースからビルド) &nbsp;·&nbsp; 📖 [ユーザガイド（英語）](docs/User%20Guide.md)
+📦 [**インストール**](#-インストール) &nbsp;·&nbsp; ✨ [機能](#-機能) &nbsp;·&nbsp; 🔄 [ファイル変換](#-ファイル変換) &nbsp;·&nbsp; 🔒 [プライバシー](#-プライバシー) &nbsp;·&nbsp; 🛠️ [ソースからビルド](#️-ソースからビルド) &nbsp;·&nbsp; 📖 [ユーザガイド（英語）](docs/User%20Guide.md) &nbsp;·&nbsp; 💬 [Discord](https://discord.gg/VUne62RvrJ)
 
 <br>
 
@@ -27,7 +27,7 @@ Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換す�
 </div>
 
 > [!NOTE]
-> 問題があれば Issues で報告してください。
+> 問題があれば Issues で報告するか、[Discord](https://discord.gg/VUne62RvrJ) で気軽に相談してください。
 > 表示言語は Mac の言語設定に合わせて、日本語・英語・中国語（簡体字 / 繁体字）から自動で選ばれます。「DropMD → 設定…」で個別に選ぶこともできます。
 
 <div lang="ja">
