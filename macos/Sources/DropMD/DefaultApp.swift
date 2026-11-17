@@ -86,17 +86,30 @@ enum AppLanguage {
     }
 }
 
-/// “DropMD → 设置…”
+/// “DropMD → 设置…”：和苹果自带 App 一样分成几页（顶部的标签），不再是一长条
 struct SettingsView: View {
+    var body: some View {
+        TabView {
+            GeneralSettings()
+                .tabItem { Label("通用", systemImage: "gearshape") }
+            UpdateSettings()
+                .tabItem { Label("更新", systemImage: "arrow.triangle.2.circlepath") }
+            AboutSettings()
+                .tabItem { Label("关于", systemImage: "info.circle") }
+        }
+        .frame(width: 460)
+        .fixedSize()
+    }
+}
+
+/// 通用：外观、页边距、界面语言、默认打开程序
+private struct GeneralSettings: View {
     @State private var isDefault = DefaultApp.isDefault
     @State private var working = false
     @State private var language = AppLanguage.current
-    @ObservedObject private var updater = UpdateChecker.shared
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Form {
-            // 按用途分成几组，和“系统设置”一样一眼能找到
             Section("显示") {
                 AppearanceMenu()
                 PageMarginMenu()
@@ -133,7 +146,25 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Section("软件更新") {
+        }
+        .formStyle(.grouped)
+        .scrollDisabled(true)   // 内容放得下，不显示滚动条
+        .fixedSize(horizontal: false, vertical: true)
+        // 用户可能在访达的“显示简介”里改了默认程序，回到 DropMD 时重新查看
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            isDefault = DefaultApp.isDefault
+        }
+    }
+}
+
+/// 更新：当前版本、检查更新（自动检查、测试版的开关只在更新窗口里，免得两处看着像冲突）
+private struct UpdateSettings: View {
+    @ObservedObject private var updater = UpdateChecker.shared
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Form {
+            Section {
                 LabeledContent("当前版本") {
                     HStack {
                         Text(verbatim: UpdateChecker.currentVersionText)
@@ -145,11 +176,39 @@ struct SettingsView: View {
                         .disabled(UpdateChecker.repository == nil || updater.state == .checking)
                     }
                 }
+                Text("“启动时自动检查更新”和“包括测试版”在“检查更新…”打开的窗口里设置。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            if let repo = UpdateChecker.repository, let url = HelpDocs.repoURL() {
-                Section("关于") {
-                    LabeledContent("GitHub 仓库") {
-                        Link(destination: url) { Text(verbatim: "github.com/\(repo)") }
+        }
+        .formStyle(.grouped)
+        .scrollDisabled(true)   // 内容放得下，不显示滚动条
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// 关于：图标和版本、仓库 / 反馈 / Discord，最下面是赞助卡片
+private struct AboutSettings: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 4) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 72, height: 72)
+                Text(verbatim: "DropMD")
+                    .font(.title2.weight(.semibold))
+                Text("版本 \(UpdateChecker.currentVersionText)")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 8)
+
+            Form {
+                Section {
+                    if let repo = UpdateChecker.repository, let url = HelpDocs.repoURL() {
+                        LabeledContent("GitHub 仓库") {
+                            Link(destination: url) { Text(verbatim: "github.com/\(repo)") }
+                        }
                     }
                     if let issues = HelpDocs.repoURL(path: "/issues") {
                         LabeledContent("遇到问题") {
@@ -161,28 +220,51 @@ struct SettingsView: View {
                     }
                 }
             }
-            Section {
-                LabeledContent("赞助") {
-                    HStack(spacing: 12) {
-                        ForEach(HelpDocs.sponsors, id: \.url) { s in
-                            Link(destination: s.url) { Text(verbatim: s.name) }
-                        }
+            .formStyle(.grouped)
+            .scrollDisabled(true)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, -20)   // 和下面的卡片左右对齐（分组表单自带左右留白）
+            .padding(.vertical, -12)
+
+            SponsorCard()
+        }
+        .padding(20)
+    }
+}
+
+/// 赞助卡片：粉色的心、一句话、实心按钮
+private struct SponsorCard: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "heart.fill")
+                .font(.system(size: 26))
+                .foregroundStyle(.pink)
+            Text("喜欢 DropMD？")
+                .font(.headline)
+            Text("如果它帮到了你，可以请我喝杯咖啡，支持我继续更新")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                ForEach(HelpDocs.sponsors, id: \.url) { s in
+                    Link(destination: s.url) {
+                        Text(verbatim: s.name)
+                            .font(.callout.weight(.semibold))
+                            .frame(minWidth: 96)
+                            .padding(.vertical, 7)
+                            .padding(.horizontal, 14)
+                            .foregroundStyle(.white)
+                            .background(Color.pink.gradient, in: Capsule())
                     }
+                    .buttonStyle(.plain)
                 }
-            } header: {
-                Text("喜欢 DropMD？")
-            } footer: {
-                Text("如果它帮到了你，可以请我喝杯咖啡，支持我继续更新 ❤️")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
+            .padding(.top, 2)
         }
-        .formStyle(.grouped)
-        .frame(width: 460)
-        .fixedSize()
-        // 用户可能在访达的“显示简介”里改了默认程序，回到 DropMD 时重新查看
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            isDefault = DefaultApp.isDefault
-        }
+        .frame(maxWidth: .infinity)
+        .padding(18)
+        .background(Color.pink.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.pink.opacity(0.18)))
     }
 }
