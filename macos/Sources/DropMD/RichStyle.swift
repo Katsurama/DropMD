@@ -139,6 +139,7 @@ enum RichStyle {
     static let taskDone = "☑"
     static let italicObliqueness = 0.18   // 系统字体（苹方等）没有斜体，用倾斜代替
     static let detailsIndent: CGFloat = 22
+    static let codePadding: CGFloat = 16   // 代码块左右的内边距
 
     static var codeBackground: NSColor { NSColor.quaternaryLabelColor.withAlphaComponent(0.10) }
     /// 代码块的整块底色（参考 Notion：浅灰 / 深灰，不透明，与正文底色区分开）
@@ -227,20 +228,20 @@ enum RichStyle {
             // 项目符号和编号由 RichLayoutManager 画在缩进区内，不是正文的一部分
             p.firstLineHeadIndent = CGFloat(d + 1) * indent
             p.headIndent = CGFloat(d + 1) * indent
-            p.paragraphSpacing = 3
+            p.paragraphSpacing = 5
         case .task(let d, _):
             p.firstLineHeadIndent = CGFloat(d) * indent
             p.headIndent = CGFloat(d) * indent + 22
-            p.paragraphSpacing = 3
+            p.paragraphSpacing = 5
         case .quote:
             p.firstLineHeadIndent = 20
             p.headIndent = 20
         case .code, .raw:
             // 底色块由 RichLayoutManager 画出，左右留出内边距
-            p.firstLineHeadIndent = 14
-            p.headIndent = 14
-            p.tailIndent = -14
-            p.lineSpacing = 2
+            p.firstLineHeadIndent = codePadding
+            p.headIndent = codePadding
+            p.tailIndent = -codePadding
+            p.lineSpacing = 4
             p.paragraphSpacing = 0
         case .summary:
             // ▸ 由 RichLayoutManager 画在缩进区内

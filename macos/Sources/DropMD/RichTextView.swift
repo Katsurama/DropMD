@@ -208,6 +208,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
     /// 代码块：连续的代码段落画成一整块圆角底色（不按行画，避免一条条的横条）
     override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
         drawCodeBlocks(glyphsToShow, origin: origin)
+        drawCallouts(glyphsToShow, origin: origin)
         // 收起的内容不画背景：隐藏的表格边框会缩成一个小方块画在左上角
         var start = glyphsToShow.location
         for hidden in hiddenRanges.map({ glyphRange(forCharacterRange: $0, actualCharacterRange: nil) }).sorted(by: { $0.location < $1.location })
@@ -283,10 +284,10 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         let top = lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil).minY
         let last = lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
         let pad = container.lineFragmentPadding
-        // 折叠块里、列表项里的代码块整体右移：按段落缩进算（代码块本身的内边距是 14）
+        // 折叠块里、列表项里的代码块整体右移：按段落缩进算（代码块本身的内边距是 RichStyle.codePadding）
         let style = storage.attribute(.paragraphStyle, at: block.location, effectiveRange: nil) as? NSParagraphStyle
-        let shift = max(0, (style?.headIndent ?? 14) - 14)
-        return NSRect(x: first.minX + pad + shift, y: top - 6, width: first.width - pad * 2 - shift, height: last.maxY - top + 10)
+        let shift = max(0, (style?.headIndent ?? RichStyle.codePadding) - RichStyle.codePadding)
+        return NSRect(x: first.minX + pad + shift, y: top - 10, width: first.width - pad * 2 - shift, height: last.maxY - top + 20)
     }
 
     /// 代码块：连续的代码段落画成一整块圆角底色（不按行画，避免一条条的横条）
@@ -304,6 +305,59 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             guard let rect = codeBlockRect(block)?.offsetBy(dx: origin.x, dy: origin.y) else { continue }
             RichStyle.codeBlockBackground.setFill()
             NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6).fill()
+        }
+    }
+
+    /// 提示框：整块画一层淡淡的底色（与双页预览相同），右边是圆角
+    private func drawCallouts(_ glyphsToShow: NSRange, origin: NSPoint) {
+        guard let storage = textStorage, storage.length > 0 else { return }
+        let ns = storage.string as NSString
+        let chars = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
+        let hidden = hiddenRanges
+        var loc = ns.paragraphRange(for: NSRange(location: min(chars.location, ns.length - 1), length: 0)).location
+        // 从屏幕上第一段所在的提示框开头算起，否则往下滚时提示框上半截不画
+        while loc > 0, RichBridge.kind(of: storage.attributes(at: loc, effectiveRange: nil)) == .quote,
+              storage.attribute(DMKey.callout, at: loc, effectiveRange: nil) == nil {
+            let prev = ns.paragraphRange(for: NSRange(location: loc - 1, length: 0))
+            guard RichBridge.kind(of: storage.attributes(at: prev.location, effectiveRange: nil)) == .quote else { break }
+            loc = prev.location
+        }
+        while loc < NSMaxRange(chars) && loc < ns.length {
+            let para = ns.paragraphRange(for: NSRange(location: loc, length: 0))
+            loc = NSMaxRange(para)
+            guard let header = storage.attribute(DMKey.callout, at: para.location, effectiveRange: nil) as? String,
+                  let type = MDCallout(header: header),
+                  !hidden.contains(where: { NSLocationInRange(para.location, $0) }) else { continue }
+            // 提示框到下一个不是引用的段落、或下一个提示框标题为止
+            var block = para
+            while NSMaxRange(block) < ns.length {
+                let next = ns.paragraphRange(for: NSRange(location: NSMaxRange(block), length: 0))
+                let a = storage.attributes(at: next.location, effectiveRange: nil)
+                guard RichBridge.kind(of: a) == .quote, a[DMKey.callout] == nil,
+                      !hidden.contains(where: { NSLocationInRange(next.location, $0) }) else { break }
+                block = NSUnionRange(block, next)
+            }
+            loc = NSMaxRange(block)
+            let glyphs = glyphRange(forCharacterRange: block, actualCharacterRange: nil)
+            guard glyphs.length > 0, let container = textContainers.first else { continue }
+            let first = lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+            let top = lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil).minY
+            let bottom = lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil).maxY
+            let shift = storage.attribute(DMKey.inDetails, at: para.location, effectiveRange: nil) != nil ? RichStyle.detailsIndent : 0
+            let x = origin.x + first.minX + shift + 4
+            let rect = NSRect(x: x, y: origin.y + top - 4, width: origin.x + first.maxX - container.lineFragmentPadding - x,
+                              height: bottom - top + 8)
+            RichStyle.calloutColor(type).withAlphaComponent(0.08).setFill()
+            let path = NSBezierPath()
+            let r: CGFloat = 6
+            path.move(to: NSPoint(x: rect.minX, y: rect.minY))
+            path.line(to: NSPoint(x: rect.maxX - r, y: rect.minY))
+            path.curve(to: NSPoint(x: rect.maxX, y: rect.minY + r), controlPoint1: NSPoint(x: rect.maxX, y: rect.minY), controlPoint2: NSPoint(x: rect.maxX, y: rect.minY))
+            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - r))
+            path.curve(to: NSPoint(x: rect.maxX - r, y: rect.maxY), controlPoint1: NSPoint(x: rect.maxX, y: rect.maxY), controlPoint2: NSPoint(x: rect.maxX, y: rect.maxY))
+            path.line(to: NSPoint(x: rect.minX, y: rect.maxY))
+            path.close()
+            path.fill()
         }
     }
 
@@ -333,7 +387,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         codeEdgeSpacing(glyphIndex, after: false)
     }
 
-    /// 系统调用这两个方法时，返回值代替段落样式里的段前 / 段后间距，所以先取段落样式的值，再给代码块加上多留的空
+    /// 系统调用这两个方法时，返回值代替段落样式里的段前 / 段后间距，所以先取段落样式的值，再给代码块、引用和提示框前后加上多留的空
     private func codeEdgeSpacing(_ glyphIndex: Int, after: Bool) -> CGFloat {
         guard let storage = textStorage, storage.length > 0 else { return 0 }
         let ns = storage.string as NSString
@@ -345,14 +399,25 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         let style = attrs[.paragraphStyle] as? NSParagraphStyle
         // 系统在文档开头不加段前间距
         let base = (after ? style?.paragraphSpacing : para.location == 0 ? 0 : style?.paragraphSpacingBefore) ?? 0
-        guard isCodeParagraph(at: para.location, in: storage), RichBridge.tableBlock(of: attrs) == nil else { return base }
+        guard RichBridge.tableBlock(of: attrs) == nil else { return base }
+        let isCode = isCodeParagraph(at: para.location, in: storage)
+        let isQuote = !isCode && RichBridge.kind(of: attrs) == .quote
+        guard isCode || isQuote else { return base }
+        /// 相邻的段落是否和这一段属于同一块（同一个代码块，或同一个引用 / 提示框）
+        func sameBlock(_ other: Int, otherIsAfter: Bool) -> Bool {
+            if isCode { return isCodeParagraph(at: other, in: storage) }
+            let a = storage.attributes(at: other, effectiveRange: nil)
+            guard RichBridge.kind(of: a) == .quote else { return false }
+            // 提示框标题行开始新的一块
+            return otherIsAfter ? a[DMKey.callout] == nil : attrs[DMKey.callout] == nil
+        }
         if after {
-            guard NSMaxRange(para) < ns.length, !isCodeParagraph(at: NSMaxRange(para), in: storage) else { return base }
-            return base + 14
+            guard NSMaxRange(para) < ns.length, !sameBlock(NSMaxRange(para), otherIsAfter: true) else { return base }
+            return base + (isCode ? 18 : 6)
         }
         guard para.location > 0 else { return base }
         let prev = ns.paragraphRange(for: NSRange(location: para.location - 1, length: 0))
-        return isCodeParagraph(at: prev.location, in: storage) ? base : base + 8
+        return sameBlock(prev.location, otherIsAfter: false) ? base : base + (isCode ? 14 : 6)
     }
 
     /// 段落左侧的竖线（引用、折叠块内容）
