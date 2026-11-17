@@ -10,7 +10,7 @@
 
 还能把 Word、Excel、PowerPoint、PDF 等文件转换为 Markdown，全部在本机完成
 
-[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-安装) [![版本](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.6.0-0a84ff?style=flat-square)](docs/发行说明.md) [![界面](https://img.shields.io/badge/%E7%95%8C%E9%9D%A2-SwiftUI%20%C2%B7%20Liquid%20Glass-f05138?style=flat-square&logo=swift&logoColor=white)](macos) [![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-3b82f6?style=flat-square)](LICENSE)
+[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-安装) [![版本](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.6.0-0a84ff?style=flat-square)](docs/发行说明.md) [![界面](https://img.shields.io/badge/%E7%95%8C%E9%9D%A2-SwiftUI%20%C2%B7%20Liquid%20Glass-f05138?style=flat-square&logo=swift&logoColor=white)](macos) [![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-3b82f6?style=flat-square)](LICENSE) [![爱发电](https://img.shields.io/badge/%E7%88%B1%E5%8F%91%E7%94%B5-%E6%94%AF%E6%8C%81%E4%BD%9C%E8%80%85-946ce6?style=flat-square)](https://afdian.com/a/katsurama)
 
 <br>
 
@@ -149,6 +149,16 @@ docs/                  使用说明（简体、繁体、英文、日文）、发
 Swift 界面把转换任务交给 App 里的本机引擎（子进程，通过标准输入输出交换 JSON）。依赖及版本见 [依赖清单](docs/依赖清单.md)。
 
 </details>
+
+## ☕ 支持作者
+
+<div align="center">
+
+如果这个项目帮到了你，可以在爱发电请我喝杯咖啡 ☕
+
+<a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20%E5%9C%A8%E7%88%B1%E5%8F%91%E7%94%B5%E6%94%AF%E6%8C%81%E6%88%91-946ce6?style=for-the-badge" alt="在爱发电支持我" height="40"></a>
+
+</div>
 
 ## 📄 许可证
 
