@@ -298,5 +298,12 @@ enum HelpDocs {
         return lang.hasPrefix("zh") ? [afdian, patreon] : [patreon]
     }
 
+    /// 微信赞赏码（App 包里的图片）：只在中文界面显示
+    static var wechatQR: NSImage? {
+        guard (Bundle.main.preferredLocalizations.first ?? "").hasPrefix("zh"),
+              let url = Bundle.main.url(forResource: "wechat-sponsor", withExtension: "png") else { return nil }
+        return NSImage(contentsOf: url)
+    }
+
     static func openAppLicense() { openCopy(of: "LICENSE", as: String(localized: "DropMD 许可证.md")) }
 }

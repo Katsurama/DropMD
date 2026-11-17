@@ -237,8 +237,24 @@ private struct AboutSettings: View {
     }
 }
 
+/// 赞助按钮的样子：粉色实心胶囊
+private struct SponsorLabel: View {
+    let name: String
+    var body: some View {
+        Text(verbatim: name)
+            .font(.callout.weight(.semibold))
+            .frame(minWidth: 80)
+            .padding(.vertical, 7)
+            .padding(.horizontal, 12)
+            .foregroundStyle(.white)
+            .background(Color.pink.gradient, in: Capsule())
+    }
+}
+
 /// 赞助卡片：粉色的心、一句话、实心按钮
 private struct SponsorCard: View {
+    @State private var showWeChat = false
+
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: "heart.fill")
@@ -253,16 +269,26 @@ private struct SponsorCard: View {
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
                 ForEach(HelpDocs.sponsors, id: \.url) { s in
-                    Link(destination: s.url) {
-                        Text(verbatim: s.name)
-                            .font(.callout.weight(.semibold))
-                            .frame(minWidth: 96)
-                            .padding(.vertical, 7)
-                            .padding(.horizontal, 14)
-                            .foregroundStyle(.white)
-                            .background(Color.pink.gradient, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
+                    Link(destination: s.url) { SponsorLabel(name: s.name) }
+                        .buttonStyle(.plain)
+                }
+                // 微信赞赏码：只在中文界面显示（随 App 带的图片，不联网）
+                if let qr = HelpDocs.wechatQR {
+                    Button { showWeChat.toggle() } label: { SponsorLabel(name: String(localized: "微信")) }
+                        .buttonStyle(.plain)
+                        .popover(isPresented: $showWeChat, arrowEdge: .bottom) {
+                            VStack(spacing: 8) {
+                                Image(nsImage: qr)
+                                    .resizable()
+                                    .interpolation(.high)
+                                    .frame(width: 220, height: 220)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                Text("用微信扫一扫")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(16)
+                        }
                 }
             }
             .padding(.top, 2)
