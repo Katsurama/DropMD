@@ -828,6 +828,24 @@ MainActor.assumeIsolated {
             check(name, reopen(tv, src).filter { !$0.isWhitespace }, tv.string.filter { !$0.isWhitespace })
         }
     }
+    // 文件被别的程序删掉（Edge 删除下载记录）：监视收到通知；改过才写回，没改过不写回，系统保存时替换文件不算
+    do {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("dropmd-watch-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("a.md")
+        try? Data("原文".utf8).write(to: file)
+        var fired = false
+        let watch = FileDeletionWatch(url: file) { fired = true }
+        try? FileManager.default.removeItem(at: file)
+        let until = Date().addingTimeInterval(3)
+        while !fired && Date() < until { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        check("文件被删时收到通知", fired ? "收到" : "没收到", "收到")
+        _ = watch
+        check("改过的文件被删要写回", "\(FileDeletionWatch.shouldWriteBack(fileExists: false, edited: false, text: "原文字", diskText: "原文"))", "true")
+        check("没改过的文件被删不写回", "\(FileDeletionWatch.shouldWriteBack(fileExists: false, edited: false, text: "原文", diskText: "原文"))", "false")
+        check("系统保存替换文件不写回", "\(FileDeletionWatch.shouldWriteBack(fileExists: true, edited: true, text: "新", diskText: "原文"))", "false")
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }
