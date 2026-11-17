@@ -21,6 +21,9 @@ struct DropMDApp: App {
         }
         .defaultSize(width: 980, height: 660)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("关于 DropMD") { AboutPanel.show() }
+            }
             CommandGroup(after: .appInfo) {
                 OpenUpdatesButton()
             }
@@ -236,6 +239,26 @@ struct FormatCommands: Commands {
                 Button(lang) { editor?.codeBlock(lang) }.disabled(editor == nil)
             }
         }
+    }
+}
+
+/// 系统的“关于”窗口，但不显示滚动条（致谢文字已缩短到放得下；系统设成“始终显示滚动条”时也不出现空的滚动条）
+@MainActor enum AboutPanel {
+    private static weak var panel: NSWindow?
+
+    static func show() {
+        let before = Set(NSApp.windows.map(ObjectIdentifier.init))
+        NSApp.orderFrontStandardAboutPanel(nil)
+        if panel == nil { panel = NSApp.windows.first { !before.contains(ObjectIdentifier($0)) } }
+        if let view = panel?.contentView { hideScrollers(view) }
+    }
+
+    private static func hideScrollers(_ view: NSView) {
+        if let scroll = view as? NSScrollView {
+            scroll.hasVerticalScroller = false
+            scroll.hasHorizontalScroller = false
+        }
+        view.subviews.forEach(hideScrollers)
     }
 }
 
