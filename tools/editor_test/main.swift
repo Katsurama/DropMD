@@ -807,6 +807,27 @@ MainActor.assumeIsolated {
         check("复制的代码块", lm.codeBlock(at: 0).map { (tv.string as NSString).substring(with: $0) } ?? "无", "a\nb\n")
         check("正文不是代码块", lm.codeBlock(at: (tv.string as NSString).range(of: "后文").location) == nil ? "不是" : "是", "不是")
     }
+    // 在“不是正文的东西”里打字、退格、回车：屏幕上看到的要和保存后重新打开的一样（随机编辑测试找到的）
+    do {
+        @MainActor func reopen(_ tv: RichTextView, _ src: String) -> String {
+            makeView(MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src)).string
+        }
+        let cases: [(String, String, String, (RichTextView) -> Void)] = [
+            ("占位文字中间打字", "![图](missing.png)\n", "片", { type($0, "字") }),
+            ("占位文字中间退格", "![图](missing.png)\n", "片", { $0.deleteBackward(nil) }),
+            ("占位文字中间回车", "前 ![图](no.png) 后\n", "片", { $0.insertNewline(nil) }),
+            ("提示框标题中间打字", "> [!TIP]\n> 内容\n", "示", { type($0, "字") }),
+            ("提示框标题中间退格", "> [!TIP]\n> 内容\n", "示", { $0.deleteBackward(nil) }),
+            ("待办方框前打字", "- [ ] 待办\n", "☐", { type($0, "字") }),
+        ]
+        for (name, src, anchor, op) in cases {
+            let tv = makeView(src)
+            tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: anchor).location, length: 0))
+            op(tv)
+            // 只比文字：行首空格、空文档的空行保存时本来就会整理
+            check(name, reopen(tv, src).filter { !$0.isWhitespace }, tv.string.filter { !$0.isWhitespace })
+        }
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

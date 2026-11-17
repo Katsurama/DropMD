@@ -1288,6 +1288,7 @@ final class RichTextView: NSTextView {
     // MARK: - 键盘
 
     override func insertNewline(_ sender: Any?) {
+        if selectedRange().length == 0, !hasMarkedText() { moveCaretOutOfObjects(newline: true) } else { expandSelectionToObjects() }
         let para = paragraphRange(at: selectedRange().location)
         let attrs = paragraphAttributes(para)
         // 表格中回车移到下一格（每个单元格只能有一个段落）
@@ -1352,8 +1353,37 @@ final class RichTextView: NSTextView {
     }
 
     /// 在列表项、待办、引用的开头按退格：先减少缩进 / 变回正文（与 Notion、Word 相同），再按一次才与上一段合并
+    /// 一整块、不能只改一部分的东西：找不到的图片的占位文字、提示框的标题（保存时整个写回原文）
+    private func objectRange(at index: Int) -> NSRange? {
+        guard let storage = textStorage, index >= 0, index < storage.length else { return nil }
+        let all = NSRange(location: 0, length: storage.length)
+        var range = NSRange()
+        for key in [DMKey.imageID, DMKey.callout] where storage.attribute(key, at: index, longestEffectiveRange: &range, in: all) != nil {
+            // 真正的图片是一个附件字符，本来就是一整个
+            return range.length > 1 ? range : nil
+        }
+        return nil
+    }
+
+    /// 选区只盖住它们的一部分时，扩大到整个（删掉就整个删掉，不会只删几个字、保存时又整个写回去）
+    private func expandSelectionToObjects() {
+        let sel = selectedRange()
+        guard sel.length > 0 else { return }
+        var r = sel
+        if let a = objectRange(at: sel.location) { r = NSUnionRange(r, a) }
+        if let b = objectRange(at: NSMaxRange(sel) - 1) { r = NSUnionRange(r, b) }
+        if r != sel { setSelectedRange(r) }
+    }
+
+    override func deleteForward(_ sender: Any?) {
+        let sel = selectedRange()
+        if sel.length == 0, let r = objectRange(at: sel.location) { setSelectedRange(r) } else { expandSelectionToObjects() }
+        super.deleteForward(sender)
+    }
+
     override func deleteBackward(_ sender: Any?) {
         let sel = selectedRange()
+        if sel.length > 0 { expandSelectionToObjects() }
         if sel.length == 0 {
             let para = paragraphRange(at: sel.location)
             let kind = currentKind
@@ -1363,14 +1393,59 @@ final class RichTextView: NSTextView {
                 if kind.depth > 0 { changeDepth(-1) } else { applyKinds { _ in .body } }
                 return
             }
+            if let r = objectRange(at: sel.location - 1) { setSelectedRange(r) }
         }
         super.deleteBackward(sender)
     }
 
     /// 自动格式：在段首输入“- ”“1. ”“# ”“> ”“[] ”后按空格，自动转换为对应样式
     override func insertText(_ string: Any, replacementRange: NSRange) {
+        if replacementRange.location == NSNotFound, !hasMarkedText() { moveCaretOutOfObjects(); expandSelectionToObjects() }
         if let s = string as? String, s == " ", selectedRange().length == 0, autoFormat() { return }
         super.insertText(string, replacementRange: replacementRange)
+    }
+
+    /// 输入法开始拼字时也一样（拼好的字会替换掉拼写中的文字，位置在这里就定了）
+    override func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+        if replacementRange.location == NSNotFound, !hasMarkedText() { moveCaretOutOfObjects(); expandSelectionToObjects() }
+        super.setMarkedText(string, selectedRange: selectedRange, replacementRange: replacementRange)
+    }
+
+    /// 光标在“不是正文的东西”里面时，打的字保存后会挪到旁边（重新打开时位置就变了）。
+    /// 打字前先把光标挪到保存后的位置，屏幕上看到的就是保存后的样子：
+    /// 找不到的图片的占位文字中间 → 占位文字后面；待办方框前面 → 方框后面；提示框标题行 → 标题下面新的一行
+    func moveCaretOutOfObjects(newline: Bool = false) {
+        guard let storage = textStorage, storage.length > 0 else { return }
+        let sel = selectedRange()
+        guard sel.length == 0, sel.location <= storage.length else { return }
+        let loc = sel.location
+        let para = paragraphRange(at: min(loc, storage.length - 1))
+        guard para.length > 0 else { return }
+        let attrs = storage.attributes(at: para.location, effectiveRange: nil)
+        // 提示框标题行：标题要单独一行才算提示框，这一行里打的字保存时放到下一行
+        if attrs[DMKey.callout] != nil, loc >= para.location, loc <= NSMaxRange(para) {
+            var end = NSMaxRange(para)
+            if end > para.location, (string as NSString).character(at: end - 1) == 0x0A { end -= 1 }
+            setSelectedRange(NSRange(location: end, length: 0))
+            if !newline { insertNewline(nil) }
+            return
+        }
+        // 待办方框前面（方框和后面的空格是一体的）
+        if case .task = RichBridge.kind(of: attrs), loc == para.location || loc == para.location + 1,
+           para.length >= 2 {
+            let box = (string as NSString).substring(with: NSRange(location: para.location, length: 1))
+            if box == RichStyle.taskTodo || box == RichStyle.taskDone {
+                setSelectedRange(NSRange(location: min(para.location + 2, NSMaxRange(para)), length: 0))
+                return
+            }
+        }
+        // 占位文字中间（前后两个字是同一张图片）
+        guard loc > 0, loc < storage.length,
+              let id = storage.attribute(DMKey.imageID, at: loc - 1, effectiveRange: nil) as? String,
+              storage.attribute(DMKey.imageID, at: loc, effectiveRange: nil) as? String == id else { return }
+        var range = NSRange()
+        _ = storage.attribute(DMKey.imageID, at: loc, longestEffectiveRange: &range, in: NSRange(location: 0, length: storage.length))
+        setSelectedRange(NSRange(location: NSMaxRange(range), length: 0))
     }
 
     private static let fullWidthMarks: [Character: Character] = [
