@@ -73,6 +73,16 @@ xattr -dr com.apple.quarantine /Applications/DropMD.app
 > この操作は一度だけで構いません。アプリ内からインストールした新しいバージョンはブロックされません。
 
 
+## ☕ サポート
+
+<div align="center">
+
+DropMD がお役に立てたら、Patreon でコーヒー一杯分の支援をいただけるとうれしいです ☕
+
+<a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/Patreon%20%E3%81%A7%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-F96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Patreon で支援する" height="40"></a>
+
+</div>
+
 ## 🔄 ファイル変換
 
 **ファイル → ファイルを Markdown に変換…** を選び、ファイルやフォルダごとドラッグします。まとめて変換され、ファイルごとに結果が表示されます。
@@ -144,16 +154,6 @@ docs/                  ユーザガイド、リリースノート、依存関係
 Swift のインターフェイスは、アプリ内のローカルエンジン（標準入出力で JSON をやり取りする子プロセス）に変換を任せます。依存関係とバージョンは[依存関係の一覧](docs/依赖清单.md)（中国語）を参照してください。
 
 </details>
-
-## ☕ サポート
-
-<div align="center">
-
-DropMD がお役に立てたら、Patreon でコーヒー一杯分の支援をいただけるとうれしいです ☕
-
-<a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/Patreon%20%E3%81%A7%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-F96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Patreon で支援する" height="40"></a>
-
-</div>
 
 ## 📄 ライセンス
 

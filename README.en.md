@@ -71,6 +71,16 @@ This only removes the mark macOS puts on files downloaded from the internet. Aft
 > You only need to do this once. New versions installed from inside the app aren't blocked.
 
 
+## ☕ Support
+
+<div align="center">
+
+If DropMD helps you, you can buy me a coffee on Patreon ☕
+
+<a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/Support%20me%20on%20Patreon-F96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Support me on Patreon" height="40"></a>
+
+</div>
+
 ## 🔄 File conversion
 
 Choose **File → Convert Files to Markdown…**, then drag in files or whole folders. They are converted in one go, with a result for each file.
@@ -142,16 +152,6 @@ docs/                  User guides, release notes, dependency list
 The Swift interface hands conversions to the local engine inside the app (a child process that exchanges JSON over standard input and output). For dependencies and versions, see the [dependency list](docs/依赖清单.md) (in Chinese).
 
 </details>
-
-## ☕ Support
-
-<div align="center">
-
-If DropMD helps you, you can buy me a coffee on Patreon ☕
-
-<a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/Support%20me%20on%20Patreon-F96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Support me on Patreon" height="40"></a>
-
-</div>
 
 ## 📄 License
 
