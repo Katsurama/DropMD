@@ -94,6 +94,10 @@ dmgbuild -s macos/dmg/settings.py \
   "DropMD" DropMD-macOS-AppleSilicon.dmg
 hdiutil verify DropMD-macOS-AppleSilicon.dmg
 ditto -c -k --sequesterRsrc --keepParent dist/DropMD.app DropMD-macOS-AppleSilicon.zip
+# dmg 和 zip 里的 App 签名都要完整（文件名被改写等会让 App 被当成已损坏）
+mnt=$(mktemp -d); hdiutil attach -nobrowse -readonly -mountpoint "$mnt" DropMD-macOS-AppleSilicon.dmg >/dev/null
+codesign -v "$mnt/DropMD.app"; hdiutil detach "$mnt" >/dev/null
+unz=$(mktemp -d); ditto -x -k DropMD-macOS-AppleSilicon.zip "$unz"; codesign -v "$unz/DropMD.app"; rm -rf "$unz"
 shasum -a 256 DropMD-macOS-AppleSilicon.dmg > DropMD-macOS-AppleSilicon.dmg.sha256
 shasum -a 256 DropMD-macOS-AppleSilicon.zip > DropMD-macOS-AppleSilicon.zip.sha256
 ls -la DropMD-macOS-AppleSilicon.*

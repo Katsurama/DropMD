@@ -151,6 +151,10 @@ jobs:
           hdiutil verify DropMD-macOS-AppleSilicon.dmg
           # App 内更新用的 zip（直接解压，不用挂载磁盘）
           ditto -c -k --sequesterRsrc --keepParent dist/DropMD.app DropMD-macOS-AppleSilicon.zip
+          # dmg 和 zip 里的 App 签名都要完整（文件名被改写等会让 App 被当成已损坏）
+          mnt=$(mktemp -d); hdiutil attach -nobrowse -readonly -mountpoint "$mnt" DropMD-macOS-AppleSilicon.dmg
+          codesign -v "$mnt/DropMD.app"; hdiutil detach "$mnt"
+          unz=$(mktemp -d); ditto -x -k DropMD-macOS-AppleSilicon.zip "$unz"; codesign -v "$unz/DropMD.app"
           ls -la DropMD-*
 
       - uses: actions/upload-artifact@v4

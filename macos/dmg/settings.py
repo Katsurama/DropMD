@@ -10,7 +10,8 @@ app_name = os.path.basename(app)
 
 # 压缩格式：ULFO（LZFSE，macOS 10.11+），体积比传统 UDZO 更小
 format = "ULFO"
-filesystem = "HFS+"
+# APFS 保留文件名原样；HFS+ 会把 ユーザーガイド.md 等文件名拆成另一种 Unicode 写法，和签名对不上（App 被当成已损坏）
+filesystem = "APFS"
 size = None
 
 files = [app]
