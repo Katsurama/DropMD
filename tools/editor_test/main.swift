@@ -778,6 +778,35 @@ MainActor.assumeIsolated {
         tv.deleteBackward(nil)
         check("普通退格", md(tv), "正\n")
     }
+    // 提示框的竖线颜色：按引用块第一段的标题行判断；普通引用不是提示框
+    do {
+        let tv = makeView("> [!NOTE]\n> 一\n> 二\n\n> 普通\n")
+        let lm = tv.layoutManager as! RichLayoutManager, st = tv.textStorage!, ns = tv.string as NSString
+        check("提示框竖线", "\(lm.callout(at: ns.range(of: "二").location, in: st).map { "\($0)" } ?? "无")", "note")
+        let plain = makeView("正文\n\n> 普通\n"), plm = plain.layoutManager as! RichLayoutManager
+        check("普通引用竖线", "\(plm.callout(at: (plain.string as NSString).range(of: "普通").location, in: plain.textStorage!).map { "\($0)" } ?? "无")", "无")
+        for src in ["> [!NOTE]\n> 一\n\n> 普通\n", "> 甲\n\n> 乙\n", "正文\n\n> [!NOTE]\n> 一\n\n> 普通\n"] {
+            let t = makeView(src)
+            check("两段引用不合并（没改）", MarkdownCodec.serialize(RichBridge.blocks(from: t.textStorage!), preserving: src), src)
+            t.setSelectedRange(NSRange(location: (t.string as NSString).length - 1, length: 0)); type(t, "字")
+            let want = String(src.dropLast()) + "字\n"
+            check("两段引用不合并（改了）", MarkdownCodec.serialize(RichBridge.blocks(from: t.textStorage!), preserving: src), want)
+        }
+    }
+    // 代码块后面多留空：只加在代码块后，没有代码块的文档排版不变
+    do {
+        for (name, src) in [("代码块后留空", "```\na\n```\n后文\n"), ("网页代码后留空", "<div>\n</div>\n\n后文\n")] {
+            let tv = makeView(src), lm = tv.layoutManager as! RichLayoutManager
+            let end = lm.glyphIndexForCharacter(at: (tv.string as NSString).range(of: "后文").location - 1)
+            check(name, "\(lm.layoutManager(lm, paragraphSpacingAfterGlyphAt: end, withProposedLineFragmentRect: .zero))", "14.0")
+        }
+        let body = makeView("一\n\n后文\n"), blm = body.layoutManager as! RichLayoutManager
+        check("正文段后不变", "\(blm.layoutManager(blm, paragraphSpacingAfterGlyphAt: 1, withProposedLineFragmentRect: .zero))", "8.0")
+        let tv = makeView("```\na\nb\n```\n后文\n")
+        let lm = tv.layoutManager as! RichLayoutManager
+        check("复制的代码块", lm.codeBlock(at: 0).map { (tv.string as NSString).substring(with: $0) } ?? "无", "a\nb\n")
+        check("正文不是代码块", lm.codeBlock(at: (tv.string as NSString).range(of: "后文").location) == nil ? "不是" : "是", "不是")
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

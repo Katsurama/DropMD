@@ -345,3 +345,16 @@
 "关于" = "About";
 "GitHub 仓库" = "GitHub Repository";
 "遇到问题" = "Found a Problem?";
+
+/* 代码块复制、Discord、赞助、测试版 */
+"交流" = "Community";
+"加入 Discord 社区…" = "Join the Discord Community…";
+"包括测试版（beta）" = "Include beta versions";
+"喜欢 DropMD？" = "Enjoying DropMD?";
+"在 Patreon 赞助…" = "Support on Patreon…";
+"在爱发电赞助…" = "Support on Afdian…";
+"复制代码" = "Copy Code";
+"如果它帮到了你，可以请我喝杯咖啡，支持我继续更新 ❤️" = "If it helps you, you can buy me a coffee to support future updates ❤️";
+"已复制" = "Copied";
+"爱发电" = "Afdian";
+"赞助" = "Support";

@@ -193,13 +193,14 @@ jobs:
           [ "${TAG#v}" = "$have" ] || { echo "Info.plist 的版本是 $have，与 $TAG 不一致"; exit 1; }
           shasum -a 256 DropMD-macOS-AppleSilicon.dmg | tee DropMD-macOS-AppleSilicon.dmg.sha256
           shasum -a 256 DropMD-macOS-AppleSilicon.zip | tee DropMD-macOS-AppleSilicon.zip.sha256
-          # 测试版也作为正式 Release 发布，不标“预发布”
+          # 先发测试版、再发正式版：版本号带 -beta 等的标“预发布”（App 只在勾选“包括测试版”时提示），正式版标“最新”
+          case "$TAG" in *-*) KIND=--prerelease ;; *) KIND=--latest ;; esac
           # Release 说明只放本版（文件最上面一段）：App 的更新窗口显示的就是它
           awk '/^## /{n++} n==1' docs/发行说明.md > release-notes.md
           [ -s release-notes.md ] || { echo "docs/发行说明.md 里没有找到本版说明"; exit 1; }
           # 忘了写本版说明时，最上面一段是上一版的：不发布，免得更新窗口显示旧说明
           head -1 release-notes.md | grep -qF "DropMD ${TAG#v}" || { echo "docs/发行说明.md 最上面一段不是 ${TAG#v} 的说明"; exit 1; }
-          gh release create "$TAG" \
+          gh release create "$TAG" "$KIND" \
             DropMD-macOS-AppleSilicon.dmg DropMD-macOS-AppleSilicon.dmg.sha256 \
             DropMD-macOS-AppleSilicon.zip DropMD-macOS-AppleSilicon.zip.sha256 \
             --target "$GITHUB_SHA" \

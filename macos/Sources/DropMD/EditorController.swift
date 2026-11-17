@@ -197,6 +197,7 @@ final class EditorController: ObservableObject {
     /// 预览页面中的界面文字（提示框标题等），随界面语言
     private static let previewText: [String: String] = Dictionary(uniqueKeysWithValues: MDCallout.allCases.map { ($0.rawValue, $0.title) })
         .merging(["blockedImage": String(localized: "网络图片未加载（隐私保护）"), "colon": String(localized: "：")]) { a, _ in a }
+        .merging(["copyCode": String(localized: "复制代码"), "copied": String(localized: "已复制")]) { a, _ in a }
 
     func renderPreview() {
         guard previewReady, let webView else { return }

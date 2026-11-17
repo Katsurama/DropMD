@@ -167,7 +167,9 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             if kind == .quote {
                 // 下一段是提示框的标题行时是新的引用块，不连在一起
                 let nextStartsCallout = next[DMKey.callout] != nil
-                drawBar(para, origin: origin, x: shift + 4, color: .tertiaryLabelColor,
+                // 提示框的竖线用它的颜色（与双页预览、GitHub 相同），普通引用是灰色
+                let color = callout(at: para.location, in: storage).map(RichStyle.calloutColor) ?? .tertiaryLabelColor
+                drawBar(para, origin: origin, x: shift + 4, color: color,
                         joinsNext: RichBridge.kind(of: next) == .quote && !nextStartsCallout)
             }
             if kind == .rule { drawRule(para, origin: origin, shift: shift) }
@@ -252,44 +254,105 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         }
     }
 
+    /// 包含这个位置的整个代码块（连续的代码段落）；不是代码时为 nil
+    func codeBlock(at location: Int) -> NSRange? {
+        guard let storage = textStorage, location < storage.length, isCodeParagraph(at: location, in: storage) else { return nil }
+        let ns = storage.string as NSString
+        var block = ns.paragraphRange(for: NSRange(location: location, length: 0))
+        guard !hiddenRanges.contains(where: { NSLocationInRange(block.location, $0) }) else { return nil }
+        while block.location > 0 {
+            let prev = ns.paragraphRange(for: NSRange(location: block.location - 1, length: 0))
+            guard isCodeParagraph(at: prev.location, in: storage) else { break }
+            block = NSUnionRange(prev, block)
+        }
+        while NSMaxRange(block) < ns.length {
+            let next = ns.paragraphRange(for: NSRange(location: NSMaxRange(block), length: 0))
+            guard isCodeParagraph(at: next.location, in: storage) else { break }
+            block = NSUnionRange(block, next)
+        }
+        return block
+    }
+
+    /// 代码块底色的位置（文字容器的坐标）
+    func codeBlockRect(_ block: NSRange) -> NSRect? {
+        guard let storage = textStorage, let container = textContainers.first else { return nil }
+        let glyphs = glyphRange(forCharacterRange: block, actualCharacterRange: nil)
+        guard glyphs.length > 0 else { return nil }
+        // 用实际占用的高度：行框里还含有代码块前后多留的空（codeEdgeSpacing），底色不画进去
+        let first = lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+        let top = lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil).minY
+        let last = lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
+        let pad = container.lineFragmentPadding
+        // 折叠块里、列表项里的代码块整体右移：按段落缩进算（代码块本身的内边距是 14）
+        let style = storage.attribute(.paragraphStyle, at: block.location, effectiveRange: nil) as? NSParagraphStyle
+        let shift = max(0, (style?.headIndent ?? 14) - 14)
+        return NSRect(x: first.minX + pad + shift, y: top - 6, width: first.width - pad * 2 - shift, height: last.maxY - top + 10)
+    }
+
+    /// 代码块：连续的代码段落画成一整块圆角底色（不按行画，避免一条条的横条）
     private func drawCodeBlocks(_ glyphsToShow: NSRange, origin: NSPoint) {
-        guard let storage = textStorage, storage.length > 0, let container = textContainers.first else { return }
+        guard let storage = textStorage, storage.length > 0 else { return }
         let ns = storage.string as NSString
         let chars = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
-        let hidden = hiddenRanges
         var loc = ns.paragraphRange(for: NSRange(location: min(chars.location, ns.length - 1), length: 0)).location
         while loc < NSMaxRange(chars) && loc < ns.length {
-            var block = ns.paragraphRange(for: NSRange(location: loc, length: 0))
-            guard isCodeParagraph(at: block.location, in: storage),
-                  !hidden.contains(where: { NSLocationInRange(block.location, $0) }) else {
-                loc = NSMaxRange(block)
+            guard let block = codeBlock(at: loc) else {
+                loc = NSMaxRange(ns.paragraphRange(for: NSRange(location: loc, length: 0)))
                 continue
             }
-            // 向前、向后找到整个代码块
-            while block.location > 0 {
-                let prev = ns.paragraphRange(for: NSRange(location: block.location - 1, length: 0))
-                guard isCodeParagraph(at: prev.location, in: storage) else { break }
-                block = NSUnionRange(prev, block)
-            }
-            while NSMaxRange(block) < ns.length {
-                let next = ns.paragraphRange(for: NSRange(location: NSMaxRange(block), length: 0))
-                guard isCodeParagraph(at: next.location, in: storage) else { break }
-                block = NSUnionRange(block, next)
-            }
             loc = NSMaxRange(block)
-            let glyphs = glyphRange(forCharacterRange: block, actualCharacterRange: nil)
-            guard glyphs.length > 0 else { continue }
-            let first = lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
-            let last = lineFragmentRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
-            let pad = container.lineFragmentPadding
-            // 折叠块里、列表项里的代码块整体右移：按段落缩进算（代码块本身的内边距是 14）
-            let style = storage.attribute(.paragraphStyle, at: block.location, effectiveRange: nil) as? NSParagraphStyle
-            let shift = max(0, (style?.headIndent ?? 14) - 14)
-            let rect = NSRect(x: origin.x + first.minX + pad + shift, y: origin.y + first.minY - 6,
-                              width: first.width - pad * 2 - shift, height: last.maxY - first.minY + 10)
+            guard let rect = codeBlockRect(block)?.offsetBy(dx: origin.x, dy: origin.y) else { continue }
             RichStyle.codeBlockBackground.setFill()
             NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6).fill()
         }
+    }
+
+    /// 引用段落属于哪种提示框：向前找到这个引用块的第一段，看它是不是提示框标题行
+    func callout(at location: Int, in storage: NSTextStorage) -> MDCallout? {
+        let ns = storage.string as NSString
+        var para = ns.paragraphRange(for: NSRange(location: location, length: 0))
+        while true {
+            if let header = storage.attribute(DMKey.callout, at: para.location, effectiveRange: nil) as? String {
+                return MDCallout(header: header)
+            }
+            guard para.location > 0 else { return nil }
+            let prev = ns.paragraphRange(for: NSRange(location: para.location - 1, length: 0))
+            guard RichBridge.kind(of: storage.attributes(at: prev.location, effectiveRange: nil)) == .quote else { return nil }
+            para = prev
+        }
+    }
+
+    /// 代码块前后多留一点空（代码块里各行的段间距是 0，否则底色会断开），免得和上下的文字、提示框贴在一起
+    func layoutManager(_ layoutManager: NSLayoutManager, paragraphSpacingAfterGlyphAt glyphIndex: Int,
+                       withProposedLineFragmentRect rect: NSRect) -> CGFloat {
+        codeEdgeSpacing(glyphIndex, after: true)
+    }
+
+    func layoutManager(_ layoutManager: NSLayoutManager, paragraphSpacingBeforeGlyphAt glyphIndex: Int,
+                       withProposedLineFragmentRect rect: NSRect) -> CGFloat {
+        codeEdgeSpacing(glyphIndex, after: false)
+    }
+
+    /// 系统调用这两个方法时，返回值代替段落样式里的段前 / 段后间距，所以先取段落样式的值，再给代码块加上多留的空
+    private func codeEdgeSpacing(_ glyphIndex: Int, after: Bool) -> CGFloat {
+        guard let storage = textStorage, storage.length > 0 else { return 0 }
+        let ns = storage.string as NSString
+        let char = min(characterIndexForGlyph(at: glyphIndex), storage.length - 1)
+        let para = ns.paragraphRange(for: NSRange(location: char, length: 0))
+        // 段后间距只在段落最后一行之后，段前间距只在第一行之前
+        guard after ? char >= NSMaxRange(para) - 1 : char == para.location else { return 0 }
+        let attrs = storage.attributes(at: para.location, effectiveRange: nil)
+        let style = attrs[.paragraphStyle] as? NSParagraphStyle
+        // 系统在文档开头不加段前间距
+        let base = (after ? style?.paragraphSpacing : para.location == 0 ? 0 : style?.paragraphSpacingBefore) ?? 0
+        guard isCodeParagraph(at: para.location, in: storage), RichBridge.tableBlock(of: attrs) == nil else { return base }
+        if after {
+            guard NSMaxRange(para) < ns.length, !isCodeParagraph(at: NSMaxRange(para), in: storage) else { return base }
+            return base + 14
+        }
+        guard para.location > 0 else { return base }
+        let prev = ns.paragraphRange(for: NSRange(location: para.location - 1, length: 0))
+        return isCodeParagraph(at: prev.location, in: storage) ? base : base + 8
     }
 
     /// 段落左侧的竖线（引用、折叠块内容）
@@ -1322,41 +1385,124 @@ final class RichTextView: NSTextView {
 
     // MARK: - 鼠标：点击方框勾选 / 取消勾选待办；点击折叠块标题前的三角收起 / 展开
 
+    /// 鼠标下面能点的东西：折叠块的三角、待办的方框
+    private enum ClickTarget { case summary(NSRange), task(NSRange) }
+
+    private func clickTarget(at point: NSPoint) -> ClickTarget? {
+        guard let storage = textStorage, storage.length > 0, let lm = layoutManager else { return nil }
+        let index = characterIndexForInsertion(at: point)
+        guard index < storage.length else { return nil }
+        let para = paragraphRange(at: index)
+        guard para.length > 0 else { return nil }
+        let attrs = storage.attributes(at: para.location, effectiveRange: nil)
+        if attrs[DMKey.summary] != nil {
+            // 三角画在标题文字左边的缩进里
+            let glyph = lm.glyphIndexForCharacter(at: para.location)
+            let line = lm.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+            let textX = textContainerOrigin.x + line.minX + lm.location(forGlyphAt: glyph).x
+            if point.x < textX, point.y >= textContainerOrigin.y + line.minY, point.y < textContainerOrigin.y + line.maxY {
+                return .summary(para)
+            }
+        }
+        if index <= para.location + 1, case .task = RichBridge.kind(of: attrs) {
+            let box = (string as NSString).substring(with: NSRange(location: para.location, length: 1))
+            if box == RichStyle.taskTodo || box == RichStyle.taskDone { return .task(para) }
+        }
+        return nil
+    }
+
+    /// 移到能点的地方时显示手形指针（链接由系统处理）；移到代码块上时在右上角显示“复制”按钮
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        let point = convert(event.locationInWindow, from: nil)
+        if clickTarget(at: point) != nil { NSCursor.pointingHand.set() }
+        updateCopyButton(at: point)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        updateCopyButton(at: nil)
+    }
+
+    override func didChangeText() {
+        super.didChangeText()
+        updateCopyButton(at: nil)   // 打字后代码块的位置可能变了
+    }
+
+    // MARK: - 代码块的“复制”按钮（与 GitHub 相同：鼠标移上去才出现）
+
+    private var copyBlock: NSRange?
+    private lazy var copyButton: NSButton = {
+        let b = NSButton(image: Self.copyIcon, target: self, action: #selector(copyCodeBlock))
+        b.bezelStyle = .accessoryBarAction
+        b.isBordered = true
+        b.toolTip = String(localized: "复制代码")
+        b.setAccessibilityLabel(String(localized: "复制代码"))
+        b.isHidden = true
+        addSubview(b)
+        return b
+    }()
+    private static let copyIcon = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)!
+    private static let copiedIcon = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil)!
+
+    private func updateCopyButton(at point: NSPoint?) {
+        guard let point, let lm = layoutManager as? RichLayoutManager, let container = textContainer, lm.numberOfGlyphs > 0 else {
+            if copyBlock != nil { copyBlock = nil; copyButton.isHidden = true }
+            return
+        }
+        let inContainer = NSPoint(x: point.x - textContainerOrigin.x, y: point.y - textContainerOrigin.y)
+        let glyph = lm.glyphIndex(for: inContainer, in: container)
+        let block = lm.codeBlock(at: lm.characterIndexForGlyph(at: glyph))
+        guard let block, var rect = lm.codeBlockRect(block) else { return updateCopyButton(at: nil) }
+        rect = rect.offsetBy(dx: textContainerOrigin.x, dy: textContainerOrigin.y)
+        // 鼠标在代码块下面的空白处时，系统也会找到代码块的最后一个字：按底色的范围再判断一次
+        guard rect.contains(point) else { return updateCopyButton(at: nil) }
+        if block != copyBlock { copyButton.image = Self.copyIcon }
+        copyBlock = block
+        let size = NSSize(width: 28, height: 24)
+        copyButton.frame = NSRect(x: rect.maxX - size.width - 6, y: rect.minY + 5, width: size.width, height: size.height)
+        copyButton.isHidden = false
+    }
+
+    @objc private func copyCodeBlock() {
+        guard let block = copyBlock, let storage = textStorage, NSMaxRange(block) <= storage.length else { return }
+        var text = (storage.string as NSString).substring(with: block)
+        if text.hasSuffix("\n") { text.removeLast() }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        copyButton.image = Self.copiedIcon
+        copyButton.setAccessibilityLabel(String(localized: "已复制"))
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self else { return }
+            self.copyButton.image = Self.copyIcon
+            self.copyButton.setAccessibilityLabel(String(localized: "复制代码"))
+        }
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        if clickTarget(at: convert(event.locationInWindow, from: nil)) != nil {
+            NSCursor.pointingHand.set()
+        } else {
+            super.cursorUpdate(with: event)
+        }
+    }
+
     override func mouseDown(with event: NSEvent) {
         if event.clickCount == 2, let r = mathRange(at: convert(event.locationInWindow, from: nil)) {
             setSelectedRange(r)
             editMath(at: r)
             return
         }
-        if let storage = textStorage, storage.length > 0 {
-            let point = convert(event.locationInWindow, from: nil)
-            let index = characterIndexForInsertion(at: point)
-            if index < storage.length {
-                let para = paragraphRange(at: index)
-                let ns = string as NSString
-                let attrs = storage.attributes(at: para.location, effectiveRange: nil)
-                if para.length > 0, attrs[DMKey.summary] != nil, let lm = layoutManager {
-                    // 三角画在标题文字左边的缩进里
-                    let glyph = lm.glyphIndexForCharacter(at: para.location)
-                    let line = lm.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
-                    let textX = textContainerOrigin.x + line.minX + lm.location(forGlyphAt: glyph).x
-                    if point.x < textX, point.y >= textContainerOrigin.y + line.minY, point.y < textContainerOrigin.y + line.maxY {
-                        setCollapsed(attrs[DMKey.collapsed] == nil, summary: para)
-                        return
-                    }
-                }
-                if para.length > 0, index <= para.location + 1,
-                   case .task(let d, let done) = RichBridge.kind(of: storage.attributes(at: para.location, effectiveRange: nil)) {
-                    let box = ns.substring(with: NSRange(location: para.location, length: 1))
-                    if box == RichStyle.taskTodo || box == RichStyle.taskDone {
-                        setSelectedRange(NSRange(location: para.location, length: 0))
-                        applyKinds { _ in .task(d, !done) }
-                        setSelectedRange(NSRange(location: min(para.location + 2, (string as NSString).length), length: 0))
-                        return
-                    }
-                }
-            }
+        switch clickTarget(at: convert(event.locationInWindow, from: nil)) {
+        case .summary(let para):
+            setCollapsed(textStorage?.attribute(DMKey.collapsed, at: para.location, effectiveRange: nil) == nil, summary: para)
+        case .task(let para):
+            guard case .task(let d, let done) = RichBridge.kind(of: textStorage!.attributes(at: para.location, effectiveRange: nil)) else { return }
+            setSelectedRange(NSRange(location: para.location, length: 0))
+            applyKinds { _ in .task(d, !done) }
+            setSelectedRange(NSRange(location: min(para.location + 2, (string as NSString).length), length: 0))
+        case nil:
+            super.mouseDown(with: event)
         }
-        super.mouseDown(with: event)
     }
 }

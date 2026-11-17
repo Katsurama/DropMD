@@ -247,6 +247,26 @@
     base.href = baseHref;
   }
 
+  // ---------------------------------------------------------------- 代码块的“复制”按钮（鼠标移上去才出现，与 GitHub 相同）
+  // 只在 App 的预览里有：App 传入按钮文字（ui.copyCode），并由 App 写入剪贴板。快速查看和导出的 HTML 不加
+  function addCopyButtons() {
+    const handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.copy;
+    if (!ui.copyCode || !handler) return;
+    for (const pre of document.querySelectorAll("#content pre")) {
+      const code = pre.querySelector("code") || pre;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "copy-code";
+      button.textContent = ui.copyCode;
+      button.addEventListener("click", function () {
+        handler.postMessage(code.textContent.replace(/\n$/, ""));
+        button.textContent = ui.copied || ui.copyCode;
+        setTimeout(function () { button.textContent = ui.copyCode; }, 1500);
+      });
+      pre.appendChild(button);
+    }
+  }
+
   window.DropMD = {
     /** 渲染 Markdown。baseHref 为文档所在文件夹的 file:// 地址（以 / 结尾），用于相对路径图片；lang 为文档语言；
         uiText 为界面语言的文字（键同 ui） */
@@ -256,6 +276,7 @@
       // 文档语言决定汉字字形，见 preview.css
       if (lang) document.documentElement.lang = lang;
       document.getElementById("content").innerHTML = previewMD.render(frontMatter(text || ""));
+      addCopyButtons();
       return true;
     },
 
