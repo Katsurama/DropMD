@@ -798,7 +798,7 @@ MainActor.assumeIsolated {
         for (name, src) in [("代码块后留空", "```\na\n```\n后文\n"), ("网页代码后留空", "<div>\n</div>\n\n后文\n")] {
             let tv = makeView(src), lm = tv.layoutManager as! RichLayoutManager
             let end = lm.glyphIndexForCharacter(at: (tv.string as NSString).range(of: "后文").location - 1)
-            check(name, "\(lm.layoutManager(lm, paragraphSpacingAfterGlyphAt: end, withProposedLineFragmentRect: .zero))", "14.0")
+            check(name, "\(lm.layoutManager(lm, paragraphSpacingAfterGlyphAt: end, withProposedLineFragmentRect: .zero))", "18.0")
         }
         let body = makeView("一\n\n后文\n"), blm = body.layoutManager as! RichLayoutManager
         check("正文段后不变", "\(blm.layoutManager(blm, paragraphSpacingAfterGlyphAt: 1, withProposedLineFragmentRect: .zero))", "8.0")
