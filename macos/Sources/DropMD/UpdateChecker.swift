@@ -20,7 +20,6 @@ struct AppVersion: Comparable, CustomStringConvertible {
         description = s
     }
 
-    var isPrerelease: Bool { !prerelease.isEmpty }
 
     static func < (a: AppVersion, b: AppVersion) -> Bool {
         let n = max(a.numbers.count, b.numbers.count)
