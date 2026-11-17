@@ -75,13 +75,11 @@ xattr -dr com.apple.quarantine /Applications/DropMD.app
 
 ## ☕ 支援
 
-<div align="center">
-
-DropMD がお役に立てたら、Patreon でコーヒー一杯分の支援をいただけるとうれしいです ☕
-
-<a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/Patreon%20%E3%81%A7%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-F96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Patreon で支援する" height="40"></a>
-
-</div>
+> [!TIP]
+> **DropMD を気に入っていただけましたか？**<br>
+> お役に立てたら、Patreon でコーヒー一杯分の支援をいただけると、今後の開発の励みになります ❤️
+>
+> <a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/Patreon%20%E3%81%A7%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-F96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Patreon で支援する" height="40"></a>
 
 ## 🔄 ファイル変換
 
