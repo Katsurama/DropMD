@@ -145,11 +145,20 @@ The Swift interface hands conversions to the local engine inside the app (a chil
 
 ## ☕ Support
 
-> [!TIP]
-> **Enjoying DropMD?**<br>
-> If it helps you, you can buy me a coffee on Patreon and support future updates ❤️
->
-> <a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/Support%20me%20on%20Patreon-F96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Support me on Patreon" height="40"></a>
+---
+
+<div align="center">
+<table width="100%"><tr><td align="center">
+<br>
+<h1>☕ Enjoying DropMD? Buy me a coffee</h1>
+If it helps you, your support keeps the updates coming ❤️
+<br><br>
+<a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/%E2%98%95%20Enjoying%20DropMD%3F-Support%20me%20on%20Patreon%20%E2%86%92-F96854?style=for-the-badge&labelColor=3a1f1a&logo=patreon&logoColor=white" alt="Support me on Patreon" height="80"></a>
+<br><br>
+</td></tr></table>
+</div>
+
+---
 
 ## 📄 License
 
