@@ -76,6 +76,16 @@ xattr -dr com.apple.quarantine /Applications/DropMD.app
 > 只需要做一次。之后在 App 内更新的新版本不会再被拦下。
 
 
+## ☕ 支持作者
+
+<div align="center">
+
+如果这个项目帮到了你，可以在爱发电请我喝杯咖啡 ☕
+
+<a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20%E5%9C%A8%E7%88%B1%E5%8F%91%E7%94%B5%E6%94%AF%E6%8C%81%E6%88%91-946ce6?style=for-the-badge" alt="在爱发电支持我" height="40"></a>
+
+</div>
+
 ## 🔄 文件转换
 
 菜单 **文件 → 转换文件为 Markdown…**，拖入文件或整个文件夹，批量转换，逐个显示结果。
@@ -149,16 +159,6 @@ docs/                  使用说明（简体、繁体、英文、日文）、发
 Swift 界面把转换任务交给 App 里的本机引擎（子进程，通过标准输入输出交换 JSON）。依赖及版本见 [依赖清单](docs/依赖清单.md)。
 
 </details>
-
-## ☕ 支持作者
-
-<div align="center">
-
-如果这个项目帮到了你，可以在爱发电请我喝杯咖啡 ☕
-
-<a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20%E5%9C%A8%E7%88%B1%E5%8F%91%E7%94%B5%E6%94%AF%E6%8C%81%E6%88%91-946ce6?style=for-the-badge" alt="在爱发电支持我" height="40"></a>
-
-</div>
 
 ## 📄 许可证
 
