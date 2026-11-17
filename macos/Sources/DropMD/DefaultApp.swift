@@ -88,14 +88,19 @@ enum AppLanguage {
 
 /// “DropMD → 设置…”：和苹果自带 App 一样分成几页（顶部的标签），不再是一长条
 struct SettingsView: View {
+    @AppStorage("settingsTab") private var tab = "general"   // 苹果的设计规范：再打开时回到上次看的那一页
+
     var body: some View {
-        TabView {
+        TabView(selection: $tab) {
             GeneralSettings()
                 .tabItem { Label("通用", systemImage: "gearshape") }
+                .tag("general")
             UpdateSettings()
                 .tabItem { Label("更新", systemImage: "arrow.triangle.2.circlepath") }
+                .tag("updates")
             AboutSettings()
                 .tabItem { Label("关于", systemImage: "info.circle") }
+                .tag("about")
         }
         .frame(width: 460)
         .fixedSize()
