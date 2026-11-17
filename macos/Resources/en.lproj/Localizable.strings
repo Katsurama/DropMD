@@ -359,3 +359,8 @@
 "爱发电" = "Afdian";
 "赞助" = "Support";
 "关于 DropMD" = "About DropMD";
+"“启动时自动检查更新”和“包括测试版”在“检查更新…”打开的窗口里设置。" = "“Check for updates on launch” and “Include beta versions” are in the window that Check for Updates… opens.";
+"如果它帮到了你，可以请我喝杯咖啡，支持我继续更新" = "If it helps you, you can buy me a coffee to support future updates";
+"更新" = "Updates";
+"版本 %@" = "Version %@";
+"通用" = "General";
