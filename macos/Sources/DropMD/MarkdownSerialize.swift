@@ -390,7 +390,11 @@ extension MarkdownCodec {
             transition(keep + wanted.filter { !keep.contains($0) })
             let atStart = open.isEmpty && out.trimmingCharacters(in: .whitespaces).isEmpty
             let keepEscaped = r.link != nil || (trail.isEmpty && index + 1 < parts.count && core.hasSuffix("]"))
-            out += escape(core, atStart: atStart, inCell: inCell, keepBracketsEscaped: keepEscaped, keepDollarEscaped: dollarIsRisky, minimal: minimal)
+            // 紧挨着的删除线 ~~、高亮 ==：文字开头或结尾的单个 ~ / = 会和它们连成 ~~~，读回来就变了
+            let next = index + 1 < parts.count ? parts[index + 1] : MDRun()
+            let around = (before: out.last, tildeAfter: trail.isEmpty && next.strike != r.strike,
+                          equalsAfter: trail.isEmpty && next.highlight != r.highlight)
+            out += escape(core, atStart: atStart, inCell: inCell, keepBracketsEscaped: keepEscaped, keepDollarEscaped: dollarIsRisky, minimal: minimal, around: around)
             pending = trail
         }
         transition([])
@@ -434,7 +438,8 @@ extension MarkdownCodec {
             || (atStart && s.range(of: #"^\[[ xX]\]"#, options: .regularExpression) != nil)
     }
 
-    private static func escape(_ s: String, atStart: Bool, inCell: Bool, keepBracketsEscaped: Bool, keepDollarEscaped: Bool, minimal: Bool) -> String {
+    private static func escape(_ s: String, atStart: Bool, inCell: Bool, keepBracketsEscaped: Bool, keepDollarEscaped: Bool, minimal: Bool,
+                               around: (before: Character?, tildeAfter: Bool, equalsAfter: Bool) = (nil, false, false)) -> String {
         let chars = Array(s)
         let escapeBrackets = keepBracketsEscaped || bracketsAreRisky(s, atStart: atStart && !inCell)   // 表格里没有待办
         // 行首的“1. ”会被当成有序列表
@@ -478,7 +483,8 @@ extension MarkdownCodec {
                 out += inert ? "*" : "\\*"
             case "~":
                 // 两个连着才是删除线
-                let paired = (i > 0 && chars[i - 1] == "~") || (i + 1 < chars.count && chars[i + 1] == "~")
+                let paired = (i > 0 ? chars[i - 1] == "~" : around.before == "~")
+                    || (i + 1 < chars.count ? chars[i + 1] == "~" : around.tildeAfter)
                 out += paired ? "\\~" : "~"
             case "`":
                 out += "\\`"
@@ -486,7 +492,8 @@ extension MarkdownCodec {
                 out += inCell ? "\\|" : "|"
             case "=":
                 // 两个等号相邻会被当成 ==高亮==
-                let paired = (i > 0 && chars[i - 1] == "=") || (i + 1 < chars.count && chars[i + 1] == "=")
+                let paired = (i > 0 ? chars[i - 1] == "=" : around.before == "=")
+                    || (i + 1 < chars.count ? chars[i + 1] == "=" : around.equalsAfter)
                 out += paired ? "\\=" : "="
             case "_":
                 let inWord = i > 0 && i + 1 < chars.count
