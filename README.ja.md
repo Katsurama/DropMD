@@ -159,15 +159,20 @@ Swift のインターフェイスは、アプリ内のローカルエンジン�
 
 ## ☕ 支援
 
+---
+
+<div align="center">
+<table width="100%"><tr><td align="center">
+<br>
+<h1>☕ DropMD を気に入っていただけたら</h1>
+コーヒー一杯分の支援が、今後の開発の励みになります ❤️
+<br><br>
+<a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/%E2%98%95%20%E6%B0%97%E3%81%AB%E5%85%A5%E3%81%A3%E3%81%9F%E3%82%89-Patreon%20%E3%81%A7%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B%20%E2%86%92-F96854?style=for-the-badge&labelColor=3a1f1a&logo=patreon&logoColor=white" alt="Patreon で支援する" height="80"></a>
+<br><br>
+</td></tr></table>
 </div>
 
-> [!TIP]
-> **DropMD を気に入っていただけましたか？**<br>
-> お役に立てたら、Patreon でコーヒー一杯分の支援をいただけると、今後の開発の励みになります ❤️
->
-> <a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/Patreon%20%E3%81%A7%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-F96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Patreon で支援する" height="40"></a>
-
-<div lang="ja">
+---
 
 ## 📄 ライセンス
 
