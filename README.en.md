@@ -73,13 +73,11 @@ This only removes the mark macOS puts on files downloaded from the internet. Aft
 
 ## ☕ Support
 
-<div align="center">
-
-If DropMD helps you, you can buy me a coffee on Patreon ☕
-
-<a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/Support%20me%20on%20Patreon-F96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Support me on Patreon" height="40"></a>
-
-</div>
+> [!TIP]
+> **Enjoying DropMD?**<br>
+> If it helps you, you can buy me a coffee on Patreon and support future updates ❤️
+>
+> <a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/Support%20me%20on%20Patreon-F96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Support me on Patreon" height="40"></a>
 
 ## 🔄 File conversion
 
