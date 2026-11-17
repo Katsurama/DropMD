@@ -108,7 +108,9 @@ if command -v op >/dev/null && [ -f "$HOME/.config/op/plugins.sh" ]; then GH=(op
 awk '/^## /{n++} n==1' docs/发行说明.md > build/release-notes.md
 # 忘了写本版说明时，最上面一段是上一版的：不发布，免得更新窗口显示旧说明
 head -1 build/release-notes.md | grep -qF "DropMD ${TAG#v}" || { echo "docs/发行说明.md 最上面一段不是 ${TAG#v} 的说明"; exit 1; }
-"${GH[@]}" release create "$TAG" \
+# 先发测试版、再发正式版：版本号带 -beta 等的标“预发布”（App 只在勾选“包括测试版”时提示），正式版标“最新”
+case "$TAG" in *-*) KIND=--prerelease ;; *) KIND=--latest ;; esac
+"${GH[@]}" release create "$TAG" "$KIND" \
   DropMD-macOS-AppleSilicon.dmg DropMD-macOS-AppleSilicon.dmg.sha256 \
   DropMD-macOS-AppleSilicon.zip DropMD-macOS-AppleSilicon.zip.sha256 \
   --target "$(git rev-parse HEAD)" \

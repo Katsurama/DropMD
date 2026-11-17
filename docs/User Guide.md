@@ -122,6 +122,7 @@ Choose DropMD → Check for Updates… to open the Software Update window:
 - It shows the current version. Click Check Now to see if GitHub has a newer version and its release notes.
 - If there is one, click Download and Update: DropMD downloads it and **checks its integrity**, then click Restart to switch to the new version (you are asked to save any unsaved documents first). After updating, old DropMD downloads in your Downloads folder are moved to the Trash. If DropMD isn't in a writable place such as Applications, the download opens instead; drag DropMD to Applications to replace the old version.
 - **Check for updates automatically**: you are asked the first time DropMD starts. When it's on, DropMD checks each time it starts and tells you about new versions; you decide whether to download. Nothing is installed automatically.
+- **Include beta versions**: also tells you about beta versions. New versions usually come out as a beta first and as a regular release a few days later. Off by default: you only hear about regular releases.
 - Checking for updates only asks GitHub for the version number and release notes, and never sends any files or personal information.
 
 ---

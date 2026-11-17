@@ -135,11 +135,8 @@ final class UpdateChecker: ObservableObject {
 
     private init() {
         autoCheck = defaults.bool(forKey: "autoCheckUpdates")
-        if defaults.object(forKey: "includeBetaUpdates") != nil {
-            includeBeta = defaults.bool(forKey: "includeBetaUpdates")
-        } else {
-            includeBeta = UpdateChecker.currentVersion?.isPrerelease ?? false
-        }
+        // 默认只提示正式版（新版本先发测试版、再发正式版），装着测试版也一样；用户在更新窗口里勾选后才提示测试版
+        includeBeta = defaults.bool(forKey: "includeBetaUpdates")
         lastChecked = defaults.object(forKey: "lastUpdateCheck") as? Date
     }
 

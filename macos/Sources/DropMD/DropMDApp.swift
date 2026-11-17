@@ -54,6 +54,11 @@ struct DropMDApp: App {
                 if let url = HelpDocs.repoURL(path: "/issues") {
                     Button("反馈问题…") { NSWorkspace.shared.open(url) }
                 }
+                Button("加入 Discord 社区…") { NSWorkspace.shared.open(HelpDocs.discord) }
+                Divider()
+                ForEach(HelpDocs.sponsors, id: \.url) { s in
+                    Button(s.menuTitle) { NSWorkspace.shared.open(s.url) }
+                }
                 Divider()
                 Menu("开源许可") {
                     Button("DropMD（MIT 许可证）") { HelpDocs.openAppLicense() }
@@ -256,5 +261,19 @@ enum HelpDocs {
     @MainActor static func repoURL(path: String = "") -> URL? {
         UpdateChecker.repository.flatMap { URL(string: "https://github.com/\($0)\(path)") }
     }
+    /// Discord 社区（永久邀请链接）
+    static let discord = URL(string: "https://discord.gg/VUne62RvrJ")!
+
+    /// 赞助：中文界面（简体、繁体）显示爱发电和 Patreon，其他语言只显示 Patreon（爱发电只能用人民币付款）
+    struct Sponsor { let name: String; let menuTitle: String; let url: URL }
+    static var sponsors: [Sponsor] {
+        let patreon = Sponsor(name: "Patreon", menuTitle: String(localized: "在 Patreon 赞助…"),
+                              url: URL(string: "https://www.patreon.com/c/katsurama/membership")!)
+        let afdian = Sponsor(name: String(localized: "爱发电"), menuTitle: String(localized: "在爱发电赞助…"),
+                             url: URL(string: "https://afdian.com/a/katsurama")!)
+        let lang = Bundle.main.preferredLocalizations.first ?? "en"
+        return lang.hasPrefix("zh") ? [afdian, patreon] : [patreon]
+    }
+
     static func openAppLicense() { openCopy(of: "LICENSE", as: String(localized: "DropMD 许可证.md")) }
 }

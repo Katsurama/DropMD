@@ -156,7 +156,25 @@ struct SettingsView: View {
                             Link("反馈问题…", destination: issues)
                         }
                     }
+                    LabeledContent("交流") {
+                        Link(destination: HelpDocs.discord) { Text(verbatim: "Discord") }
+                    }
                 }
+            }
+            Section {
+                LabeledContent("赞助") {
+                    HStack(spacing: 12) {
+                        ForEach(HelpDocs.sponsors, id: \.url) { s in
+                            Link(destination: s.url) { Text(verbatim: s.name) }
+                        }
+                    }
+                }
+            } header: {
+                Text("喜欢 DropMD？")
+            } footer: {
+                Text("如果它帮到了你，可以请我喝杯咖啡，支持我继续更新 ❤️")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

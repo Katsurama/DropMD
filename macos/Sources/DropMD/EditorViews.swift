@@ -118,6 +118,7 @@ struct PreviewView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent() // 不保存 Cookie、缓存等任何网页数据
+        config.userContentController.add(CopyHandler(), name: "copy")   // 代码块的“复制”按钮
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
@@ -130,6 +131,17 @@ struct PreviewView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {}
+
+    /// 预览里代码块的“复制”按钮：页面把代码文字传过来，由 App 写入剪贴板（不引用别的对象，避免循环引用）
+    final class CopyHandler: NSObject, WKScriptMessageHandler {
+        func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard let text = message.body as? String else { return }
+            MainActor.assumeIsolated {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            }
+        }
+    }
 
     final class Coordinator: NSObject, WKNavigationDelegate {
         let controller: EditorController
