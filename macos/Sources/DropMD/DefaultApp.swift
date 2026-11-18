@@ -269,10 +269,25 @@ private enum LicenseText: String, Identifiable {
     var content: AttributedString {
         let name = self == .app ? "LICENSE" : "THIRD_PARTY_LICENSES.md"
         let text = Bundle.main.url(forResource: name, withExtension: nil)
-            .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? String(localized: "找不到许可证文件。")
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+            .map(Self.plain) ?? String(localized: "找不到许可证文件。")
         // 第三方清单是 Markdown：链接可以点，粗体等照样显示
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
+    }
+
+    /// 只认行内写法，# 标题、- 列表、| 表格 | 会原样显示：大标题去掉（面板上方已有标题），小标题改粗体，列表和表格每行改成“• ”开头的一条
+    static func plain(_ md: String) -> String {
+        var header = true
+        return md.components(separatedBy: "\n").compactMap { line -> String? in
+            if line.hasPrefix("# ") { return nil }
+            if line.hasPrefix("## ") { header = true; return "**\(line.dropFirst(3))**" }
+            if line.hasPrefix("- ") { return "• " + line.dropFirst(2) }
+            guard line.hasPrefix("|") else { return line }
+            if header || line.hasPrefix("|-") || line.hasPrefix("|:") { header = false; return nil }   // 表头、分隔行
+            let cells = line.split(separator: "|").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            return "• " + cells.joined(separator: " — ")
+        }.joined(separator: "\n").trimmingCharacters(in: .newlines)
     }
 }
 

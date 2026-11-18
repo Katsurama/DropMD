@@ -133,6 +133,11 @@ enum RichKind: Equatable {
 enum RichStyle {
     static let bodySize: CGFloat = 16
     static let codeSize: CGFloat = 14
+    /// 行内代码：比代码块大一号，和正文几乎一样高；参考 Notion 用淡红色字
+    static let inlineCodeSize: CGFloat = 15
+    static let inlineCodeColor = NSColor(name: "DropMD.inlineCode") { a in
+        isDark(a) ? NSColor(srgbRed: 1, green: 0.47, blue: 0.44, alpha: 1) : NSColor(srgbRed: 0.84, green: 0.25, blue: 0.25, alpha: 1)
+    }
     static let headingSizes: [CGFloat] = [28, 23, 19, 17, 16, 15]
     static let indent: CGFloat = 24
     static let taskTodo = "☐"
@@ -141,7 +146,10 @@ enum RichStyle {
     static let detailsIndent: CGFloat = 22
     static let codePadding: CGFloat = 16   // 代码块左右的内边距
 
-    static var codeBackground: NSColor { NSColor.quaternaryLabelColor.withAlphaComponent(0.10) }
+    /// 行内代码、按键的底色：深色时系统灰几乎看不见，单独调亮
+    static let codeBackground = NSColor(name: "DropMD.inlineCodeBackground") { a in
+        isDark(a) ? NSColor(white: 1, alpha: 0.10) : NSColor.quaternaryLabelColor.withAlphaComponent(0.10)
+    }
     /// 代码块的整块底色（参考 Notion：浅灰 / 深灰，不透明，与正文底色区分开）
     static let codeBlockBackground = NSColor(name: "DropMD.codeBlock") { a in
         isDark(a) ? NSColor(white: 1, alpha: 0.06) : NSColor(white: 0, alpha: 0.04)
@@ -153,7 +161,7 @@ enum RichStyle {
     static func textFont(ofSize size: CGFloat) -> NSFont {
         NSFont(name: "PingFangSC-Regular", size: size) ?? .systemFont(ofSize: size)
     }
-    static var headerBackground: NSColor { NSColor.quaternaryLabelColor.withAlphaComponent(0.12) }
+    static var headerBackground: NSColor { codeBlockBackground }
     private static func isDark(_ a: NSAppearance) -> Bool {
         a.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
     }
@@ -234,7 +242,7 @@ enum RichStyle {
             p.paragraphSpacing = 5
         case .task(let d, _):
             p.firstLineHeadIndent = CGFloat(d) * indent
-            p.headIndent = CGFloat(d) * indent + 22
+            p.headIndent = CGFloat(d + 1) * indent   // 方框和后面的空格正好占一格缩进（RichLayoutManager），折行和第一行文字对齐
             p.paragraphSpacing = 5
         case .quote:
             p.firstLineHeadIndent = 20
@@ -288,8 +296,9 @@ enum RichStyle {
         var a: [NSAttributedString.Key: Any] = [.foregroundColor: RichStyle.bodyColor]
         var font = baseFont(for: kind)
         if r.code {
-            font = .monospacedSystemFont(ofSize: codeSize, weight: .regular)
+            font = .monospacedSystemFont(ofSize: inlineCodeSize, weight: .regular)
             a[DMKey.inlineCode] = true
+            a[.foregroundColor] = inlineCodeColor
             a[.backgroundColor] = codeBackground
         }
         if r.kbd {
