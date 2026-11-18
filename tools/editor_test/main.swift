@@ -902,6 +902,38 @@ MainActor.assumeIsolated {
         window.makeFirstResponder(tv)
         check("右边被点中时先重排", "\(focused)", "1")
     }
+    // 表格在文末：最后一格按回车、下方向键都跳到表格下面新起一段（以前回车只会加一行，跳不出去）
+    for (name, move) in [("回车", { (tv: RichTextView) in tv.insertNewline(nil) }), ("下方向键", { (tv: RichTextView) in tv.moveDown(nil) })] {
+        let tv = makeView("| a | b |\n| --- | --- |\n| 1 | 2 |\n")
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "2").location, length: 0))
+        move(tv); type(tv, "后文")
+        check("表格在文末，\(name)跳出表格", md(tv), "| a | b |\n| --- | --- |\n| 1 | 2 |\n\n后文\n")
+    }
+    // 表格后面还有文字：最后一格回车直接移到后面那一段，不新建
+    do {
+        let tv = makeView("| a |\n| --- |\n| 1 |\n\n后文\n")
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "1").location, length: 0))
+        tv.insertNewline(nil); type(tv, "X")
+        check("表格后有文字，回车移到后文", md(tv), "| a |\n| --- |\n| 1 |\n\nX后文\n")
+    }
+    // 右键菜单：在下方插入一行、删除这一行、删除表格
+    do {
+        let src = "前文\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n\n后文\n"
+        var tv = makeView(src)
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "1").location, length: 0))
+        tv.insertTableRowBelow(nil); type(tv, "新")
+        check("表格：在下方插入一行", md(tv), "前文\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n| 新 |  |\n| 3 | 4 |\n\n后文\n")
+        tv = makeView(src)
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "1").location, length: 0))
+        tv.deleteTableRow(nil)
+        check("表格：删除这一行", md(tv), "前文\n\n| a | b |\n| --- | --- |\n| 3 | 4 |\n\n后文\n")
+        tv = makeView(src)
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "a").location, length: 0))
+        tv.deleteTableRow(nil)
+        check("表格：表头那一行不能删", md(tv), src)
+        tv.deleteTable(nil)
+        check("表格：删除表格", md(tv), "前文\n\n后文\n")
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

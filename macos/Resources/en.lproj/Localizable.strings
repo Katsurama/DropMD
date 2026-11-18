@@ -371,3 +371,8 @@
 "隐藏 DropMD" = "Hide DropMD";
 "拖动调整左右宽度，双击恢复一半一半" = "Drag to resize. Double-click to split evenly.";
 "无法分享" = "Can’t Share";
+
+/* RichTextView.swift：表格右键菜单 */
+"在下方插入一行" = "Insert Row Below";
+"删除这一行" = "Delete Row";
+"删除表格" = "Delete Table";

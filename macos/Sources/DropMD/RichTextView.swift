@@ -32,8 +32,8 @@ enum RichTrait {
         case .sup, .sub:
             let base = RichStyle.baseFont(for: RichBridge.kind(of: a))
             let bold = RichStyle.isBold(a[.font] as? NSFont)
-            let font = a[DMKey.inlineCode] != nil || a[DMKey.kbd] != nil
-                ? NSFont.monospacedSystemFont(ofSize: RichStyle.codeSize, weight: .regular) : base
+            let font = a[DMKey.inlineCode] != nil ? NSFont.monospacedSystemFont(ofSize: RichStyle.inlineCodeSize, weight: .regular)
+                : a[DMKey.kbd] != nil ? NSFont.monospacedSystemFont(ofSize: RichStyle.codeSize - 1, weight: .medium) : base
             a[.superscript] = on ? (self == .sup ? 1 : -1) : nil
             a[.font] = RichStyle.setBold(on ? RichStyle.scaled(font, 0.75) : font, bold)
         case .kbd:
@@ -144,18 +144,47 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
                        characterIndexes charIndexes: UnsafePointer<Int>, font aFont: NSFont,
                        forGlyphRange glyphRange: NSRange) -> Int {
         let hidden = hiddenRanges
-        guard !hidden.isEmpty, let ns = textStorage?.string as NSString? else { return 0 }
+        guard let storage = textStorage else { return 0 }
+        let ns = storage.string as NSString
         var newProps = Array(UnsafeBufferPointer(start: props, count: glyphRange.length))
         var changed = false
-        // 换行符保留：隐藏的段落仍各占一行（行高为 0），不会并到标题那一行，点击标题行末尾也不会进入隐藏的内容
-        for i in 0..<glyphRange.length where ns.character(at: charIndexes[i]) != 0x0A
-            && hidden.contains(where: { NSLocationInRange(charIndexes[i], $0) }) {
-            newProps[i] = .null
-            changed = true
+        for i in 0..<glyphRange.length {
+            let c = charIndexes[i]
+            // 换行符保留：隐藏的段落仍各占一行（行高为 0），不会并到标题那一行，点击标题行末尾也不会进入隐藏的内容
+            if ns.character(at: c) != 0x0A && hidden.contains(where: { NSLocationInRange(c, $0) }) {
+                newProps[i] = .null
+                changed = true
+            } else if isTaskBox(c, in: storage) {
+                // 待办方框不画字（☐ 比文字小），由 drawGlyphs 画成方框；宽度见 boundingBoxForControlGlyphAt
+                newProps[i] = .controlCharacter
+                changed = true
+            }
         }
         guard changed else { return 0 }
         layoutManager.setGlyphs(glyphs, properties: newProps, characterIndexes: charIndexes, font: aFont, forGlyphRange: glyphRange)
         return glyphRange.length
+    }
+
+    /// 待办段落开头的 ☐ / ☑
+    private func isTaskBox(_ i: Int, in storage: NSTextStorage) -> Bool {
+        let ns = storage.string as NSString
+        let ch = ns.character(at: i)
+        guard ch == 0x2610 || ch == 0x2611, i == 0 || ns.character(at: i - 1) == 0x0A else { return false }
+        return storage.attribute(DMKey.task, at: i, effectiveRange: nil) != nil
+    }
+
+    func layoutManager(_ layoutManager: NSLayoutManager, shouldUse action: NSLayoutManager.ControlCharacterAction,
+                       forControlCharacterAt charIndex: Int) -> NSLayoutManager.ControlCharacterAction {
+        guard let storage = textStorage, isTaskBox(charIndex, in: storage) else { return action }
+        return .whitespace
+    }
+
+    /// 方框连同后面的空格正好占一格缩进：待办的文字和圆点列表的文字对齐
+    func layoutManager(_ layoutManager: NSLayoutManager, boundingBoxForControlGlyphAt glyphIndex: Int, for textContainer: NSTextContainer,
+                       proposedLineFragment proposedRect: NSRect, glyphPosition: NSPoint, characterIndex charIndex: Int) -> NSRect {
+        let font = (textStorage?.attribute(.font, at: charIndex, effectiveRange: nil) as? NSFont) ?? RichStyle.baseFont(for: .body)
+        let space = (" " as NSString).size(withAttributes: [.font: font]).width
+        return NSRect(x: glyphPosition.x, y: 0, width: max(RichStyle.indent - space, 0), height: font.ascender - font.descender)
     }
 
     func layoutManager(_ layoutManager: NSLayoutManager, shouldSetLineFragmentRect lineFragmentRect: UnsafeMutablePointer<NSRect>,
@@ -210,6 +239,9 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             case .ordered(let d):
                 marker = "\(number(at: para.location, depth: d, in: storage))."
                 depth = d
+            case .task(let d, _):
+                if isTaskBox(para.location, in: storage) { drawTaskBox(at: para.location, depth: d, shift: shift, origin: origin) }
+                continue
             default:
                 continue
             }
@@ -227,6 +259,37 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             let right = origin.x + line.minX + shift + CGFloat(depth) * RichStyle.indent + markerWidth - 6
             let point = NSPoint(x: right - size.width, y: origin.y + line.minY + baseline - font.ascender)
             (marker as NSString).draw(at: point, withAttributes: markerAttrs)
+        }
+    }
+
+    /// 待办方框：和文字差不多高的圆角方框，完成时蓝底白勾（参考 Notion），位置和圆点列表的圆点对齐
+    private func drawTaskBox(at index: Int, depth: Int, shift: CGFloat, origin: NSPoint) {
+        guard let storage = textStorage else { return }
+        let glyph = glyphIndexForCharacter(at: index)
+        guard glyph < numberOfGlyphs else { return }
+        let line = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        let font = (storage.attribute(.font, at: index, effectiveRange: nil) as? NSFont) ?? RichStyle.baseFont(for: .body)
+        let side = (font.pointSize * 0.875).rounded()
+        let right = origin.x + line.minX + shift + CGFloat(depth + 1) * RichStyle.indent - 6
+        let midY = origin.y + line.minY + location(forGlyphAt: glyph).y - font.capHeight / 2
+        let box = NSRect(x: right - side, y: midY - side / 2, width: side, height: side)
+        if (storage.string as NSString).character(at: index) == 0x2611 {
+            NSColor.controlAccentColor.setFill()
+            NSBezierPath(roundedRect: box, xRadius: 3.5, yRadius: 3.5).fill()
+            let tick = NSBezierPath()
+            tick.move(to: NSPoint(x: box.minX + side * 0.24, y: box.midY + side * 0.02))
+            tick.line(to: NSPoint(x: box.minX + side * 0.42, y: box.minY + side * 0.72))
+            tick.line(to: NSPoint(x: box.minX + side * 0.77, y: box.minY + side * 0.30))
+            tick.lineWidth = 1.8
+            tick.lineCapStyle = .round
+            tick.lineJoinStyle = .round
+            NSColor.white.setStroke()
+            tick.stroke()
+        } else {
+            let path = NSBezierPath(roundedRect: box.insetBy(dx: 0.75, dy: 0.75), xRadius: 3, yRadius: 3)
+            path.lineWidth = 1.5
+            NSColor.secondaryLabelColor.setStroke()
+            path.stroke()
         }
     }
 
@@ -905,7 +968,8 @@ final class RichTextView: NSTextView {
                 }
             }
             a[.foregroundColor] = a[DMKey.link] != nil ? NSColor.linkColor
-                : a[DMKey.literal] != nil ? NSColor.systemPurple : RichStyle.bodyColor
+                : a[DMKey.literal] != nil ? NSColor.systemPurple
+                : a[DMKey.inlineCode] != nil ? RichStyle.inlineCodeColor : RichStyle.bodyColor
             if a[DMKey.highlight] != nil { a[.backgroundColor] = RichStyle.highlightBackground }
             if a[DMKey.inlineCode] != nil { a[.backgroundColor] = RichStyle.codeBackground }
             if a[.paragraphStyle] == nil {
@@ -992,12 +1056,14 @@ final class RichTextView: NSTextView {
             var a = a
             if on {
                 a[DMKey.inlineCode] = true
-                a[.font] = NSFont.monospacedSystemFont(ofSize: RichStyle.codeSize, weight: .regular)
+                a[.font] = NSFont.monospacedSystemFont(ofSize: RichStyle.inlineCodeSize, weight: .regular)
                 a[.backgroundColor] = RichStyle.codeBackground
+                if a[DMKey.link] == nil { a[.foregroundColor] = RichStyle.inlineCodeColor }
             } else {
                 a[DMKey.inlineCode] = nil
                 a[.font] = RichStyle.baseFont(for: RichBridge.kind(of: a))
                 a[.backgroundColor] = nil
+                if a[DMKey.link] == nil { a[.foregroundColor] = RichStyle.bodyColor }
             }
             return a
         }
@@ -1024,7 +1090,7 @@ final class RichTextView: NSTextView {
                 a[DMKey.link] = nil
                 a[DMKey.title] = nil
                 a[.link] = nil
-                a[.foregroundColor] = RichStyle.bodyColor
+                a[.foregroundColor] = a[DMKey.inlineCode] != nil ? RichStyle.inlineCodeColor : RichStyle.bodyColor
                 a[.underlineStyle] = nil
             }
             return a
@@ -1176,7 +1242,9 @@ final class RichTextView: NSTextView {
             if target == .summary { a[DMKey.inDetails] = nil }
             let inline = a[DMKey.inlineCode] != nil || a[DMKey.kbd] != nil
             if !inline { a[.backgroundColor] = a[DMKey.highlight] != nil ? RichStyle.highlightBackground : nil }
-            if a[DMKey.link] == nil && a[DMKey.literal] == nil { a[.foregroundColor] = RichStyle.bodyColor }
+            if a[DMKey.link] == nil && a[DMKey.literal] == nil {
+                a[.foregroundColor] = a[DMKey.inlineCode] != nil ? RichStyle.inlineCodeColor : RichStyle.bodyColor
+            }
             if a[.attachment] == nil && !inline && a[DMKey.kbd] == nil {
                 var bold = RichStyle.isBold(a[.font] as? NSFont)
                 if target.isHeading {
@@ -1349,8 +1417,46 @@ final class RichTextView: NSTextView {
         return RichBridge.tableBlock(of: storage.attributes(at: location, effectiveRange: nil))
     }
 
-    /// 光标在表格中时移到下一格 / 上一格，返回是否处理
-    private func moveCell(forward: Bool) -> Bool {
+    /// 光标移到表格下面一段；表格在文末时先在下面新建一个空段落（否则表格后面写不了字）
+    @discardableResult
+    func moveBelowTable(_ location: Int) -> Bool {
+        guard let storage = textStorage, let lm = layoutManager as? RichLayoutManager,
+              let table = lm.tableRange(around: NSRange(location: location, length: 0), in: storage) else { return false }
+        let end = NSMaxRange(table)
+        if end < storage.length {
+            setSelectedRange(NSRange(location: end, length: 0))
+            scrollRangeToVisible(selectedRange())
+        } else {
+            let s = NSMutableAttributedString()
+            if !(storage.string as NSString).substring(with: table).hasSuffix("\n") {
+                s.append(NSAttributedString(string: "\n", attributes: storage.attributes(at: end - 1, effectiveRange: nil)))
+            }
+            let caret = end + s.length
+            s.append(RichBridge.paragraph(NSAttributedString(), kind: .body))
+            replace(NSRange(location: end, length: 0), with: s, caret: caret)
+        }
+        refreshTypingAttributes()
+        return true
+    }
+
+    /// 光标在表格最后一行
+    private func inLastTableRow(_ location: Int) -> Bool {
+        guard let storage = textStorage, let lm = layoutManager as? RichLayoutManager, let here = cell(at: location),
+              let table = lm.tableRange(around: NSRange(location: location, length: 0), in: storage),
+              let last = cell(at: NSMaxRange(table) - 1) else { return false }
+        return here.startingRow == last.startingRow
+    }
+
+    /// 在表格最后一行按下方向键：跳到表格下面（表格在文末时新建一段，系统默认移不出去）
+    override func moveDown(_ sender: Any?) {
+        let at = selectedRange().location
+        if selectedRange().length == 0, inLastTableRow(at), moveBelowTable(at) { return }
+        super.moveDown(sender)
+    }
+
+    /// 光标在表格中时移到下一格 / 上一格，返回是否处理。
+    /// 最后一格：addRow 时（Tab）在末尾加一行，否则（回车）跳到表格下面，和 Word 相同
+    private func moveCell(forward: Bool, addRow: Bool = true) -> Bool {
         let para = paragraphRange(at: selectedRange().location)
         guard para.length > 0, let current = cell(at: para.location) else { return false }
         if forward {
@@ -1361,6 +1467,7 @@ final class RichTextView: NSTextView {
                 refreshTypingAttributes()
                 return true
             }
+            guard addRow else { return moveBelowTable(para.location) }
             // 最后一格：在表格末尾新增一行
             let row = NSMutableAttributedString()
             // 新的一行沿用各列原来的宽度
@@ -1386,6 +1493,83 @@ final class RichTextView: NSTextView {
         return true
     }
 
+    // MARK: - 表格：右键菜单里的插入行、删除行、删除表格
+
+    /// 光标所在表格的范围、所在行（0 是表头）、列数；不在表格里时为 nil
+    private func tableContext() -> (range: NSRange, row: Int, columns: Int)? {
+        let at = selectedRange().location
+        guard let storage = textStorage, let lm = layoutManager as? RichLayoutManager, let here = cell(at: at),
+              let range = lm.tableRange(around: NSRange(location: at, length: 0), in: storage) else { return nil }
+        return (range, here.startingRow, here.table.numberOfColumns)
+    }
+
+    /// 改表格的 Markdown（第 0 行表头、第 1 行分隔线、之后一行一行），整张表重建，光标放到第 caretRow 行第一格。
+    /// 走一遍 Markdown 比逐格改 NSTextTableBlock 简单：后面各行的行号、表头样式、列宽都跟着重算
+    private func rewriteTable(caretRow: Int, _ edit: (inout [String]) -> Void) {
+        guard let storage = textStorage, let ctx = tableContext() else { return }
+        let old = storage.attributedSubstring(from: ctx.range)
+        var lines = RichBridge.markdown(from: old).components(separatedBy: "\n").filter { !$0.isEmpty }
+        edit(&lines)
+        let new = NSMutableAttributedString(attributedString: RichBridge.attributed(markdown: lines.joined(separator: "\n") + "\n", baseURL: baseURL))
+        // 只要表格本身：表格在文末时转换会在后面补一个空段落
+        var end = 0
+        new.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: new.length)) { value, range, _ in
+            if (value as? NSParagraphStyle)?.textBlocks.first is NSTextTableBlock { end = NSMaxRange(range) }
+        }
+        guard end > 0 else { return }
+        new.deleteCharacters(in: NSRange(location: end, length: new.length - end))
+        if old.attribute(DMKey.inDetails, at: 0, effectiveRange: nil) != nil { RichBridge.markInDetails(new) }
+        var caret = 0
+        new.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: new.length)) { value, range, stop in
+            if let b = (value as? NSParagraphStyle)?.textBlocks.first as? NSTextTableBlock, b.startingRow == caretRow {
+                caret = range.location
+                stop.pointee = true
+            }
+        }
+        replace(ctx.range, with: new, caret: ctx.range.location + caret)
+        refreshTypingAttributes()
+    }
+
+    @objc func insertTableRowBelow(_ sender: Any?) {
+        guard let ctx = tableContext() else { return }
+        rewriteTable(caretRow: ctx.row + 1) { lines in
+            lines.insert("|" + String(repeating: "  |", count: ctx.columns), at: min(ctx.row + 2, lines.count))
+        }
+    }
+
+    @objc func deleteTableRow(_ sender: Any?) {
+        guard let ctx = tableContext(), ctx.row > 0 else { return }
+        rewriteTable(caretRow: ctx.row - 1) { lines in
+            if ctx.row + 1 < lines.count { lines.remove(at: ctx.row + 1) }
+        }
+    }
+
+    @objc func deleteTable(_ sender: Any?) {
+        guard let ctx = tableContext() else { return }
+        replace(ctx.range, with: NSAttributedString(), caret: ctx.range.location)
+        refreshTypingAttributes()
+    }
+
+    /// 在表格里点右键：菜单最上面加表格的操作（光标先移到点的那一格）
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = super.menu(for: event) ?? NSMenu()
+        let index = characterIndexForInsertion(at: convert(event.locationInWindow, from: nil))
+        guard cell(at: index) != nil else { return menu }
+        if !NSLocationInRange(index, selectedRange()) { setSelectedRange(NSRange(location: index, length: 0)) }
+        guard let ctx = tableContext() else { return menu }
+        let items = [
+            NSMenuItem(title: String(localized: "在下方插入一行"), action: #selector(insertTableRowBelow(_:)), keyEquivalent: ""),
+            NSMenuItem(title: String(localized: "删除这一行"), action: ctx.row > 0 ? #selector(deleteTableRow(_:)) : nil, keyEquivalent: ""),
+            NSMenuItem(title: String(localized: "删除表格"), action: #selector(deleteTable(_:)), keyEquivalent: ""),
+            NSMenuItem.separator(),
+        ]
+        for (i, item) in items.enumerated() {
+            item.target = self
+            menu.insertItem(item, at: i)
+        }
+        return menu
+    }
+
     // MARK: - 键盘
 
     override func insertNewline(_ sender: Any?) {
@@ -1393,7 +1577,7 @@ final class RichTextView: NSTextView {
         let para = paragraphRange(at: selectedRange().location)
         let attrs = paragraphAttributes(para)
         // 表格中回车移到下一格（每个单元格只能有一个段落）
-        if RichBridge.tableBlock(of: attrs) != nil, moveCell(forward: true) { return }
+        if RichBridge.tableBlock(of: attrs) != nil, moveCell(forward: true, addRow: false) { return }
         let kind = RichBridge.kind(of: attrs)
         let content = (string as NSString).substring(with: para)
             .replacingOccurrences(of: RichStyle.taskTodo, with: "")
@@ -1822,6 +2006,12 @@ final class RichTextView: NSTextView {
             applyKinds { _ in .task(d, !done) }
             setSelectedRange(NSRange(location: min(para.location + 2, (string as NSString).length), length: 0))
         case nil:
+            if let storage = textStorage, storage.length > 0, event.clickCount == 1, cell(at: storage.length - 1) != nil,
+               let lm = layoutManager, let container = textContainer,
+               convert(event.locationInWindow, from: nil).y > textContainerOrigin.y + lm.usedRect(for: container).maxY {
+                moveBelowTable(storage.length - 1)
+                return
+            }
             super.mouseDown(with: event)
         }
     }
