@@ -111,7 +111,8 @@ if command -v op >/dev/null && [ -f "$HOME/.config/op/plugins.sh" ]; then GH=(op
 # Release 说明只放本版（文件最上面一段）
 awk '/^## /{n++} n==1' docs/发行说明.md > build/release-notes.md
 # 忘了写本版说明时，最上面一段是上一版的：不发布，免得更新窗口显示旧说明
-head -1 build/release-notes.md | grep -qF "DropMD ${TAG#v}" || { echo "docs/发行说明.md 最上面一段不是 ${TAG#v} 的说明"; exit 1; }
+# 版本号后面只能是行尾或说明（如“（测试版）”），不能接着版本号：否则 1.0.0-beta.1 的说明也算 1.0.0 的
+v="${TAG#v}"; head -1 build/release-notes.md | grep -qE "^## DropMD ${v//./\\.}(\$|[^-.0-9A-Za-z])" || { echo "docs/发行说明.md 最上面一段不是 ${TAG#v} 的说明"; exit 1; }
 # 先发测试版、再发正式版：版本号带 -beta 等的标“预发布”（App 只在勾选“包括测试版”时提示），正式版标“最新”
 case "$TAG" in *-*) KIND=--prerelease ;; *) KIND=--latest ;; esac
 "${GH[@]}" release create "$TAG" "$KIND" \
