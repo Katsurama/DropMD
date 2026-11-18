@@ -56,6 +56,12 @@ struct RichTextEditor: NSViewRepresentable {
 
         controller.richView = tv
         controller.flushRichEdits = { [weak coordinator = context.coordinator] in coordinator?.flush() }
+        // 双页：滚动右边时，左边的原文跟着滚
+        scroll.contentView.postsBoundsChangedNotifications = true
+        context.coordinator.scrollObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification, object: scroll.contentView, queue: .main) { [weak controller] _ in
+            MainActor.assumeIsolated { controller?.richScrolled() }
+        }
         return scroll
     }
 
@@ -82,6 +88,7 @@ struct RichTextEditor: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
+        if let o = coordinator.scrollObserver { NotificationCenter.default.removeObserver(o) }
         // 关闭窗口前，把尚未写回的修改写回文档
         DispatchQueue.main.async { coordinator.flush() }
     }
@@ -99,6 +106,7 @@ struct RichTextEditor: NSViewRepresentable {
         init(_ parent: RichTextEditor) { self.parent = parent }
 
         private var reloadWork: DispatchWorkItem?
+        var scrollObserver: NSObjectProtocol?
 
         func scheduleReload(_ tv: RichTextView) {
             reloadWork?.cancel()
@@ -121,7 +129,8 @@ struct RichTextEditor: NSViewRepresentable {
             let clip = tv.enclosingScrollView?.contentView
             let origin = clip?.bounds.origin
             let selection = tv.selectedRange()
-            storage.setAttributedString(RichBridge.attributed(markdown: text, baseURL: parent.baseURL))
+            let (content, map) = RichBridge.attributedWithLineMap(markdown: text, baseURL: parent.baseURL)
+            storage.setAttributedString(content)
             let length = storage.length
             tv.setSelectedRange(NSRange(location: min(selection.location, length), length: 0))
             tv.typingAttributes = length > 0
@@ -133,7 +142,7 @@ struct RichTextEditor: NSViewRepresentable {
                 tv.enclosingScrollView?.reflectScrolledClipView(clip)
             }
             parent.controller.selectionChanged()
-            parent.controller.richReloaded()
+            parent.controller.richReloaded(lineMap: map, for: text)
         }
 
         func textDidChange(_ notification: Notification) {

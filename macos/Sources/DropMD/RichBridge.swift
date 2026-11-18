@@ -8,12 +8,26 @@ enum RichBridge {
         attributed(from: MarkdownCodec.parse(markdown), baseURL: baseURL)
     }
 
-    static func attributed(from blocks: [MDBlock], baseURL: URL?) -> NSAttributedString {
+    /// 双页的对照表：每段原文从第几行开始（line），在单页里从第几个字开始（offset）。按顺序排列
+    typealias LineMap = [(line: Int, offset: Int)]
+
+    static func attributedWithLineMap(markdown: String, baseURL: URL?) -> (NSAttributedString, LineMap) {
+        let parsed = MarkdownCodec.parseWithSource(markdown)
+        var starts: [Int] = []
+        let s = attributed(from: parsed.blocks, baseURL: baseURL) { starts.append($0) }
+        let map = parsed.groups.compactMap { g -> (line: Int, offset: Int)? in
+            g.blocks.lowerBound < starts.count ? (g.lines.lowerBound, starts[g.blocks.lowerBound]) : nil
+        }
+        return (s, map)
+    }
+
+    static func attributed(from blocks: [MDBlock], baseURL: URL?, blockStart: ((Int) -> Void)? = nil) -> NSAttributedString {
         let out = NSMutableAttributedString()
 
         var lastRaw = false
         var listDepth = 0   // 上一个列表项的层级：列表项里的代码块缩进到它的文字下面
         for block in blocks {
+            blockStart?(out.length)
             if case .line(let l) = block, let d = l.kind.listDepth { listDepth = d }
             // 相邻的两段原样内容之间空一行，否则保存时会连成一段
             if case .raw(let text) = block, !isMathBlock(text) {

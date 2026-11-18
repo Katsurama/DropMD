@@ -21,29 +21,6 @@ let calls = [
     if (!h.includes('>Tip<') || !h.includes('Web image: a')) throw new Error('界面文字没有生效');
     return true
     """,
-    // 代码块的复制按钮：App 的预览里有（传了按钮文字），点了把代码交给 App；快速查看（没传文字）不加
-    """
-    DropMD.render('```\\nab\\n```', '', 'zh-Hans');
-    if (document.querySelector('.copy-code')) throw new Error('没传按钮文字时不该加复制按钮');
-    DropMD.render('```\\nab\\n```', '', 'zh-Hans', {copyCode: '复制代码', copied: '已复制'});
-    const b = document.querySelector('pre .copy-code');
-    if (!b) throw new Error('代码块没有复制按钮');
-    b.click();
-    if (b.textContent !== '已复制') throw new Error('点了复制按钮没有变成“已复制”');
-    return true
-    """,
-    // 双页的光标标记：标到原文那一行所在的块（列表项也能单独标），换一行时旧的标记去掉
-    """
-    DropMD.render('# 标题\\n\\n- 一\\n- 二\\n\\n段落', '', 'zh-Hans');
-    DropMD.markCursor(3);
-    let m = document.querySelectorAll('.dm-cursor');
-    if (m.length !== 1 || m[0].tagName !== 'LI' || !m[0].textContent.includes('二')) throw new Error('光标标记没标在第二个列表项：' + (m[0] && m[0].outerHTML));
-    DropMD.markCursor(5);
-    m = document.querySelectorAll('.dm-cursor');
-    if (m.length !== 1 || !m[0].textContent.includes('段落')) throw new Error('换行后光标标记不对');
-    DropMD.scrollToLine(3);
-    return true
-    """,
     // 文件开头的 YAML 信息显示为代码块，不变成分隔线和标题
     """
     DropMD.render('---\\ntitle: 测试\\n---\\n\\n正文', '', 'zh-Hans');
@@ -87,15 +64,8 @@ final class Runner: NSObject, WKNavigationDelegate {
 }
 
 let app = NSApplication.shared
-/// 和 App 一样接收复制按钮传来的文字，检查传的是代码本身
-final class CopyStub: NSObject, WKScriptMessageHandler {
-    func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
-        if message.body as? String != "ab" { print("FAIL 复制的文字不对：", message.body); exit(1) }
-    }
-}
 let config = WKWebViewConfiguration()
 config.websiteDataStore = .nonPersistent()
-config.userContentController.add(CopyStub(), name: "copy")
 let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 600, height: 400), configuration: config)
 let runner = Runner()
 webView.navigationDelegate = runner

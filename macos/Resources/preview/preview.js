@@ -155,12 +155,9 @@
   function lineMapPlugin(md) {
     const blocks = ["paragraph_open", "heading_open", "blockquote_open", "bullet_list_open", "ordered_list_open",
       "table_open", "hr", "code_block", "fence", "list_item_open", "html_block"];
-    // 列表项、表格的行、引用里的段落也标上：双页的光标标记要定位到具体哪一项 / 哪一行
-    const nested = ["paragraph_open", "list_item_open", "tr_open", "heading_open"];
     md.core.ruler.push("line_map", function (state) {
       for (const t of state.tokens) {
-        if (!t.map) continue;
-        if ((blocks.indexOf(t.type) !== -1 && t.level === 0) || nested.indexOf(t.type) !== -1) t.attrSet("data-line", String(t.map[0]));
+        if (t.map && blocks.indexOf(t.type) !== -1 && t.level === 0) t.attrSet("data-line", String(t.map[0]));
       }
     });
     // fence/code_block/html_block 默认渲染不输出属性，这里补上
@@ -250,53 +247,6 @@
     base.href = baseHref;
   }
 
-  // ---------------------------------------------------------------- 代码块的“复制”按钮（鼠标移上去才出现，与 GitHub 相同）
-  // 只在 App 的预览里有：App 传入按钮文字（ui.copyCode），并由 App 写入剪贴板。快速查看和导出的 HTML 不加
-  function addCopyButtons() {
-    const handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.copy;
-    if (!ui.copyCode || !handler) return;
-    for (const pre of document.querySelectorAll("#content pre")) {
-      const code = pre.querySelector("code") || pre;
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "copy-code";
-      button.textContent = ui.copyCode;
-      button.addEventListener("click", function () {
-        handler.postMessage(code.textContent.replace(/\n$/, ""));
-        button.textContent = ui.copied || ui.copyCode;
-        setTimeout(function () { button.textContent = ui.copyCode; }, 1500);
-      });
-      pre.appendChild(button);
-    }
-  }
-
-  // ---------------------------------------------------------------- 双页：滚动预览时，原文跟着滚
-  // App 让预览滚动（scrollToLine）引起的滚动不回传，否则两边来回带动、抖个不停
-  let programmaticScroll = 0;
-  let scrollTimer = null;
-  window.addEventListener("scroll", function () {
-    const handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.scroll;
-    if (!handler || Date.now() - programmaticScroll < 300) return;
-    clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(function () { handler.postMessage(topLine()); }, 16);
-  }, { passive: true });
-
-  /** 窗口顶端对应原文第几行（可以是小数：在两块之间按位置估算） */
-  function topLine() {
-    const els = document.querySelectorAll("#content [data-line]");
-    let before = null, after = null;
-    for (const el of els) {
-      const top = el.getBoundingClientRect().top;
-      if (top <= 24) before = el; else { after = el; break; }
-    }
-    if (!before) return 0;
-    const l0 = parseInt(before.getAttribute("data-line"), 10);
-    if (!after) return l0;
-    const l1 = parseInt(after.getAttribute("data-line"), 10);
-    const t0 = before.getBoundingClientRect().top, t1 = after.getBoundingClientRect().top;
-    return t1 > t0 ? l0 + (l1 - l0) * (24 - t0) / (t1 - t0) : l0;
-  }
-
   window.DropMD = {
     /** 渲染 Markdown。baseHref 为文档所在文件夹的 file:// 地址（以 / 结尾），用于相对路径图片；lang 为文档语言；
         uiText 为界面语言的文字（键同 ui） */
@@ -306,26 +256,11 @@
       // 文档语言决定汉字字形，见 preview.css
       if (lang) document.documentElement.lang = lang;
       document.getElementById("content").innerHTML = previewMD.render(frontMatter(text || ""));
-      addCopyButtons();
-      return true;
-    },
-
-    /** 双页：标出原文光标所在的那一块（第 line 行，从 0 开始），像协作文档里别人的光标 */
-    markCursor: function (line) {
-      const old = document.querySelector(".dm-cursor");
-      let found = null;
-      for (const el of document.querySelectorAll("#content [data-line]")) {
-        if (parseInt(el.getAttribute("data-line"), 10) <= line) found = el;   // 文档顺序：最后一个不超过 line 的，就是最里层的那一块
-        else break;
-      }
-      if (old && old !== found) old.classList.remove("dm-cursor");
-      if (found) found.classList.add("dm-cursor");
       return true;
     },
 
     /** 滚动到与源码第 line 行（从 0 开始）对应的位置 */
     scrollToLine: function (line) {
-      programmaticScroll = Date.now();
       const els = document.querySelectorAll("[data-line]");
       let before = null, after = null;
       for (const el of els) {

@@ -193,40 +193,103 @@ final class EditorController: ObservableObject {
     /// 预览页面中的界面文字（提示框标题等），随界面语言
     private static let previewText: [String: String] = Dictionary(uniqueKeysWithValues: MDCallout.allCases.map { ($0.rawValue, $0.title) })
         .merging(["blockedImage": String(localized: "网络图片未加载（隐私保护）"), "colon": String(localized: "：")]) { a, _ in a }
-        .merging(["copyCode": String(localized: "复制代码"), "copied": String(localized: "已复制")]) { a, _ in a }
 
     func renderPreview() {
         guard previewReady, let webView else { return }
         webView.callAsyncJavaScript("DropMD.render(t, b, l, u)",
                                     arguments: ["t": pendingText, "b": baseHref, "l": fonts.language.tag, "u": Self.previewText],
                                     in: nil, in: .page) { [weak self] _ in
-            // WebKit 在主线程回调
-            MainActor.assumeIsolated {
-                self?.lastScrollLine = -1
-                self?.syncScroll()
-                self?.lastCursorLine = -1   // 预览重新渲染后标记没了，重新标
-                self?.syncCursor()
-            }
+            // 网页预览不显示，只用来导出；渲染完不用做别的
+            _ = self
         }
     }
 
-    /// 编辑区滚动时，让预览滚动到对应位置
-    func syncScroll() {
-        // 刚按预览的滚动把原文滚过去：这次滚动不再传回预览，否则两边来回带动
-        guard Date() >= ignoreEditorScrollUntil else { return }
-        guard previewReady, let tv = textView, let webView,
-              let lm = tv.layoutManager, let tc = tv.textContainer else { return }
-        let visible = tv.visibleRect
-        let point = NSPoint(x: 0, y: visible.minY - tv.textContainerInset.height)
-        let glyph = lm.glyphIndex(for: point, in: tc)
-        let line = Self.lineNumber(in: tv.string as NSString, at: lm.characterIndexForGlyph(at: glyph))
-        guard line != lastScrollLine else { return }
-        lastScrollLine = line
-        webView.callAsyncJavaScript("DropMD.scrollToLine(l)", arguments: ["l": line], in: nil, in: .page, completionHandler: nil)
+    // MARK: - 双页：左边原文 ↔ 右边单页（两边一起滚、光标标记）
+
+    /// 对照表：每段原文从第几行开始、在单页里从第几个字开始（单页重新排版时算好；右边改了字后用到时重算）
+    private var lineMap: RichBridge.LineMap = []
+    private var lineMapText: String?
+    /// 这段时间内的滚动是另一边带动的，不再传回去（否则两边来回带动、抖个不停）
+    private var ignoreSourceScrollUntil = Date.distantPast
+    private var ignoreRichScrollUntil = Date.distantPast
+
+    func richReloaded(lineMap map: RichBridge.LineMap, for text: String) {
+        lineMap = map
+        lineMapText = text
+        guard !isRichMode else { return }
+        lastCursorLine = -1
+        syncCursor()
     }
 
-    /// 预览滚动时（预览页传来窗口顶端对应原文第几行），原文滚到同一行
-    func previewScrolled(toLine line: Double) {
+    private func currentLineMap() -> RichBridge.LineMap {
+        let text = textView?.string ?? pendingText
+        if text != lineMapText {
+            lineMap = RichBridge.attributedWithLineMap(markdown: text, baseURL: fileURL?.deletingLastPathComponent()).1
+            lineMapText = text
+        }
+        return lineMap
+    }
+
+    /// 原文第 line 行所在的那一段，在单页里的字的范围
+    private func richRange(forLine line: Int) -> (entry: Int, range: NSRange)? {
+        let map = currentLineMap()
+        guard let length = richView?.textStorage?.length, length > 0,
+              let i = map.lastIndex(where: { $0.line <= line }) ?? (map.isEmpty ? nil : 0) else { return nil }
+        let start = min(map[i].offset, length - 1)
+        let end = i + 1 < map.count ? min(map[i + 1].offset, length) : length
+        return (i, NSRange(location: start, length: max(1, end - start)))
+    }
+
+    /// 单页里第 offset 个字所在行的顶端（文字区坐标）
+    private func richY(_ offset: Int) -> CGFloat? {
+        guard let tv = richView, let lm = tv.layoutManager, let length = tv.textStorage?.length, length > 0 else { return nil }
+        let glyph = lm.glyphIndexForCharacter(at: min(max(offset, 0), length - 1))
+        return lm.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil).minY + tv.textContainerOrigin.y
+    }
+
+    /// 左边原文滚动时，右边滚到对应位置
+    func syncScroll() {
+        guard !isRichMode, Date() >= ignoreSourceScrollUntil else { return }
+        guard let tv = textView, let lm = tv.layoutManager, let tc = tv.textContainer, let rich = richView else { return }
+        let visible = tv.visibleRect
+        let glyph = lm.glyphIndex(for: NSPoint(x: 0, y: visible.minY - tv.textContainerInset.height), in: tc)
+        let char = lm.characterIndexForGlyph(at: glyph)
+        let ns = tv.string as NSString
+        let line = Self.lineNumber(in: ns, at: char)
+        guard line != lastScrollLine else { return }
+        lastScrollLine = line
+        let map = currentLineMap()
+        guard let i = map.lastIndex(where: { $0.line <= line }), var y = richY(map[i].offset) else {
+            ignoreRichScrollUntil = Date().addingTimeInterval(0.3)
+            rich.scroll(.zero)
+            return
+        }
+        // 在两段之间时按行数比例往下挪，滚动更顺
+        if i + 1 < map.count, let next = richY(map[i + 1].offset), map[i + 1].line > map[i].line {
+            y += (next - y) * CGFloat(line - map[i].line) / CGFloat(map[i + 1].line - map[i].line)
+        }
+        ignoreRichScrollUntil = Date().addingTimeInterval(0.3)
+        rich.scroll(NSPoint(x: 0, y: max(0, y - 24)))
+    }
+
+    /// 右边单页滚动时，左边原文滚到对应位置
+    func richScrolled() {
+        guard !isRichMode, Date() >= ignoreRichScrollUntil, let rich = richView, let lm = rich.layoutManager,
+              let tc = rich.textContainer, let length = rich.textStorage?.length, length > 0 else { return }
+        let top = rich.visibleRect.minY + 24
+        let glyph = lm.glyphIndex(for: NSPoint(x: 0, y: top - rich.textContainerOrigin.y), in: tc)
+        let char = lm.characterIndexForGlyph(at: glyph)
+        let map = currentLineMap()
+        guard let i = map.lastIndex(where: { $0.offset <= char }) else { return scrollSource(toLine: 0) }
+        var line = Double(map[i].line)
+        if i + 1 < map.count, let y0 = richY(map[i].offset), let y1 = richY(map[i + 1].offset), y1 > y0 {
+            line += Double(map[i + 1].line - map[i].line) * Double(max(0, min(1, (top - y0) / (y1 - y0))))
+        }
+        scrollSource(toLine: line)
+    }
+
+    /// 原文滚到第 line 行（可以是小数）
+    func scrollSource(toLine line: Double) {
         guard let tv = textView, let lm = tv.layoutManager, let tc = tv.textContainer,
               let clip = tv.enclosingScrollView?.contentView else { return }
         let ns = tv.string as NSString
@@ -243,23 +306,29 @@ final class EditorController: ObservableObject {
         var rect = lm.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
         // 小数部分：按这一行的高度往下挪一点，滚动更顺
         rect.origin.y += rect.height * CGFloat(line - Double(whole))
-        ignoreEditorScrollUntil = Date().addingTimeInterval(0.3)
+        ignoreSourceScrollUntil = Date().addingTimeInterval(0.3)
         lastScrollLine = whole
         // 用文字区自己的坐标滚动：它在滚动区里的位置不一定从 0 开始，换算交给系统
         tv.scroll(NSPoint(x: 0, y: max(0, rect.minY + tv.textContainerInset.height - clip.contentInsets.top)))
     }
-    private var ignoreEditorScrollUntil = Date.distantPast
 
-    /// 单页编辑区按文档重新排过（双页里左边改了字）：对照表要重算
-    func richReloaded() {}
-
-    /// 双页：在预览里标出原文光标所在的那一块
+    /// 双页：在右边标出左边原文光标所在的那一段；那一段不在屏幕里时，右边自动滚过去
     func syncCursor() {
-        guard previewReady, let tv = textView, let webView else { return }
+        guard !isRichMode, let tv = textView, let rich = richView else { return }
         let line = Self.lineNumber(in: tv.string as NSString, at: tv.selectedRange().location)
         guard line != lastCursorLine else { return }
         lastCursorLine = line
-        webView.callAsyncJavaScript("DropMD.markCursor(l)", arguments: ["l": line], in: nil, in: .page, completionHandler: nil)
+        guard let (_, range) = richRange(forLine: line) else { rich.sourceCursorRange = nil; return }
+        rich.sourceCursorRange = range
+        guard let rect = rich.markRect(), !rich.visibleRect.insetBy(dx: 0, dy: 40).contains(rect) else { return }
+        // 和左边光标在窗口里差不多的高度
+        let caret = tv.firstRect(forCharacterRange: tv.selectedRange(), actualRange: nil)
+        let ratio = tv.window.map { w in
+            let inView = tv.convert(w.convertFromScreen(caret).origin, from: nil).y - tv.visibleRect.minY
+            return max(0.15, min(0.7, inView / max(1, tv.visibleRect.height)))
+        } ?? 0.3
+        ignoreRichScrollUntil = Date().addingTimeInterval(0.3)
+        rich.scroll(NSPoint(x: 0, y: max(0, rect.minY - rich.visibleRect.height * ratio)))
     }
     private var lastCursorLine = -1
 
