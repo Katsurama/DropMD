@@ -34,7 +34,7 @@
 <p align="center"><img src="docs/images/editor-light.jpg" alt="浅色模式下的单页编辑与格式面板" width="49%"> <img src="docs/images/editor-dark.jpg" alt="深色模式下的双页：Markdown 原文与预览" width="49%"></p>
 
 - **单页**：像 Pages / Word 一样直接排版，不用会写 Markdown，保存的仍是标准 Markdown 文件
-- **双页**：左边 Markdown 原文，右边实时预览，滚动同步
+- **双页**：左边 Markdown 原文，右边是单页，两边都能直接改、实时同步；滚动一起走，右边会标出左边光标所在的那一段
 - **常用格式**：标题、粗体、斜体、下划线、删除线、高亮、列表、待办、表格、图片、链接、代码块
 - **更多格式**：提示框（`> [!NOTE]`）、折叠块、脚注、数学公式、上标 / 下标、键盘按键
 - **界面语言**：简体中文、繁体中文、英文或日文，跟随系统，也可以在“设置”里单独选择
@@ -47,7 +47,9 @@
 
 ## 📦 安装
 
-1. 在 [Releases](../../releases) 下载 `DropMD-macOS-AppleSilicon.dmg`
+1. 打开[最新版本](../../releases/latest)，在页面下方的 **Assets** 里只下载 `DropMD-macOS-AppleSilicon.dmg`
+   - `.zip` 是给 App 内更新用的，`.sha256` 是校验值，都不用下
+   - 标着 **Pre-release** 的是测试版，一般用户不用装
 2. 打开后把 **DropMD** 拖到右边的 **Applications**（应用程序）文件夹
 3. 第一次打开会被系统拦下，按下面的方法打开一次，以后就不会再提示
 
