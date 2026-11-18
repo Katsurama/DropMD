@@ -148,7 +148,7 @@ enum RichStyle {
 
     /// 行内代码、按键的底色：深色时系统灰几乎看不见，单独调亮
     static let codeBackground = NSColor(name: "DropMD.inlineCodeBackground") { a in
-        isDark(a) ? NSColor(white: 1, alpha: 0.10) : NSColor.quaternaryLabelColor.withAlphaComponent(0.10)
+        isDark(a) ? NSColor(white: 1, alpha: 0.10) : NSColor(white: 0, alpha: 0.07)   // 不能在这里再用系统动态颜色，窗口里解析不出来
     }
     /// 代码块的整块底色（参考 Notion：浅灰 / 深灰，不透明，与正文底色区分开）
     static let codeBlockBackground = NSColor(name: "DropMD.codeBlock") { a in
