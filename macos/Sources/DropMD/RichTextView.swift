@@ -564,6 +564,44 @@ final class RichTextView: NSTextView {
         // 不画纸张（纸张在中间像一个方块）
         RichStyle.paperColor.setFill()
         rect.fill()
+        // 双页：左边原文光标所在的那一段（蓝色竖线 + 淡蓝底，像协作文档里别人的光标）
+        if let box = markRect(), box.intersects(rect) {
+            NSColor.controlAccentColor.withAlphaComponent(0.07).setFill()
+            NSBezierPath(roundedRect: box.insetBy(dx: -6, dy: -3), xRadius: 4, yRadius: 4).fill()
+            NSColor.controlAccentColor.setFill()
+            NSBezierPath(roundedRect: NSRect(x: box.minX - 14, y: box.minY - 3, width: 3, height: box.height + 6), xRadius: 1.5, yRadius: 1.5).fill()
+        }
+    }
+
+    /// 双页：左边原文光标所在的那一段在这里的范围；右边自己在编辑时不画
+    var sourceCursorRange: NSRange? {
+        didSet { if sourceCursorRange != oldValue { needsDisplay = true } }
+    }
+
+    /// 标记的位置（文字区坐标）：横跨整个文字栏，高度是那一段
+    func markRect() -> NSRect? {
+        guard let range = sourceCursorRange, window?.firstResponder !== self,
+              let lm = layoutManager, let tc = textContainer, let length = textStorage?.length,
+              range.location < length else { return nil }
+        let r = NSRange(location: range.location, length: min(range.length, length - range.location))
+        let glyphs = lm.glyphRange(forCharacterRange: r, actualCharacterRange: nil)
+        guard glyphs.length > 0 else { return nil }
+        let first = lm.lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+        let last = lm.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
+        let pad = tc.lineFragmentPadding
+        return NSRect(x: textContainerOrigin.x + pad, y: textContainerOrigin.y + first.minY,
+                      width: tc.size.width - pad * 2, height: last.maxY - first.minY)
+    }
+
+    // 点进右边编辑时去掉标记，离开时再显示
+    override func becomeFirstResponder() -> Bool {
+        defer { needsDisplay = true }
+        return super.becomeFirstResponder()
+    }
+
+    override func resignFirstResponder() -> Bool {
+        defer { needsDisplay = true }
+        return super.resignFirstResponder()
     }
 
     /// 光标处的段落样式与文字样式
