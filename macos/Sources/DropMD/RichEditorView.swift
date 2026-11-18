@@ -166,7 +166,10 @@ struct RichTextEditor: NSViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
-            MainActor.assumeIsolated { parent.controller.selectionChanged() }
+            MainActor.assumeIsolated {
+                parent.controller.selectionChanged()
+                parent.controller.syncSourceMark()
+            }
         }
 
         /// 把编辑区内容转换为 Markdown 写回文档

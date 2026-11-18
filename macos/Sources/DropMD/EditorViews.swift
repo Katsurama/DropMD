@@ -72,6 +72,7 @@ struct MarkdownTextView: NSViewRepresentable {
             tv.string = text
             tv.setSelectedRange(NSRange(location: min(sel.location, (text as NSString).length), length: 0))
             controller.scheduleHighlight()
+            controller.sourceTextReplaced()
         }
         if !context.coordinator.wasActive {
             DispatchQueue.main.async { tv.window?.makeFirstResponder(tv) }

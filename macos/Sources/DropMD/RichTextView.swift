@@ -583,12 +583,14 @@ final class RichTextView: NSTextView {
         // 不画纸张（纸张在中间像一个方块）
         RichStyle.paperColor.setFill()
         rect.fill()
-        // 双页：左边原文光标所在的那一段（蓝色竖线 + 淡蓝底，像协作文档里别人的光标）
-        if let box = markRect(), box.intersects(rect) {
-            NSColor.controlAccentColor.withAlphaComponent(0.07).setFill()
-            NSBezierPath(roundedRect: box.insetBy(dx: -6, dy: -3), xRadius: 4, yRadius: 4).fill()
-            NSColor.controlAccentColor.setFill()
-            NSBezierPath(roundedRect: NSRect(x: box.minX - 14, y: box.minY - 3, width: 3, height: box.height + 6), xRadius: 1.5, yRadius: 1.5).fill()
+        // 双页：左边原文光标所在的那一段，用靛蓝色的圆角框标出（不用竖线，免得和引用、提示框的竖线混在一起）
+        if let box = markRect(), box.intersects(rect.insetBy(dx: -10, dy: -10)) {
+            let path = NSBezierPath(roundedRect: box.insetBy(dx: -8, dy: -4), xRadius: 6, yRadius: 6)
+            RichStyle.markColor.withAlphaComponent(0.07).setFill()
+            path.fill()
+            RichStyle.markColor.withAlphaComponent(0.55).setStroke()
+            path.lineWidth = 1.5
+            path.stroke()
         }
     }
 
