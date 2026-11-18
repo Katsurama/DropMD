@@ -136,7 +136,7 @@ with tempfile.TemporaryDirectory() as d:
     p = subprocess.Popen([sys.executable, "-m", "dropmd", "--engine", "convert"], stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
     p.stdin.write(json.dumps(job).encode()); p.stdin.close()
-    p.stdout.readline()   # {"event":"start"}：已经开始转换
+    first = p.stdout.readline()   # {"event":"start"}：已经开始转换（引擎没起来时是空的，不能算通过）
     time.sleep(0.5)
     try:   # 和 Engine.swift 的 terminate 一样：结束整个进程组，没有这个组时只结束引擎
         os.killpg(p.pid, signal.SIGTERM)
@@ -145,9 +145,9 @@ with tempfile.TemporaryDirectory() as d:
     p.wait()
     time.sleep(2.5)
     left = sorted(x.name for x in Path(d).iterdir() if x.name.startswith("w.md"))
-    ok = left == []
+    ok = b'"start"' in first and left == []
     failed += not ok
-    print("ok  " if ok else "FAIL", "停止时 Pandoc 一起结束", "" if ok else f"\n     留下了：{left}")
+    print("ok  " if ok else "FAIL", "停止时 Pandoc 一起结束", "" if ok else f"\n     引擎第一行：{first!r}，留下了：{left}")
 print("全部通过" if not failed else f"失败 {failed} 项")
 raise SystemExit(1 if failed else 0)
 EOF

@@ -276,7 +276,7 @@ enum HelpDocs {
     /// Discord 社区（永久邀请链接）
     static let discord = URL(string: "https://discord.gg/VUne62RvrJ")!
 
-    /// 赞助：中文界面（简体、繁体）显示爱发电和 Patreon，其他语言只显示 Patreon（爱发电只能用人民币付款）
+    /// 赞助：爱发电和 Patreon，所有语言都显示（爱发电已支持英文和海外付款，非中文界面叫 Afdian）。中文界面爱发电在前
     struct Sponsor { let name: String; let menuTitle: String; let url: URL }
     static var sponsors: [Sponsor] {
         let patreon = Sponsor(name: "Patreon", menuTitle: String(localized: "在 Patreon 赞助…"),
@@ -284,7 +284,7 @@ enum HelpDocs {
         let afdian = Sponsor(name: String(localized: "爱发电"), menuTitle: String(localized: "在爱发电赞助…"),
                              url: URL(string: "https://afdian.com/a/katsurama")!)
         let lang = Bundle.main.preferredLocalizations.first ?? "en"
-        return lang.hasPrefix("zh") ? [afdian, patreon] : [patreon]
+        return lang.hasPrefix("zh") ? [afdian, patreon] : [patreon, afdian]
     }
 
     /// 微信赞赏码（App 包里的图片）：只在中文界面显示

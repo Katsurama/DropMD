@@ -203,7 +203,8 @@ jobs:
           awk '/^## /{n++} n==1' docs/发行说明.md > release-notes.md
           [ -s release-notes.md ] || { echo "docs/发行说明.md 里没有找到本版说明"; exit 1; }
           # 忘了写本版说明时，最上面一段是上一版的：不发布，免得更新窗口显示旧说明
-          head -1 release-notes.md | grep -qF "DropMD ${TAG#v}" || { echo "docs/发行说明.md 最上面一段不是 ${TAG#v} 的说明"; exit 1; }
+          # 版本号后面只能是行尾或说明（如“（测试版）”），不能接着版本号：否则 1.0.0-beta.1 的说明也算 1.0.0 的
+          v="${TAG#v}"; head -1 release-notes.md | grep -qE "^## DropMD ${v//./\\.}(\$|[^-.0-9A-Za-z])" || { echo "docs/发行说明.md 最上面一段不是 ${TAG#v} 的说明"; exit 1; }
           gh release create "$TAG" "$KIND" \
             DropMD-macOS-AppleSilicon.dmg DropMD-macOS-AppleSilicon.dmg.sha256 \
             DropMD-macOS-AppleSilicon.zip DropMD-macOS-AppleSilicon.zip.sha256 \
