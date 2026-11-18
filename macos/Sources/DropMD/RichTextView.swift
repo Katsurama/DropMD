@@ -101,7 +101,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
     }
 
     /// 包含这段文字的整张表格（同一个 NSTextTable 的所有格子）；不在表格里时为 nil
-    private func tableRange(around range: NSRange, in storage: NSTextStorage) -> NSRange? {
+    func tableRange(around range: NSRange, in storage: NSTextStorage) -> NSRange? {
         guard storage.length > 0 else { return nil }
         let at = min(range.location, storage.length - 1)
         func table(_ i: Int) -> NSTextTable? {
@@ -1647,6 +1647,7 @@ final class RichTextView: NSTextView {
         super.mouseMoved(with: event)
         let point = convert(event.locationInWindow, from: nil)
         if clickTarget(at: point) != nil { NSCursor.pointingHand.set() }
+        else if columnBoundary(at: point) != nil { NSCursor.resizeLeftRight.set() }
         updateCopyButton(at: point)
     }
 
@@ -1658,6 +1659,76 @@ final class RichTextView: NSTextView {
     override func didChangeText() {
         super.didChangeText()
         updateCopyButton(at: nil)   // 打字后代码块的位置可能变了
+    }
+
+    // MARK: - 表格：拖两列的交界调整列宽（系统自带的只认边框那一条线，很难点中）
+
+    /// 正在拖的交界：表格的范围、交界左边那一列、这一列左边缘和表格总宽（视图坐标）、两列合计的百分比
+    private struct ColumnDrag { let range: NSRange; let column: Int; let left: CGFloat; let width: CGFloat; let pair: CGFloat }
+    private var columnDrag: ColumnDrag?
+
+    private func tableBlock(at i: Int) -> NSTextTableBlock? {
+        (textStorage?.attribute(.paragraphStyle, at: i, effectiveRange: nil) as? NSParagraphStyle)?.textBlocks.first as? NSTextTableBlock
+    }
+
+    /// 鼠标在表格两列交界左右 5 点内时，返回这条交界
+    private func columnBoundary(at point: NSPoint) -> ColumnDrag? {
+        guard let storage = textStorage, storage.length > 0, let lm = layoutManager, let container = textContainer else { return nil }
+        let index = min(characterIndexForInsertion(at: point), storage.length - 1)
+        guard let range = (lm as? RichLayoutManager)?.tableRange(around: NSRange(location: index, length: 0), in: storage) else { return nil }
+        let origin = textContainerOrigin
+        let whole = lm.boundingRect(forGlyphRange: lm.glyphRange(forCharacterRange: range, actualCharacterRange: nil), in: container)
+        guard point.y >= whole.minY + origin.y, point.y <= whole.maxY + origin.y else { return nil }
+        // 第一行各格的位置（各行列宽相同）
+        var cells: [Int: (block: NSTextTableBlock, rect: NSRect)] = [:]
+        var i = range.location
+        while i < NSMaxRange(range) {
+            let para = paragraphRange(at: i)
+            if let b = tableBlock(at: i), b.startingRow == 0, cells[b.startingColumn] == nil {
+                let g = lm.glyphRange(forCharacterRange: para, actualCharacterRange: nil)
+                cells[b.startingColumn] = (b, lm.boundsRect(for: b, glyphRange: g))
+            }
+            i = NSMaxRange(para)
+        }
+        let columns = cells.keys.sorted()
+        guard columns.count > 1, columns == Array(0..<columns.count), let first = cells[0], let last = cells[columns.count - 1] else { return nil }
+        for c in 0..<columns.count - 1 {
+            let x = cells[c]!.rect.maxX + origin.x
+            if abs(point.x - x) <= 5 {
+                return ColumnDrag(range: range, column: c, left: cells[c]!.rect.minX + origin.x,
+                                  width: last.rect.maxX - first.rect.minX,
+                                  pair: cells[c]!.block.value(for: .width) + cells[c + 1]!.block.value(for: .width))
+            }
+        }
+        return nil
+    }
+
+    /// 拖到 x：交界左右两列重新分这两列合计的宽度（每列至少 8%）。只改显示，Markdown 不记列宽
+    private func dragColumn(_ drag: ColumnDrag, to x: CGFloat) {
+        guard let storage = textStorage, NSMaxRange(drag.range) <= storage.length, drag.width > 0 else { return }
+        let leftPct = min(max((x - drag.left) / drag.width * 100, 8), drag.pair - 8)
+        var i = drag.range.location
+        while i < NSMaxRange(drag.range) {
+            let para = paragraphRange(at: i)
+            if let b = tableBlock(at: i) {
+                if b.startingColumn == drag.column { b.setValue(leftPct, type: .percentageValueType, for: .width) }
+                if b.startingColumn == drag.column + 1 { b.setValue(drag.pair - leftPct, type: .percentageValueType, for: .width) }
+            }
+            i = NSMaxRange(para)
+        }
+        layoutManager?.invalidateLayout(forCharacterRange: drag.range, actualCharacterRange: nil)
+        needsDisplay = true
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let drag = columnDrag else { return super.mouseDragged(with: event) }
+        NSCursor.resizeLeftRight.set()
+        dragColumn(drag, to: convert(event.locationInWindow, from: nil).x)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard columnDrag != nil else { return super.mouseUp(with: event) }
+        columnDrag = nil
     }
 
     // MARK: - 代码块的“复制”按钮（与 GitHub 相同：鼠标移上去才出现）
@@ -1711,8 +1782,11 @@ final class RichTextView: NSTextView {
     }
 
     override func cursorUpdate(with event: NSEvent) {
-        if clickTarget(at: convert(event.locationInWindow, from: nil)) != nil {
+        let point = convert(event.locationInWindow, from: nil)
+        if clickTarget(at: point) != nil {
             NSCursor.pointingHand.set()
+        } else if columnBoundary(at: point) != nil {
+            NSCursor.resizeLeftRight.set()
         } else {
             super.cursorUpdate(with: event)
         }
@@ -1722,6 +1796,11 @@ final class RichTextView: NSTextView {
         if event.clickCount == 2, let r = mathRange(at: convert(event.locationInWindow, from: nil)) {
             setSelectedRange(r)
             editMath(at: r)
+            return
+        }
+        if let drag = columnBoundary(at: convert(event.locationInWindow, from: nil)) {
+            columnDrag = drag
+            NSCursor.resizeLeftRight.set()
             return
         }
         switch clickTarget(at: convert(event.locationInWindow, from: nil)) {

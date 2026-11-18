@@ -369,3 +369,5 @@
 "完成" = "Done";
 "开源许可…" = "Open Source Licenses…";
 "找不到许可证文件。" = "License file not found.";
+"隐藏 DropMD" = "Hide DropMD";
+"拖动调整左右宽度，双击恢复一半一半" = "Drag to resize. Double-click to split evenly.";

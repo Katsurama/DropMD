@@ -183,6 +183,8 @@ struct EditorView: View {
     @StateObject private var editor = EditorController()
     @AppStorage("editorMode") private var mode: EditorMode = .rich
     @AppStorage("showInspector") private var showInspector = true
+    /// 双页时左边原文占的比例（拖动中间的分隔线调整，记住）
+    @AppStorage("splitFraction") private var splitFraction = 0.5
     /// 双页在窗口打开后于后台预先加载，第一次切换也不卡
     @State private var sourceLoaded = false
     @Environment(\.openWindow) private var openWindow
@@ -238,27 +240,50 @@ struct EditorView: View {
                         .opacity(0)
                         .allowsHitTesting(false)
                 }
-                HStack(spacing: 0) {
-                    // 双页：左边原文，右边就是单页编辑区（同一个，两边都能改、实时同步）
-                    if sourceLoaded || mode == .source {
-                        MarkdownTextView(text: $document.text, controller: editor, isActive: mode == .source)
-                            .frame(maxWidth: mode == .source ? .infinity : 0, maxHeight: .infinity)
-                            .opacity(mode == .source ? 1 : 0)
-                            .allowsHitTesting(mode == .source)
-                        if mode == .source {
-                            Rectangle()
-                                .fill(Color(nsColor: RichStyle.lineColor))
-                                .frame(width: 1)
+                GeometryReader { geo in
+                    HStack(spacing: 0) {
+                        // 双页：左边原文，右边就是单页编辑区（同一个，两边都能改、实时同步）
+                        if sourceLoaded || mode == .source {
+                            MarkdownTextView(text: $document.text, controller: editor, isActive: mode == .source)
+                                .frame(width: mode == .source ? sourceWidth(geo.size.width) : 0)
+                                .frame(maxHeight: .infinity)
+                                .opacity(mode == .source ? 1 : 0)
+                                .allowsHitTesting(mode == .source)
+                            if mode == .source {
+                                Rectangle()
+                                    .fill(Color(nsColor: RichStyle.lineColor))
+                                    .frame(width: 1)
+                                    // 线只有 1 点宽，能拖的范围左右各加宽 4 点
+                                    .overlay(SplitHandle(
+                                        onDrag: { x in
+                                            let left = geo.frame(in: .global).minX
+                                            splitFraction = clampedFraction((x - left) / max(geo.size.width, 1), width: geo.size.width)
+                                        },
+                                        onDoubleClick: { splitFraction = 0.5 }
+                                    ).frame(width: 9))
+                                    .zIndex(1)
+                            }
                         }
+                        // 单页延伸到工具栏下方（与 Pages 相同），不留一条分隔带
+                        RichTextEditor(text: $document.text, baseURL: fileURL?.deletingLastPathComponent(), controller: editor)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .ignoresSafeArea(.container, edges: .top)
                     }
-                    // 单页延伸到工具栏下方（与 Pages 相同），不留一条分隔带
-                    RichTextEditor(text: $document.text, baseURL: fileURL?.deletingLastPathComponent(), controller: editor)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .ignoresSafeArea(.container, edges: .top)
                 }
             }
             statusBar
         }
+    }
+
+    /// 两边最窄各留 240 点；窗口太窄时各占一半
+    private func clampedFraction(_ f: Double, width: Double) -> Double {
+        let minF = 240 / width
+        guard minF < 0.5 else { return 0.5 }
+        return min(max(f, minF), 1 - minF)
+    }
+
+    private func sourceWidth(_ width: Double) -> Double {
+        (width * clampedFraction(splitFraction, width: width)).rounded()
     }
 
     /// 切换视图前，先把单页中尚未写回的修改写回文档
@@ -473,5 +498,42 @@ struct WindowSizeKeeper: NSViewRepresentable {
         frame.origin.x = min(max(frame.minX, screen.minX), screen.maxX - frame.width)
         frame.origin.y = min(max(frame.minY, screen.minY), screen.maxY - frame.height)
         window.setFrame(frame, display: true)
+    }
+}
+
+/// 双页中间分隔线上能拖的一条：鼠标移上去变成左右箭头，拖动报告鼠标在窗口里的横坐标，双击恢复一半一半
+struct SplitHandle: NSViewRepresentable {
+    var onDrag: (Double) -> Void
+    var onDoubleClick: () -> Void
+
+    func makeNSView(context: Context) -> HandleView { HandleView() }
+    func updateNSView(_ view: HandleView, context: Context) {
+        view.onDrag = onDrag
+        view.onDoubleClick = onDoubleClick
+    }
+
+    final class HandleView: NSView {
+        var onDrag: ((Double) -> Void)?
+        var onDoubleClick: (() -> Void)?
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            toolTip = String(localized: "拖动调整左右宽度，双击恢复一半一半")
+            addTrackingArea(NSTrackingArea(rect: .zero, options: [.cursorUpdate, .activeInKeyWindow, .inVisibleRect], owner: self))
+        }
+        required init?(coder: NSCoder) { fatalError() }
+
+        override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeLeftRight) }
+        override func cursorUpdate(with event: NSEvent) { NSCursor.resizeLeftRight.set() }
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            frame.contains(point) ? self : nil
+        }
+        override func mouseDown(with event: NSEvent) {
+            if event.clickCount == 2 { onDoubleClick?() }
+        }
+        override func mouseDragged(with event: NSEvent) {
+            NSCursor.resizeLeftRight.set()
+            onDrag?(event.locationInWindow.x)
+        }
     }
 }
