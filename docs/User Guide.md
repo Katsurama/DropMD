@@ -35,7 +35,7 @@ The interface follows your Mac's language (Simplified Chinese, Traditional Chine
 The “Page / Split” buttons at the left of the toolbar switch between two views (or press ⌘1 / ⌘2, or use the View menu):
 
 - **Page** (default, ⌘1): edit the formatted document directly, like in Pages or Word. **You don't need to know Markdown.** What you see is the final result, and it is saved as a standard Markdown file.
-- **Split** (⌘2): the Markdown source on the left and the formatted preview on the right. Useful if you know Markdown, or to see how math formulas look.
+- **Split** (⌘2): the Markdown source on the left and the Page view on the right (you can edit either side; they stay in sync). Useful if you know Markdown, or to see how math formulas look.
 
 You can switch at any time; the content stays in sync. The Format panel on the right (the Format button at the right of the toolbar, or ⌥⌘I) shows the paragraph and text style at the cursor; click to change it. Tables, images, links, collapsible sections and more are in the middle of the toolbar; every command is also in the Format and Insert menus.
 
@@ -47,7 +47,7 @@ You can switch at any time; the content stays in sync. The Format panel on the r
 - **Insert** (toolbar, Format panel or the Insert menu):
   - **Link** (⌘K), **Image** (choose an image on your Mac), **Table** (Tab in the last cell adds a row; Return moves to the next cell) and **Divider**;
   - **Collapsible Section** (⇧⌘D): an area that can be clicked open and closed. Write the title after ▸ and the content in the area with the bar below it. Click the ▸ / ▾ before the title to close or open it (this only changes the view, not the file; like a browser, sections start closed when a file is opened). Press Return on the title to go into the content; press Return on an empty line of the content to leave the section. It opens and closes when you export to HTML or view the file on GitHub;
-  - **Callout**: Note, Tip, Important, Warning and Caution. The first line shows the callout's name; write the content below it. In the Split preview, on GitHub and in Obsidian it appears as a colored box;
+  - **Callout**: Note, Tip, Important, Warning and Caution. The first line shows the callout's name; write the content below it. In the Page view, on GitHub and in Obsidian it appears as a colored box;
   - **Footnote** (⌥⌘F): inserts a number like [^1] at the cursor and puts the note at the end of the document;
   - **Today's Date** and **Emoji & Symbols** (the system emoji picker);
   - **Line Break (Same Paragraph)** (⇧↩): a new line within the same paragraph, saved as `<br>`;
@@ -59,7 +59,8 @@ You can switch at any time; the content stays in sync. The Format panel on the r
 
 ### Split view
 
-- Edit the Markdown source on the left and see the live preview on the right. Both sides scroll together.
+- Edit the Markdown source on the left; the right side is the Page view. You can edit either side and the other updates right away. Both sides scroll together.
+- While you edit on the left, a blue bar on the right marks the paragraph your cursor is in; if it is off screen, the right side scrolls to it.
 - **Syntax highlighting**: headings, bold, italic, code, links, lists, formulas and so on use different colors and fonts.
 - **Math**: `$E=mc^2$` is an inline formula and `$$ … $$` a display formula, rendered with KaTeX. The `\(E=mc^2\)` and `\[ … \]` forms that ChatGPT and other AI tools use work too. `==highlight==` and footnotes also preview correctly.
 
@@ -71,7 +72,7 @@ You can switch at any time; the content stays in sync. The Format panel on the r
 - **Export**: the Export button in the toolbar, or the Format menu:
   - **Export PDF**: A4 paper with automatic page breaks;
   - **Export HTML**: a single HTML file you can open in any browser. Local images are embedded in the HTML file, so they show wherever you save or send it; web images keep their original address (the browser loads them when you open the file).
-- **Quick Look**: select a .md file in Finder and press Space to see it formatted (as in the Split view preview) without opening it. Local images in the document are shown too; for this, Quick Look can **read** (not change) files in your home folder and on external drives, and it never goes online.
+- **Quick Look**: select a .md file in Finder and press Space to see it formatted (as in exported HTML) without opening it. Local images in the document are shown too; for this, Quick Look can **read** (not change) files in your home folder and on external drives, and it never goes online.
 
 ---
 
