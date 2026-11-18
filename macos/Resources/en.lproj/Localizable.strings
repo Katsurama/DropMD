@@ -203,7 +203,6 @@
 "LaTeX 格式" = "LaTeX";
 "无法导出" = "Can't Export";
 "导出 HTML 失败" = "Couldn't Export HTML";
-"请先显示预览，再导出 PDF。" = "Show the preview first, then export the PDF.";
 "预览还在加载，请稍后再试。" = "The preview is still loading. Try again in a moment.";
 "导出为 %@" = "Export as %@";
 "网络图片未加载（隐私保护）" = "Web image not loaded (privacy protection)";
@@ -371,3 +370,4 @@
 "找不到许可证文件。" = "License file not found.";
 "隐藏 DropMD" = "Hide DropMD";
 "拖动调整左右宽度，双击恢复一半一半" = "Drag to resize. Double-click to split evenly.";
+"无法分享" = "Can’t Share";

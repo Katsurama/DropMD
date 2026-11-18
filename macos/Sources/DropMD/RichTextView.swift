@@ -108,10 +108,16 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             ((storage.attribute(.paragraphStyle, at: i, effectiveRange: nil) as? NSParagraphStyle)?.textBlocks.first as? NSTextTableBlock)?.table
         }
         guard let t = table(at) else { return nil }
-        var start = at, end = at
-        while start > 0, table(start - 1) === t { start -= 1 }
-        while end + 1 < storage.length, table(end + 1) === t { end += 1 }
-        return NSRange(location: start, length: end - start + 1)
+        // 一段一段跳着找（同一段的格式相同），不用一个字一个字查
+        let ns = storage.string as NSString
+        var range = ns.paragraphRange(for: NSRange(location: at, length: 0))
+        while range.location > 0, table(range.location - 1) === t {
+            range = NSUnionRange(range, ns.paragraphRange(for: NSRange(location: range.location - 1, length: 0)))
+        }
+        while NSMaxRange(range) < storage.length, table(NSMaxRange(range)) === t {
+            range = NSUnionRange(range, ns.paragraphRange(for: NSRange(location: NSMaxRange(range), length: 0)))
+        }
+        return range
     }
 
     /// 标题之后、连续的折叠块内容段落
@@ -614,9 +620,13 @@ final class RichTextView: NSTextView {
                       width: tc.size.width - pad * 2, height: last.maxY - first.minY)
     }
 
+    /// 将要成为焦点时调用（在接收打字之前）：双页里先把等着做的重排做完，免得在旧内容上打字、冲掉左边刚改的字
+    var onFocus: (() -> Void)?
+
     // 点进右边编辑时去掉标记，离开时再显示
     override func becomeFirstResponder() -> Bool {
         defer { needsDisplay = true }
+        onFocus?()
         return super.becomeFirstResponder()
     }
 
