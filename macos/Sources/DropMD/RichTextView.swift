@@ -399,25 +399,34 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         let style = attrs[.paragraphStyle] as? NSParagraphStyle
         // 系统在文档开头不加段前间距
         let base = (after ? style?.paragraphSpacing : para.location == 0 ? 0 : style?.paragraphSpacingBefore) ?? 0
-        guard RichBridge.tableBlock(of: attrs) == nil else { return base }
+        guard RichBridge.tableBlock(of: attrs) == nil else { return base }   // 表格里的格子不加
+        // 相邻的段落（after 时是下一段，否则是上一段）
+        let neighbor: Int? = after ? (NSMaxRange(para) < ns.length ? NSMaxRange(para) : nil)
+                                   : (para.location > 0 ? ns.paragraphRange(for: NSRange(location: para.location - 1, length: 0)).location : nil)
+        guard let neighbor else { return base }
+        let other = storage.attributes(at: neighbor, effectiveRange: nil)
+        let kind = RichBridge.kind(of: attrs)
+        var extra: CGFloat = 0
+        // 表格前后：表格上面留一点，下面留得和代码块一样多（表格后的文字不贴着表格）
+        if RichBridge.tableBlock(of: other) != nil { extra = after ? 6 : 14 }
+        // 列表结束后：列表项之间比较紧，整个列表结束时补足一段正常的空
+        if after, kind.isList, !RichBridge.kind(of: other).isList { extra = max(extra, 6) }
+        // 折叠块（收起或展开）后面的文字
+        if !after, attrs[DMKey.inDetails] == nil, attrs[DMKey.summary] == nil,
+           other[DMKey.inDetails] != nil || other[DMKey.summary] != nil { extra = max(extra, 10) }
+        // 代码块、引用 / 提示框：整块前后多留空（块里各行之间不加，否则底色会断开）
         let isCode = isCodeParagraph(at: para.location, in: storage)
-        let isQuote = !isCode && RichBridge.kind(of: attrs) == .quote
-        guard isCode || isQuote else { return base }
-        /// 相邻的段落是否和这一段属于同一块（同一个代码块，或同一个引用 / 提示框）
-        func sameBlock(_ other: Int, otherIsAfter: Bool) -> Bool {
-            if isCode { return isCodeParagraph(at: other, in: storage) }
-            let a = storage.attributes(at: other, effectiveRange: nil)
-            guard RichBridge.kind(of: a) == .quote else { return false }
-            // 提示框标题行开始新的一块
-            return otherIsAfter ? a[DMKey.callout] == nil : attrs[DMKey.callout] == nil
+        if isCode || kind == .quote {
+            let same: Bool
+            if isCode {
+                same = isCodeParagraph(at: neighbor, in: storage)
+            } else {
+                // 提示框标题行开始新的一块
+                same = RichBridge.kind(of: other) == .quote && (after ? other[DMKey.callout] == nil : attrs[DMKey.callout] == nil)
+            }
+            if !same { extra = max(extra, isCode ? (after ? 18 : 14) : 6) }
         }
-        if after {
-            guard NSMaxRange(para) < ns.length, !sameBlock(NSMaxRange(para), otherIsAfter: true) else { return base }
-            return base + (isCode ? 18 : 6)
-        }
-        guard para.location > 0 else { return base }
-        let prev = ns.paragraphRange(for: NSRange(location: para.location - 1, length: 0))
-        return sameBlock(prev.location, otherIsAfter: false) ? base : base + (isCode ? 14 : 6)
+        return base + extra
     }
 
     /// 段落左侧的竖线（引用、折叠块内容）
