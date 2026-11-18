@@ -223,7 +223,7 @@ enum RichStyle {
         case .heading(let level):
             // 参考 Notion：大标题前留白更多，层次更清楚
             p.paragraphSpacingBefore = level <= 2 ? 20 : 14
-            p.paragraphSpacing = 6
+            p.paragraphSpacing = 8
         case .bullet(let d), .ordered(let d):
             // 项目符号和编号由 RichLayoutManager 画在缩进区内，不是正文的一部分
             p.firstLineHeadIndent = CGFloat(d + 1) * indent

@@ -800,6 +800,16 @@ MainActor.assumeIsolated {
             let end = lm.glyphIndexForCharacter(at: (tv.string as NSString).range(of: "后文").location - 1)
             check(name, "\(lm.layoutManager(lm, paragraphSpacingAfterGlyphAt: end, withProposedLineFragmentRect: .zero))", "18.0")
         }
+        // 表格、列表、折叠块后面的文字和上面留出空隙
+        for (name, src, anchor) in [("表格后留空", "| a | b |\n| --- | --- |\n| 1 | 2 |\n\n后文\n", "后文"),
+                                     ("折叠块后留空", "<details>\n<summary>折叠</summary>\n\n内容\n\n</details>\n\n后文\n", "后文")] {
+            let tv = makeView(src), lm = tv.layoutManager as! RichLayoutManager
+            let g = lm.glyphIndexForCharacter(at: (tv.string as NSString).range(of: anchor).location)
+            check(name, lm.layoutManager(lm, paragraphSpacingBeforeGlyphAt: g, withProposedLineFragmentRect: .zero) > 0 ? "有" : "无", "有")
+        }
+        let list = makeView("- 一\n- 二\n\n后文\n"), llm = list.layoutManager as! RichLayoutManager
+        let last = llm.glyphIndexForCharacter(at: (list.string as NSString).range(of: "后文").location - 1)
+        check("列表结束后留空", llm.layoutManager(llm, paragraphSpacingAfterGlyphAt: last, withProposedLineFragmentRect: .zero) > 5 ? "有" : "无", "有")
         let body = makeView("一\n\n后文\n"), blm = body.layoutManager as! RichLayoutManager
         check("正文段后不变", "\(blm.layoutManager(blm, paragraphSpacingAfterGlyphAt: 1, withProposedLineFragmentRect: .zero))", "8.0")
         let tv = makeView("```\na\nb\n```\n后文\n")
