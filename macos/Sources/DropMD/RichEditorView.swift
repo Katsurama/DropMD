@@ -2,12 +2,11 @@ import AppKit
 import SwiftUI
 
 /// 单页的编辑区（SwiftUI 包装）。文档内容始终以 Markdown 保存在 text 中。
-/// 切换到双页时不销毁（isActive 为 false 时隐藏且不做任何同步），切换回来不卡顿。
+/// 单页时铺满窗口；双页时在右边，和左边的原文实时同步。
 struct RichTextEditor: NSViewRepresentable {
     @Binding var text: String
     let baseURL: URL?
     let controller: EditorController
-    var isActive = true
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -62,24 +61,18 @@ struct RichTextEditor: NSViewRepresentable {
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.parent = self
-        scroll.isHidden = !isActive
-        if !isActive { context.coordinator.wasActive = false }
-        guard isActive, let tv = scroll.documentView as? RichTextView, let storage = tv.textStorage else { return }
+        guard let tv = scroll.documentView as? RichTextView else { return }
         controller.richView = tv
         let baseChanged = tv.baseURL != baseURL
         tv.baseURL = baseURL
-        // 首次显示，或文档被外部修改（“恢复到上一版本”、在双页中编辑）时重新载入
+        // 首次显示，或文档被外部修改（“恢复到上一版本”、在双页左边的原文里编辑）时重新载入
         if text != context.coordinator.lastMarkdown || baseChanged {
-            context.coordinator.lastMarkdown = text
-            let selection = tv.selectedRange()
-            storage.setAttributedString(RichBridge.attributed(markdown: text, baseURL: baseURL))
-            let length = storage.length
-            tv.setSelectedRange(NSRange(location: min(selection.location, length), length: 0))
-            tv.typingAttributes = length > 0
-                ? storage.attributes(at: min(tv.selectedRange().location, length - 1), effectiveRange: nil)
-                : RichStyle.typingAttributes(for: .body)
-            tv.undoManager?.removeAllActions(withTarget: storage)
-            controller.selectionChanged()
+            // 双页里正在左边打字：停顿一下再载入，连续输入不卡
+            if context.coordinator.lastMarkdown != nil, !baseChanged, tv.window?.firstResponder !== tv {
+                context.coordinator.scheduleReload(tv)
+            } else {
+                context.coordinator.reload(tv)
+            }
         }
         // 刚切换到单页（或刚打开窗口）时把光标放到编辑区
         if !context.coordinator.wasActive {
@@ -104,6 +97,44 @@ struct RichTextEditor: NSViewRepresentable {
         private var lastFlushSeconds = 0.0
 
         init(_ parent: RichTextEditor) { self.parent = parent }
+
+        private var reloadWork: DispatchWorkItem?
+
+        func scheduleReload(_ tv: RichTextView) {
+            reloadWork?.cancel()
+            let item = DispatchWorkItem { [weak self, weak tv] in
+                guard let self, let tv else { return }
+                MainActor.assumeIsolated { self.reload(tv) }
+            }
+            reloadWork = item
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
+        }
+
+        /// 按文档的 Markdown 重新排单页；光标和滚动位置尽量不变（双页里左边改了字，右边不跳回顶部）
+        @MainActor func reload(_ tv: RichTextView) {
+            reloadWork?.cancel()
+            reloadWork = nil
+            guard let storage = tv.textStorage else { return }
+            let text = parent.text
+            guard text != lastMarkdown || tv.baseURL != parent.baseURL || storage.length == 0 else { return }
+            lastMarkdown = text
+            let clip = tv.enclosingScrollView?.contentView
+            let origin = clip?.bounds.origin
+            let selection = tv.selectedRange()
+            storage.setAttributedString(RichBridge.attributed(markdown: text, baseURL: parent.baseURL))
+            let length = storage.length
+            tv.setSelectedRange(NSRange(location: min(selection.location, length), length: 0))
+            tv.typingAttributes = length > 0
+                ? storage.attributes(at: min(tv.selectedRange().location, length - 1), effectiveRange: nil)
+                : RichStyle.typingAttributes(for: .body)
+            tv.undoManager?.removeAllActions(withTarget: storage)
+            if let clip, let origin {
+                clip.scroll(to: origin)
+                tv.enclosingScrollView?.reflectScrolledClipView(clip)
+            }
+            parent.controller.selectionChanged()
+            parent.controller.richReloaded()
+        }
 
         func textDidChange(_ notification: Notification) {
             pendingView = notification.object as? NSTextView

@@ -254,15 +254,29 @@ struct EditorView: View {
     private var editorColumn: some View {
         VStack(spacing: 0) {
             ZStack {
-                // 单页延伸到工具栏下方（与 Pages 相同），不留一条分隔带
-                RichTextEditor(text: $document.text, baseURL: fileURL?.deletingLastPathComponent(),
-                               controller: editor, isActive: mode == .rich)
-                    .ignoresSafeArea(.container, edges: .top)
-                // 双页从工具栏下方开始，中间的分隔线不穿过工具栏
+                // 网页预览不显示：只在后台用来导出 HTML / PDF
                 if sourceLoaded || mode == .source {
-                    sourcePane
-                        .opacity(mode == .source ? 1 : 0)
-                        .allowsHitTesting(mode == .source)
+                    PreviewView(controller: editor)
+                        .opacity(0)
+                        .allowsHitTesting(false)
+                }
+                HStack(spacing: 0) {
+                    // 双页：左边原文，右边就是单页编辑区（同一个，两边都能改、实时同步）
+                    if sourceLoaded || mode == .source {
+                        MarkdownTextView(text: $document.text, controller: editor, isActive: mode == .source)
+                            .frame(maxWidth: mode == .source ? .infinity : 0, maxHeight: .infinity)
+                            .opacity(mode == .source ? 1 : 0)
+                            .allowsHitTesting(mode == .source)
+                        if mode == .source {
+                            Rectangle()
+                                .fill(Color(nsColor: RichStyle.lineColor))
+                                .frame(width: 1)
+                        }
+                    }
+                    // 单页延伸到工具栏下方（与 Pages 相同），不留一条分隔带
+                    RichTextEditor(text: $document.text, baseURL: fileURL?.deletingLastPathComponent(), controller: editor)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .ignoresSafeArea(.container, edges: .top)
                 }
             }
             statusBar
@@ -276,19 +290,6 @@ struct EditorView: View {
             sourceLoaded = true
             mode = newValue
         })
-    }
-
-    private var sourcePane: some View {
-        // 左右各占一半，中间一条细线（深色时为白色，与单页的分隔线一致）
-        HStack(spacing: 0) {
-            MarkdownTextView(text: $document.text, controller: editor, isActive: mode == .source)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Rectangle()
-                .fill(Color(nsColor: RichStyle.lineColor))
-                .frame(width: 1)
-            PreviewView(controller: editor)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
     }
 
     private var statusBar: some View {
