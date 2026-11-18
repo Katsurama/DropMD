@@ -82,6 +82,11 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         hiddenCache = nil
         super.processEditing(for: textStorage, edited: editMask, range: newCharRange, changeInLength: delta,
                              invalidatedRange: invalidatedCharRange)
+        // 改到了表格里的字：整张表格重新排。否则只重排正在改的那一格，同一行别的格子高度不跟着变，线会断开
+        if editMask.contains(.editedCharacters), let table = tableRange(around: newCharRange, in: textStorage) {
+            invalidateLayout(forCharacterRange: table, actualCharacterRange: nil)
+            invalidateDisplay(forCharacterRange: table)
+        }
         let now = hiddenRanges
         guard now != before else { return }
         // 收起、展开，或折叠块被编辑：前后两次隐藏的内容都重新排版
@@ -93,6 +98,20 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
                 invalidateLayout(forCharacterRange: c, actualCharacterRange: nil)
             }
         }
+    }
+
+    /// 包含这段文字的整张表格（同一个 NSTextTable 的所有格子）；不在表格里时为 nil
+    private func tableRange(around range: NSRange, in storage: NSTextStorage) -> NSRange? {
+        guard storage.length > 0 else { return nil }
+        let at = min(range.location, storage.length - 1)
+        func table(_ i: Int) -> NSTextTable? {
+            ((storage.attribute(.paragraphStyle, at: i, effectiveRange: nil) as? NSParagraphStyle)?.textBlocks.first as? NSTextTableBlock)?.table
+        }
+        guard let t = table(at) else { return nil }
+        var start = at, end = at
+        while start > 0, table(start - 1) === t { start -= 1 }
+        while end + 1 < storage.length, table(end + 1) === t { end += 1 }
+        return NSRange(location: start, length: end - start + 1)
     }
 
     /// 标题之后、连续的折叠块内容段落
