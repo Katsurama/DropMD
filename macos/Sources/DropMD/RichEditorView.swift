@@ -56,6 +56,10 @@ struct RichTextEditor: NSViewRepresentable {
 
         controller.richView = tv
         controller.flushRichEdits = { [weak coordinator = context.coordinator] in coordinator?.flush() }
+        tv.onFocus = { [weak coordinator = context.coordinator, weak tv] in
+            guard let coordinator, let tv else { return }
+            MainActor.assumeIsolated { coordinator.reloadIfPending(tv) }
+        }
         // 双页：滚动右边时，左边的原文跟着滚
         scroll.contentView.postsBoundsChangedNotifications = true
         context.coordinator.scrollObserver = NotificationCenter.default.addObserver(
@@ -116,6 +120,11 @@ struct RichTextEditor: NSViewRepresentable {
             }
             reloadWork = item
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
+        }
+
+        /// 左边改了字、右边还在等着重排：马上排好
+        @MainActor func reloadIfPending(_ tv: RichTextView) {
+            if reloadWork != nil { reload(tv) }
         }
 
         /// 按文档的 Markdown 重新排单页；光标和滚动位置尽量不变（双页里左边改了字，右边不跳回顶部）

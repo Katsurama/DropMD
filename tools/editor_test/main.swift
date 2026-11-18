@@ -883,6 +883,25 @@ MainActor.assumeIsolated {
         check("拖表格列宽：两列合计不变", String(format: "%.1f", after + ((storage.attribute(.paragraphStyle, at: (storage.string as NSString).paragraphRange(for: NSRange(location: 0, length: 0)).upperBound, effectiveRange: nil) as! NSParagraphStyle).textBlocks.first as! NSTextTableBlock).value(for: .width)), "100.0")
         check("拖表格列宽：Markdown 不变", md(tv), src)
     }
+    // 表格范围：只含表格本身，不含前后的段落
+    do {
+        let tv = makeView("前文\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n后文\n")
+        let storage = tv.textStorage!, ns = storage.string as NSString
+        let at = ns.range(of: "1").location
+        let r = (tv.layoutManager as! RichLayoutManager).tableRange(around: NSRange(location: at, length: 0), in: storage)
+        let text = r.map { ns.substring(with: $0) } ?? ""
+        check("表格范围", "\(text.contains("a") && text.contains("2") && !text.contains("前文") && !text.contains("后文"))", "true")
+    }
+    // 双页：右边单页被点中时，先做完等着的重排（否则在旧内容上打字，左边刚改的字会被冲掉）
+    do {
+        let tv = makeView("一")
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 400), styleMask: [.titled], backing: .buffered, defer: true)
+        window.contentView = tv
+        var focused = 0
+        tv.onFocus = { focused += 1 }
+        window.makeFirstResponder(tv)
+        check("右边被点中时先重排", "\(focused)", "1")
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

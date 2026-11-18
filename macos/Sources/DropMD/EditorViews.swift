@@ -370,14 +370,9 @@ struct EditorView: View {
             }
             .help("导出 PDF / HTML")
             // 苹果的分享面板（隔空投送、邮件、信息…）：分享这个 .md 文件；新文档还没存过、没有文件时不能分享
-            if let fileURL {
-                ShareLink(item: fileURL) { Label("分享", systemImage: "square.and.arrow.up") }
-                    .help("分享")
-            } else {
-                Button {} label: { Label("分享", systemImage: "square.and.arrow.up") }
-                    .disabled(true)
-                    .help("保存后才能分享")
-            }
+            Button { editor.share() } label: { Label("分享", systemImage: "square.and.arrow.up") }
+                .disabled(fileURL == nil)
+                .help(fileURL == nil ? "保存后才能分享" : "分享")
             Toggle(isOn: $showInspector) { Label("格式", systemImage: "paintbrush") }
                 .help("格式面板（⌥⌘I）")
         }
@@ -476,7 +471,8 @@ struct WindowSizeKeeper: NSViewRepresentable {
             super.viewDidMoveToWindow()
             guard let window, observer == nil else { return }
             // 等系统恢复完窗口位置再改大小
-            DispatchQueue.main.async { WindowSizeKeeper.apply(to: window) }
+            // 等系统恢复完窗口位置再改大小；全屏的窗口不动
+            DispatchQueue.main.async { if !window.styleMask.contains(.fullScreen) { WindowSizeKeeper.apply(to: window) } }
             observer = NotificationCenter.default.addObserver(forName: NSWindow.didEndLiveResizeNotification, object: window, queue: .main) { note in
                 guard let w = note.object as? NSWindow else { return }
                 UserDefaults.standard.set(NSStringFromSize(w.frame.size), forKey: WindowSizeKeeper.key)

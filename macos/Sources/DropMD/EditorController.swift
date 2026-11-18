@@ -123,7 +123,6 @@ final class EditorController: ObservableObject {
 
     private var previewReady = false
     private var pendingText = ""
-    private var renderWork: DispatchWorkItem?
     private var highlightWork: DispatchWorkItem?
     private var lastScrollLine = -1
 
@@ -139,12 +138,7 @@ final class EditorController: ObservableObject {
         if language == .auto { updateLanguage() }
         // 单页打的字停一下才交给文档：文件恰好在这之前被删时，监视那一刻还看不出改过，这里补上
         if let url = fileURL, !FileManager.default.fileExists(atPath: url.path) { fileWentAway() }
-        // 单页时预览是隐藏的，不需要渲染
-        guard !isRichMode else { return }
-        renderWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.renderPreview() }
-        renderWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: work)
+        // 网页预览不显示，导出 HTML 时直接把当时的全文交给它，改字时不用渲染
     }
 
     func scheduleHighlight() {
@@ -768,19 +762,30 @@ final class EditorController: ObservableObject {
         return tv
     }
 
-    func exportPDF() {
-        let view: NSView
-        let window: NSWindow
-        if let r = rich, let storage = r.textStorage, let w = r.window {
-            view = printableView(of: storage)
-            window = w
-        } else if previewReady, let webView, let w = webView.window {
-            view = webView
-            window = w
-        } else {
-            alert(String(localized: "无法导出"), String(localized: "请先显示预览，再导出 PDF。"))
-            return
+    /// 分享这个 .md 文件：先把单页里还没写回的字写回并存盘，再弹出系统的分享面板（否则发出去的是磁盘上的旧版本）
+    func share() {
+        flushPendingEdits()
+        guard let window = (richView ?? textView)?.window, let url = fileURL else { return }
+        // 写回的文字下一轮才进到文档里，下一轮再存
+        DispatchQueue.main.async { [weak self] in
+            guard let doc = NSDocumentController.shared.document(for: window), let type = doc.fileType else { return }
+            doc.save(to: url, ofType: type, for: .saveOperation) { error in
+                if let error {
+                    self?.alert(String(localized: "无法分享"), error.localizedDescription)
+                    return
+                }
+                guard let view = window.contentView else { return }
+                // 面板从工具栏右侧弹出
+                let anchor = NSRect(x: view.bounds.maxX - 150, y: view.bounds.maxY - view.safeAreaInsets.top, width: 1, height: 1)
+                NSSharingServicePicker(items: [url]).show(relativeTo: anchor, of: view, preferredEdge: .minY)
+            }
         }
+    }
+
+    func exportPDF() {
+        // 单页、双页都按单页的排版打印（双页的右边就是单页），不管光标在哪边，结果都一样
+        guard let r = richView, let storage = r.textStorage, let window = r.window else { return }
+        let view = printableView(of: storage)
         guard let url = savePanel(ext: "pdf", type: .pdf) else { return }
         let info = NSPrintInfo(dictionary: [.jobSavingURL: url])
         info.jobDisposition = .save
@@ -793,13 +798,7 @@ final class EditorController: ObservableObject {
         info.verticalPagination = .automatic
         info.isHorizontallyCentered = false
         info.isVerticallyCentered = false
-        let op: NSPrintOperation
-        if let web = view as? WKWebView {
-            op = web.printOperation(with: info)
-            op.view?.frame = web.bounds
-        } else {
-            op = NSPrintOperation(view: view, printInfo: info)
-        }
+        let op = NSPrintOperation(view: view, printInfo: info)
         op.showsPrintPanel = false
         op.showsProgressPanel = true
         op.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
