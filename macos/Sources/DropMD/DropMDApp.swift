@@ -22,7 +22,7 @@ struct DropMDApp: App {
         .defaultSize(width: 980, height: 660)
         .commands {
             CommandGroup(replacing: .appInfo) {
-                Button("关于 DropMD") { AboutPanel.show() }
+                SettingsPageButton(title: "关于 DropMD", page: .about)
             }
             CommandGroup(after: .appInfo) {
                 OpenUpdatesButton()
@@ -76,12 +76,6 @@ struct DropMDApp: App {
                 .environmentObject(converter)
         }
         .defaultSize(width: 1060, height: 720)
-
-        // 软件更新（菜单“DropMD → 检查更新…”）
-        Window("软件更新", id: "updates") {
-            UpdateView(updater: UpdateChecker.shared)
-        }
-        .windowResizability(.contentSize)
 
         // 设置（菜单“DropMD → 设置…”，⌘,）
         Settings {
@@ -151,15 +145,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// “DropMD → 检查更新…”
+/// “DropMD → 检查更新…”：打开设置的“更新”页并马上检查；启动时发现新版本、点“查看”也打开这一页
 struct OpenUpdatesButton: View {
-    @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        Button("检查更新…") { openWindow(id: "updates") }
-            .onReceive(NotificationCenter.default.publisher(for: .showUpdates)) { _ in
-                openWindow(id: "updates")
-            }
+        Button("检查更新…") {
+            SettingsPage.open(.updates, openSettings)
+            Task { await UpdateChecker.shared.check() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showUpdates)) { _ in
+            SettingsPage.open(.updates, openSettings)
+        }
+    }
+}
+
+/// 打开设置窗口的某一页（菜单“关于 DropMD”等）
+struct SettingsPageButton: View {
+    let title: LocalizedStringKey
+    let page: SettingsPage
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        Button(title) { SettingsPage.open(page, openSettings) }
     }
 }
 
@@ -239,26 +247,6 @@ struct FormatCommands: Commands {
                 Button(lang) { editor?.codeBlock(lang) }.disabled(editor == nil)
             }
         }
-    }
-}
-
-/// 系统的“关于”窗口，但不显示滚动条（致谢文字已缩短到放得下；系统设成“始终显示滚动条”时也不出现空的滚动条）
-@MainActor enum AboutPanel {
-    private static weak var panel: NSWindow?
-
-    static func show() {
-        let before = Set(NSApp.windows.map(ObjectIdentifier.init))
-        NSApp.orderFrontStandardAboutPanel(nil)
-        if panel == nil { panel = NSApp.windows.first { !before.contains(ObjectIdentifier($0)) } }
-        if let view = panel?.contentView { hideScrollers(view) }
-    }
-
-    private static func hideScrollers(_ view: NSView) {
-        if let scroll = view as? NSScrollView {
-            scroll.hasVerticalScroller = false
-            scroll.hasHorizontalScroller = false
-        }
-        view.subviews.forEach(hideScrollers)
     }
 }
 
