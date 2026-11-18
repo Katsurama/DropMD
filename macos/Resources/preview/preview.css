@@ -76,3 +76,9 @@ blockquote.callout { color: var(--fg); border-left-color: var(--c); background: 
 }
 kbd { font: .85em "SF Mono", Menlo, monospace; padding: .1em .4em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; }
 blockquote > :last-child, li > :last-child { margin-bottom: 0; }
+/* 双页：原文光标所在的那一块（蓝色竖线 + 淡蓝底，像协作文档里别人的光标） */
+.dm-cursor { background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 3px; }
+.dm-cursor:not(tr) { position: relative; }
+.dm-cursor:not(tr)::before { content: ""; position: absolute; left: -12px; top: 0; bottom: 0; width: 3px; border-radius: 2px; background: var(--accent); }
+li.dm-cursor::before { left: -30px; }   /* 列表项：画在项目符号的左边 */
+@media print { .dm-cursor { background: none; } .dm-cursor::before { display: none; } }

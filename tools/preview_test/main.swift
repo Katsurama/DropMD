@@ -32,6 +32,18 @@ let calls = [
     if (b.textContent !== '已复制') throw new Error('点了复制按钮没有变成“已复制”');
     return true
     """,
+    // 双页的光标标记：标到原文那一行所在的块（列表项也能单独标），换一行时旧的标记去掉
+    """
+    DropMD.render('# 标题\\n\\n- 一\\n- 二\\n\\n段落', '', 'zh-Hans');
+    DropMD.markCursor(3);
+    let m = document.querySelectorAll('.dm-cursor');
+    if (m.length !== 1 || m[0].tagName !== 'LI' || !m[0].textContent.includes('二')) throw new Error('光标标记没标在第二个列表项：' + (m[0] && m[0].outerHTML));
+    DropMD.markCursor(5);
+    m = document.querySelectorAll('.dm-cursor');
+    if (m.length !== 1 || !m[0].textContent.includes('段落')) throw new Error('换行后光标标记不对');
+    DropMD.scrollToLine(3);
+    return true
+    """,
     // 文件开头的 YAML 信息显示为代码块，不变成分隔线和标题
     """
     DropMD.render('---\\ntitle: 测试\\n---\\n\\n正文', '', 'zh-Hans');
