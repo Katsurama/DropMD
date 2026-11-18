@@ -31,7 +31,7 @@ It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all o
 <p align="center"><img src="docs/images/editor-light.en.jpg" alt="Page view with the Format panel in light mode" width="49%"> <img src="docs/images/editor-dark.en.jpg" alt="Split view in dark mode: Markdown source and preview" width="49%"></p>
 
 - **Page view**: edit the formatted document directly, like in Pages or Word. You don't need to know Markdown, and the file is still saved as standard Markdown
-- **Split view**: Markdown source on the left, live preview on the right, scrolling together
+- **Split view**: Markdown source on the left, Page view on the right; edit either side and the other updates right away. Both sides scroll together, and the right side marks the paragraph your cursor is in
 - **Everyday formatting**: headings, bold, italic, underline, strikethrough, highlight, lists, checklists, tables, images, links, code blocks
 - **More formatting**: callouts (`> [!NOTE]`), collapsible sections, footnotes, math formulas, superscript / subscript, keyboard keys
 - **Chinese, Japanese and Korean text**: choose the document language so characters use the right glyph shapes, on screen and in exported files
@@ -42,7 +42,9 @@ It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all o
 
 ## 📦 Install
 
-1. Download `DropMD-macOS-AppleSilicon.dmg` from [Releases](../../releases)
+1. Open the [latest release](../../releases/latest) and, under **Assets** at the bottom, download only `DropMD-macOS-AppleSilicon.dmg`
+   - The `.zip` is for in-app updates and the `.sha256` files are checksums; you don't need them
+   - Releases marked **Pre-release** are betas; most people don't need them
 2. Open it and drag **DropMD** to Applications
 3. macOS blocks it the first time you open it. Open it once as described below and you won't be asked again
 
