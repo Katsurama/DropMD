@@ -77,13 +77,15 @@ final class Engine: @unchecked Sendable {
     }
 
     /// 引擎的日志（标准错误）写入 ~/Library/Logs/DropMD/engine.log，仅保存在本机。
-    private static func logHandle() -> FileHandle {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/DropMD", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let file = dir.appendingPathComponent("engine.log")
-        FileManager.default.createFile(atPath: file.path, contents: nil)
-        return (try? FileHandle(forWritingTo: file)) ?? FileHandle.nullDevice
+    /// 接在后面写：每次启动 App 都会先查一次引擎状态，清空的话上次转换失败的记录就没了。超过 1 MB 才清空
+    static func logHandle(file: URL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Logs/DropMD/engine.log")) -> FileHandle {
+        let fm = FileManager.default
+        try? fm.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let size = (try? fm.attributesOfItem(atPath: file.path)[.size] as? Int) ?? 0
+        // O_APPEND：同时有两个引擎在写（启动时查状态、马上又开始转换）也不会互相盖掉
+        let fd = open(file.path, O_WRONLY | O_CREAT | O_APPEND | (size > 1 << 20 ? O_TRUNC : 0), 0o644)
+        return fd >= 0 ? FileHandle(fileDescriptor: fd, closeOnDealloc: true) : .nullDevice
     }
 
     private static let decoder: JSONDecoder = {
@@ -137,9 +139,13 @@ final class Engine: @unchecked Sendable {
         try? decoder.decode(Event.self, from: data)
     }
 
-    /// 结束正在运行的引擎（用于“停止”）。
+    /// 结束正在运行的引擎（用于“停止”）。引擎自成一个进程组（engine.py 开头），整组结束，它调用的 Pandoc 也一起停；
+    /// 引擎还没来得及建组时只结束它自己
     func terminate() {
-        locked { process?.terminate() }
+        locked {
+            guard let p = process else { return }
+            if kill(-p.processIdentifier, SIGTERM) != 0 { p.terminate() }
+        }
     }
 }
 

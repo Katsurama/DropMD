@@ -1,5 +1,4 @@
 import AppKit
-import CryptoKit
 import Foundation
 
 /// 版本号比较（语义化版本：1.2.0 > 1.2.0-beta.2 > 1.2.0-beta.1 > 1.1.1）
@@ -234,7 +233,7 @@ final class UpdateChecker: ObservableObject {
                 guard let checksum = release.checksum(for: package) else { throw UpdateError.checksum }
                 let expected = try await fetchChecksum(checksum)
                 let file = try await download(package)
-                let actual = try await Task.detached { try UpdateChecker.sha256(of: file) }.value
+                let actual = try await Task.detached { try ModelDownloader.sha256(of: file) }.value
                 guard expected == actual else {
                     try? FileManager.default.removeItem(at: file)
                     throw UpdateError.checksum
@@ -386,16 +385,6 @@ final class UpdateChecker: ObservableObject {
         guard let hex = text.split(whereSeparator: { $0.isWhitespace }).first.map(String.init),
               hex.count == 64 else { throw UpdateError.checksum }
         return hex.lowercased()
-    }
-
-    nonisolated private static func sha256(of url: URL) throws -> String {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-        var hasher = SHA256()
-        while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
-            hasher.update(data: chunk)
-        }
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     private func uniqueURL(_ url: URL) -> URL {

@@ -1447,10 +1447,20 @@ final class RichTextView: NSTextView {
         return here.startingRow == last.startingRow
     }
 
-    /// 在表格最后一行按下方向键：跳到表格下面（表格在文末时新建一段，系统默认移不出去）
+    /// 光标在这一段（这一格）折行后的最后一行
+    private func onLastLine(_ location: Int) -> Bool {
+        guard let lm = layoutManager, let storage = textStorage, storage.length > 0 else { return true }
+        let para = paragraphRange(at: min(location, storage.length - 1))
+        let last = max(para.location, NSMaxRange(para) - 1)
+        func top(_ i: Int) -> CGFloat { lm.lineFragmentRect(forGlyphAt: lm.glyphIndexForCharacter(at: i), effectiveRange: nil).minY }
+        return top(min(location, last)) == top(last)
+    }
+
+    /// 在表格最后一行按下方向键：跳到表格下面（表格在文末时新建一段，系统默认移不出去）。
+    /// 格子里的字折成几行时，先在格子里往下走，到最后一行再跳出
     override func moveDown(_ sender: Any?) {
         let at = selectedRange().location
-        if selectedRange().length == 0, inLastTableRow(at), moveBelowTable(at) { return }
+        if selectedRange().length == 0, inLastTableRow(at), onLastLine(at), moveBelowTable(at) { return }
         super.moveDown(sender)
     }
 

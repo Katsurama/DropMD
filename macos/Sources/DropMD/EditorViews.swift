@@ -70,6 +70,8 @@ struct MarkdownTextView: NSViewRepresentable {
         if !context.coordinator.isEditing, tv.string != text {
             let sel = tv.selectedRange()
             tv.string = text
+            // 整篇换掉后，左边以前的撤销记录按旧位置改字会把文档改乱（单页重排时也是这样清的）
+            if let storage = tv.textStorage { tv.undoManager?.removeAllActions(withTarget: storage) }
             tv.setSelectedRange(NSRange(location: min(sel.location, (text as NSString).length), length: 0))
             controller.scheduleHighlight()
             controller.sourceTextReplaced()

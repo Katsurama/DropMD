@@ -122,6 +122,32 @@ for lang, want in [("zh", "找不到文件，可能已被移动或删除。"), (
     ok = got == want
     failed += not ok
     print("ok  " if ok else "FAIL", f"引擎提示 {lang}", "" if ok else f"\n     got:  {got!r}")
+# 转换中点“停止”（界面结束引擎的进程组）：正在跑的 Pandoc 要一起结束，不能事后在文件夹里留下 .md.part
+import json, signal, time
+with tempfile.TemporaryDirectory() as d:
+    fake = Path(d) / "bin"
+    fake.mkdir()
+    # 假的 Pandoc：过 2 秒才把结果写到最后一个参数（.md.part）
+    (fake / "pandoc").write_text('#!/bin/sh\nsleep 2\nfor a; do last="$a"; done\necho hi > "$last"\n')
+    (fake / "pandoc").chmod(0o755)
+    (Path(d) / "w.docx").write_bytes(b"x")
+    job = {"jobs": [{"src": str(Path(d) / "w.docx"), "dst": str(Path(d) / "w.md")}], "options": {"word_engine": "pandoc"}}
+    env = {**os.environ, "PATH": f"{fake}:{os.environ['PATH']}", "DROPMD_DATA_DIR": str(Path(d) / "data"), "PYTHONPATH": "src"}
+    p = subprocess.Popen([sys.executable, "-m", "dropmd", "--engine", "convert"], stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
+    p.stdin.write(json.dumps(job).encode()); p.stdin.close()
+    p.stdout.readline()   # {"event":"start"}：已经开始转换
+    time.sleep(0.5)
+    try:   # 和 Engine.swift 的 terminate 一样：结束整个进程组，没有这个组时只结束引擎
+        os.killpg(p.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        p.terminate()
+    p.wait()
+    time.sleep(2.5)
+    left = sorted(x.name for x in Path(d).iterdir() if x.name.startswith("w.md"))
+    ok = left == []
+    failed += not ok
+    print("ok  " if ok else "FAIL", "停止时 Pandoc 一起结束", "" if ok else f"\n     留下了：{left}")
 print("全部通过" if not failed else f"失败 {failed} 项")
 raise SystemExit(1 if failed else 0)
 EOF
