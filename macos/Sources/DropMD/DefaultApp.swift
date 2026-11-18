@@ -181,6 +181,7 @@ private struct GeneralSettings: View {
 
 /// 关于：图标和版本、仓库 / 反馈 / Discord、开源许可、版权（取代系统的“关于”窗口）
 private struct AboutSettings: View {
+    @State private var license: LicenseText?
     private var build: String { (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "" }
 
     var body: some View {
@@ -216,8 +217,8 @@ private struct AboutSettings: View {
                 Section {
                     LabeledContent("开源许可") {
                         HStack {
-                            Button("DropMD 许可证") { HelpDocs.openAppLicense() }
-                            Button("第三方组件") { HelpDocs.openLicenses() }
+                            Button("DropMD 许可证") { license = .app }
+                            Button("第三方组件") { license = .thirdParty }
                         }
                     }
                     Text("使用了 markdown-it、KaTeX、MarkItDown、Docling、Pandoc 等开源组件，中文字体为小米 MiSans。")
@@ -236,6 +237,42 @@ private struct AboutSettings: View {
                 .foregroundStyle(.secondary)
         }
         .padding(20)
+        // 许可证全文直接在设置里看（不再复制成 .md 文件打开）
+        .sheet(item: $license) { item in
+            VStack(alignment: .leading, spacing: 12) {
+                Text(item.title).font(.headline)
+                ScrollView {
+                    Text(item.content)
+                        .font(.callout)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                }
+                .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                HStack {
+                    Spacer()
+                    Button("完成") { license = nil }
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(20)
+            .frame(width: 460, height: 440)
+        }
+    }
+}
+
+/// 设置 → 关于里显示的许可证全文（随 App 带的文件）
+private enum LicenseText: String, Identifiable {
+    case app, thirdParty
+    var id: String { rawValue }
+    var title: String { self == .app ? String(localized: "DropMD 许可证") : String(localized: "第三方组件") }
+    var content: AttributedString {
+        let name = self == .app ? "LICENSE" : "THIRD_PARTY_LICENSES.md"
+        let text = Bundle.main.url(forResource: name, withExtension: nil)
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? String(localized: "找不到许可证文件。")
+        // 第三方清单是 Markdown：链接可以点，粗体等照样显示
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
     }
 }
 

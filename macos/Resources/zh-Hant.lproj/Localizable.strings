@@ -119,9 +119,7 @@
 "使用说明" = "使用說明";
 "开源许可" = "開源授權";
 "使用说明.md" = "使用說明.md";
-"DropMD（MIT 许可证）" = "DropMD（MIT 授權）";
 "第三方组件" = "第三方元件";
-"DropMD 许可证.md" = "DropMD 许可证.md";
 "跟随系统" = "跟隨系統";
 "浅色" = "淺色";
 "深色" = "深色";
@@ -369,3 +367,6 @@
 "使用了 markdown-it、KaTeX、MarkItDown、Docling、Pandoc 等开源组件，中文字体为小米 MiSans。" = "使用了 markdown-it、KaTeX、MarkItDown、Docling、Pandoc 等開源元件，中文字體為小米 MiSans。";
 "版本 %@ (%@)" = "版本 %@ (%@)";
 "赞助" = "贊助";
+"完成" = "完成";
+"开源许可…" = "開源授權…";
+"找不到许可证文件。" = "找不到授權檔案。";
