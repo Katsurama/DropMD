@@ -183,8 +183,8 @@ struct EditorView: View {
     @StateObject private var editor = EditorController()
     @AppStorage("editorMode") private var mode: EditorMode = .rich
     @AppStorage("showInspector") private var showInspector = true
-    /// 双页时左边原文占的比例（拖动中间的分隔线调整，记住）
-    @AppStorage("splitFraction") private var splitFraction = 0.5
+    /// 双页时左边原文占的比例：每次打开都从正中开始，拖动中间的分隔线调整
+    @State private var splitFraction = 0.5
     /// 双页在窗口打开后于后台预先加载，第一次切换也不卡
     @State private var sourceLoaded = false
     @Environment(\.openWindow) private var openWindow
