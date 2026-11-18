@@ -909,6 +909,16 @@ MainActor.assumeIsolated {
         move(tv); type(tv, "后文")
         check("表格在文末，\(name)跳出表格", md(tv), "| a | b |\n| --- | --- |\n| 1 | 2 |\n\n后文\n")
     }
+    // 最后一行的格子里字很长、折成几行：下方向键先走到格子的下一行，不直接跳出表格
+    do {
+        let tv = makeView("| a | b |\n| --- | --- |\n| 1 | \(String(repeating: "很长的说明文字", count: 30)) |\n\n后文\n")
+        tv.layoutManager!.ensureLayout(for: tv.textContainer!)
+        let ns = tv.string as NSString
+        tv.setSelectedRange(NSRange(location: ns.range(of: "很长").location, length: 0))
+        tv.moveDown(nil)
+        let at = tv.selectedRange().location
+        check("长格子里下方向键先走格子下一行", "\(at < ns.range(of: "后文").location)", "true")
+    }
     // 表格后面还有文字：最后一格回车直接移到后面那一段，不新建
     do {
         let tv = makeView("| a |\n| --- |\n| 1 |\n\n后文\n")

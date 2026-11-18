@@ -213,14 +213,20 @@ final class EditorController: ObservableObject {
     func richReloaded(lineMap map: RichBridge.LineMap, for text: String) {
         lineMap = map
         lineMapText = text
+        richMarkdown = text
         guard !isRichMode else { return }
         lastCursorLine = -1
         syncCursor()
     }
 
+    /// 右边单页现在显示的是哪份 Markdown（右边重排完、或右边改的字写回后）
+    var richMarkdown: String?
+
     private func currentLineMap() -> RichBridge.LineMap {
         let text = textView?.string ?? pendingText
-        if text != lineMapText {
+        // 只在右边已经显示这份内容时才重算。左边刚改了字时右边 0.3 秒后会重排、送来新对照表（richReloaded），
+        // 这期间先用旧表，不为它把整篇再排一遍（1 万行约 0.3 秒，左边每按一次回车就卡一下）
+        if text != lineMapText, text == richMarkdown {
             lineMap = RichBridge.attributedWithLineMap(markdown: text, baseURL: fileURL?.deletingLastPathComponent()).1
             lineMapText = text
         }
@@ -631,8 +637,8 @@ final class EditorController: ObservableObject {
             r.insertImage(path: path, alt: alt)
             return
         }
-        let encoded = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
-        replaceSelection(with: "![\(alt)](\(encoded))")
+        // 和单页写法相同：只编码 % # ? 空格和不成对的括号，中文保持原样
+        replaceSelection(with: "![\(alt)](\(MarkdownCodec.encodeURL(RichTextView.encodedImagePath(path))))")
     }
 
     /// 当前文档内容（Markdown）

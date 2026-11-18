@@ -139,15 +139,23 @@ final class ModelDownloader: @unchecked Sendable {
         }
     }
 
+    /// 文件的 SHA-256（小写十六进制）；模型文件和更新安装包（UpdateChecker）共用
+    static func sha256(of url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let chunk = try handle.read(upToCount: 4 << 20), !chunk.isEmpty { hasher.update(data: chunk) }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
     static func verify(_ file: URL, sibling: Sibling) throws {
+        if let lfs = sibling.lfs {
+            guard (try? sha256(of: file)) == lfs.sha256.lowercased() else { throw DownloadError.integrity(sibling.rfilename) }
+            return
+        }
         guard let handle = try? FileHandle(forReadingFrom: file) else { throw DownloadError.integrity(sibling.rfilename) }
         defer { try? handle.close() }
-        if let lfs = sibling.lfs {
-            var hasher = SHA256()
-            while let chunk = try handle.read(upToCount: 4 << 20), !chunk.isEmpty { hasher.update(data: chunk) }
-            let hex = hasher.finalize().map { String(format: "%02x", $0) }.joined()
-            guard hex == lfs.sha256.lowercased() else { throw DownloadError.integrity(sibling.rfilename) }
-        } else if let blobId = sibling.blobId {
+        if let blobId = sibling.blobId {
             // Git 文件哈希：SHA-1("blob <大小>\0" + 内容)，仅用于完整性校验
             let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int64) ?? 0
             var hasher = Insecure.SHA1()

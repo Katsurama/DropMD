@@ -127,5 +127,19 @@ check(releaseNotes(notes, language: "ja").contains("- 日本語") && !releaseNot
 check(releaseNotes(notes, language: "zh-Hant").contains("- 中文"), "更新说明：没有繁体时用中文")
 check(releaseNotes("- 只有中文", language: "en") == "- 只有中文", "更新说明：没有英文时用中文")
 
+// 引擎日志：接在后面写，不清空上次的；超过 1 MB 才清空
+do {
+    let log = URL(fileURLWithPath: CommandLine.arguments[1]).appendingPathComponent("logs/engine.log")
+    for line in ["第一次\n", "第二次\n"] {
+        let h = Engine.logHandle(file: log)
+        try! h.write(contentsOf: Data(line.utf8))
+        try! h.close()
+    }
+    check((try? String(contentsOf: log, encoding: .utf8)) == "第一次\n第二次\n", "引擎日志接着写")
+    try! Data(count: (1 << 20) + 1).write(to: log)
+    try! Engine.logHandle(file: log).close()
+    check(((try? FileManager.default.attributesOfItem(atPath: log.path)[.size] as? Int) ?? -1) == 0, "引擎日志超过 1 MB 清空")
+}
+
 print(failures == 0 ? "全部通过" : "\(failures) 项失败")
 exit(failures == 0 ? 0 : 1)

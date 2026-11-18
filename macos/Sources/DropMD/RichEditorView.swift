@@ -154,9 +154,15 @@ struct RichTextEditor: NSViewRepresentable {
             parent.controller.richReloaded(lineMap: map, for: text)
         }
 
+        /// 右边要改字了：先告诉双页“对照表要过期”。系统打字时先发“选区变”再发 textDidChange，
+        /// 用输入法打拼音时根本没有 textDidChange；等到那时才标，左边的标记会按旧对照表跳到下一段
+        func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?) -> Bool {
+            MainActor.assumeIsolated { parent.controller.richTextEdited = true }
+            return true
+        }
+
         func textDidChange(_ notification: Notification) {
             pendingView = notification.object as? NSTextView
-            MainActor.assumeIsolated { parent.controller.richTextEdited = true }
             // 登记为文档的编辑器：保存、关窗、退出前系统会先让它交出修改（见下面的 NSEditor）
             if document == nil, let window = pendingView?.window,
                let doc = NSDocumentController.shared.document(for: window) {
@@ -196,7 +202,10 @@ struct RichTextEditor: NSViewRepresentable {
             lastFlushSeconds = Date().timeIntervalSince(started)
             lastMarkdown = md
             if parent.text != md { parent.text = md }
-            MainActor.assumeIsolated { parent.controller.richTextEdited = false }
+            MainActor.assumeIsolated {
+                parent.controller.richTextEdited = false
+                parent.controller.richMarkdown = md
+            }
         }
 
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {

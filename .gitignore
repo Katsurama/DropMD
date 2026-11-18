@@ -11,3 +11,4 @@ selftest_out/
 DropMD-macOS-AppleSilicon.*
 .DS_Store
 .workbuddy-ai/
+.claude/

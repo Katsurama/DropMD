@@ -91,6 +91,10 @@ def _convert(out: _Out) -> int:
 def run(args: list[str]) -> int:
     import datetime
 
+    # 自成一个进程组：界面点“停止”时结束整组，正在跑的 Pandoc 跟着结束（Engine.swift 的 terminate）。
+    # 否则 Pandoc 会继续跑完，在用户的文件夹里留下没人清理的 .md.part
+    with contextlib.suppress(OSError):   # 已是会话首进程等情况下建不了组：不影响转换，只是停止时 Pandoc 不跟着停
+        os.setpgid(0, 0)
     out = _Out()
     cmd = args[0] if args else ""
     print(f"===== {datetime.datetime.now():%Y-%m-%d %H:%M:%S} dropmd-engine {' '.join(args)}", file=sys.stderr, flush=True)
