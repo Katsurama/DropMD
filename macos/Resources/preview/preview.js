@@ -92,9 +92,7 @@
 
     md.renderer.rules.math_inline = function (tokens, idx) { return renderMath(tokens[idx].content, false); };
     md.renderer.rules.math_block = function (tokens, idx) {
-      const t = tokens[idx];
-      const attr = t.map ? ' data-line="' + t.map[0] + '"' : "";
-      return '<div class="math-block"' + attr + ">" + renderMath(t.content, true) + "</div>\n";
+      return '<div class="math-block">' + renderMath(tokens[idx].content, true) + "</div>\n";
     };
   }
 
@@ -149,24 +147,6 @@
         tokens[i].attrJoin("class", "callout callout-" + type.toLowerCase());
       }
     });
-  }
-
-  // ---------------------------------------------------------------- 行号映射（用于同步滚动）
-  function lineMapPlugin(md) {
-    const blocks = ["paragraph_open", "heading_open", "blockquote_open", "bullet_list_open", "ordered_list_open",
-      "table_open", "hr", "code_block", "fence", "list_item_open", "html_block"];
-    md.core.ruler.push("line_map", function (state) {
-      for (const t of state.tokens) {
-        if (t.map && blocks.indexOf(t.type) !== -1 && t.level === 0) t.attrSet("data-line", String(t.map[0]));
-      }
-    });
-    // fence/code_block/html_block 默认渲染不输出属性，这里补上
-    const fence = md.renderer.rules.fence;
-    md.renderer.rules.fence = function (tokens, idx, options, env, self) {
-      const html = fence(tokens, idx, options, env, self);
-      const line = tokens[idx].attrGet("data-line");
-      return line === null ? html : html.replace(/^<pre/, '<pre data-line="' + line + '"');
-    };
   }
 
   // ---------------------------------------------------------------- 网络图片：为保护隐私不加载
@@ -224,7 +204,6 @@
     md.use(cjkEmphasisPlugin);
     md.use(taskListPlugin);
     md.use(calloutPlugin);
-    md.use(lineMapPlugin);
     if (blockRemote) md.use(blockRemoteImages);
     return md;
   }
@@ -257,25 +236,6 @@
       if (lang) document.documentElement.lang = lang;
       document.getElementById("content").innerHTML = previewMD.render(frontMatter(text || ""));
       return true;
-    },
-
-    /** 滚动到与源码第 line 行（从 0 开始）对应的位置 */
-    scrollToLine: function (line) {
-      const els = document.querySelectorAll("[data-line]");
-      let before = null, after = null;
-      for (const el of els) {
-        const l = parseInt(el.getAttribute("data-line"), 10);
-        if (l <= line) before = { el: el, line: l };
-        else { after = { el: el, line: l }; break; }
-      }
-      if (!before) { window.scrollTo(0, 0); return; }
-      const top = before.el.getBoundingClientRect().top + window.scrollY;
-      let y = top;
-      if (after && after.line > before.line) {
-        const nextTop = after.el.getBoundingClientRect().top + window.scrollY;
-        y = top + (nextTop - top) * (line - before.line) / (after.line - before.line);
-      }
-      window.scrollTo(0, Math.max(0, y - 24));
     },
 
     /** 导出为独立 HTML 文件的正文 */

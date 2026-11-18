@@ -207,6 +207,9 @@ final class EditorController: ObservableObject {
     private var ignoreSourceScrollUntil = Date.distantPast
     private var ignoreRichScrollUntil = Date.distantPast
 
+    /// 右边打了字、还没写回原文：对照表里的位置已经对不上，先不动左边的标记（写回后左边更新时再标）
+    var richTextEdited = false
+
     func richReloaded(lineMap map: RichBridge.LineMap, for text: String) {
         lineMap = map
         lineMapText = text
@@ -308,7 +311,7 @@ final class EditorController: ObservableObject {
 
     /// 双页：在右边编辑时，左边原文里对应的那几行加上淡淡的底色；不在屏幕里时左边自动滚过去
     func syncSourceMark() {
-        guard !isRichMode, let rich = richView, rich.window?.firstResponder === rich,
+        guard !isRichMode, !richTextEdited, let rich = richView, rich.window?.firstResponder === rich,
               let tv = textView, let lm = tv.layoutManager, let tc = tv.textContainer else { return }
         let map = currentLineMap()
         guard let i = map.lastIndex(where: { $0.offset <= rich.selectedRange().location }) else { return clearSourceMark() }
@@ -775,9 +778,10 @@ final class EditorController: ObservableObject {
                     return
                 }
                 guard let view = window.contentView else { return }
-                // 面板从工具栏右侧弹出
-                let anchor = NSRect(x: view.bounds.maxX - 150, y: view.bounds.maxY - view.safeAreaInsets.top, width: 1, height: 1)
-                NSSharingServicePicker(items: [url]).show(relativeTo: anchor, of: view, preferredEdge: .minY)
+                // 面板从工具栏右边（分享按钮下面）弹出。SwiftUI 窗口的坐标从上往下数，要分开算
+                let top = view.safeAreaInsets.top
+                let anchor = NSRect(x: view.bounds.maxX - 58, y: view.isFlipped ? top - 1 : view.bounds.maxY - top, width: 1, height: 1)
+                NSSharingServicePicker(items: [url]).show(relativeTo: anchor, of: view, preferredEdge: view.isFlipped ? .maxY : .minY)
             }
         }
     }

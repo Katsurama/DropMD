@@ -156,6 +156,7 @@ struct RichTextEditor: NSViewRepresentable {
 
         func textDidChange(_ notification: Notification) {
             pendingView = notification.object as? NSTextView
+            MainActor.assumeIsolated { parent.controller.richTextEdited = true }
             // 登记为文档的编辑器：保存、关窗、退出前系统会先让它交出修改（见下面的 NSEditor）
             if document == nil, let window = pendingView?.window,
                let doc = NSDocumentController.shared.document(for: window) {
@@ -195,6 +196,7 @@ struct RichTextEditor: NSViewRepresentable {
             lastFlushSeconds = Date().timeIntervalSince(started)
             lastMarkdown = md
             if parent.text != md { parent.text = md }
+            MainActor.assumeIsolated { parent.controller.richTextEdited = false }
         }
 
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
