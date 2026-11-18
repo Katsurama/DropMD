@@ -248,6 +248,7 @@ struct EditorView: View {
         .toolbar { toolbarContent }
         .hidesToolbarTitle()
         .onReceive(NotificationCenter.default.publisher(for: .showUpdates)) { _ in SettingsPage.open(.updates, openSettings) }
+        .background(WindowSizeKeeper())
     }
 
     private var editorColumn: some View {
@@ -453,5 +454,45 @@ extension FocusedValues {
     var inspectorToggle: (() -> Void)? {
         get { self[InspectorToggleKey.self] }
         set { self[InspectorToggleKey.self] = newValue }
+    }
+}
+
+/// 文档窗口用你最后一次拉好的大小打开（第一次用 980 × 660）。
+/// 系统重新打开上次的窗口时会沿用当时的大小（比如铺满屏幕），这里统一改回记住的大小，只用调一次。
+struct WindowSizeKeeper: NSViewRepresentable {
+    static let key = "editorWindowSize"
+
+    func makeNSView(context: Context) -> NSView { Probe() }
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    final class Probe: NSView {
+        private var observer: NSObjectProtocol?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window, observer == nil else { return }
+            // 等系统恢复完窗口位置再改大小
+            DispatchQueue.main.async { WindowSizeKeeper.apply(to: window) }
+            observer = NotificationCenter.default.addObserver(forName: NSWindow.didEndLiveResizeNotification, object: window, queue: .main) { note in
+                guard let w = note.object as? NSWindow else { return }
+                UserDefaults.standard.set(NSStringFromSize(w.frame.size), forKey: WindowSizeKeeper.key)
+            }
+        }
+
+        deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
+    }
+
+    @MainActor static func apply(to window: NSWindow) {
+        let saved = UserDefaults.standard.string(forKey: key).map(NSSizeFromString)
+        var size = saved.flatMap { $0.width >= 400 && $0.height >= 300 ? $0 : nil } ?? NSSize(width: 980, height: 660)
+        guard let screen = (window.screen ?? NSScreen.main)?.visibleFrame else { return }
+        size.width = min(size.width, screen.width)
+        size.height = min(size.height, screen.height)
+        guard abs(window.frame.width - size.width) > 1 || abs(window.frame.height - size.height) > 1 else { return }
+        // 左上角不动，放不下时挪回屏幕里
+        var frame = NSRect(x: window.frame.minX, y: window.frame.maxY - size.height, width: size.width, height: size.height)
+        frame.origin.x = min(max(frame.minX, screen.minX), screen.maxX - frame.width)
+        frame.origin.y = min(max(frame.minY, screen.minY), screen.maxY - frame.height)
+        window.setFrame(frame, display: true)
     }
 }
