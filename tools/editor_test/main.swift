@@ -856,6 +856,33 @@ MainActor.assumeIsolated {
         check("没改过的文件被删不写回", "\(FileDeletionWatch.shouldWriteBack(fileExists: false, edited: false, text: "原文", diskText: "原文"))", "false")
         check("系统保存替换文件不写回", "\(FileDeletionWatch.shouldWriteBack(fileExists: true, edited: true, text: "新", diskText: "原文"))", "false")
     }
+    // 表格：在两列交界旁 3 点处按下、往右拖 80 点，左列变宽、右列变窄；文字和 Markdown 不变
+    do {
+        let src = "| 名称 | 说明 |\n| --- | --- |\n| a | b |\n"
+        let tv = makeView(src)
+        let lm = tv.layoutManager!, storage = tv.textStorage!
+        lm.ensureLayout(for: tv.textContainer!)
+        let block0 = (storage.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as! NSParagraphStyle).textBlocks.first as! NSTextTableBlock
+        let before = block0.value(for: .width)
+        let cell0 = lm.boundsRect(for: block0, glyphRange: lm.glyphRange(forCharacterRange: (storage.string as NSString).paragraphRange(for: NSRange(location: 0, length: 0)), actualCharacterRange: nil))
+        let y = cell0.midY + tv.textContainerOrigin.y
+        let x = cell0.maxX + tv.textContainerOrigin.x
+        func send(_ type: NSEvent.EventType, _ px: CGFloat) {
+            let p = tv.convert(NSPoint(x: px, y: y), to: nil)
+            let e = NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+                                       eventNumber: 0, clickCount: 1, pressure: 1)!
+            switch type {
+            case .leftMouseDown: tv.mouseDown(with: e)
+            case .leftMouseDragged: tv.mouseDragged(with: e)
+            default: tv.mouseUp(with: e)
+            }
+        }
+        send(.leftMouseDown, x + 3); send(.leftMouseDragged, x + 80); send(.leftMouseUp, x + 80)
+        let after = block0.value(for: .width)
+        check("拖表格列宽：左列变宽", "\(after > before + 5)", "true")
+        check("拖表格列宽：两列合计不变", String(format: "%.1f", after + ((storage.attribute(.paragraphStyle, at: (storage.string as NSString).paragraphRange(for: NSRange(location: 0, length: 0)).upperBound, effectiveRange: nil) as! NSParagraphStyle).textBlocks.first as! NSTextTableBlock).value(for: .width)), "100.0")
+        check("拖表格列宽：Markdown 不变", md(tv), src)
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

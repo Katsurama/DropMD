@@ -27,6 +27,11 @@ struct DropMDApp: App {
             CommandGroup(after: .appInfo) {
                 OpenUpdatesButton()
             }
+            // 只留“隐藏 DropMD”，不要“隐藏其他”“全部显示”
+            CommandGroup(replacing: .appVisibility) {
+                Button("隐藏 DropMD") { NSApp.hide(nil) }
+                    .keyboardShortcut("h")
+            }
             CommandGroup(after: .newItem) {
                 Divider()
                 OpenConverterButton()
