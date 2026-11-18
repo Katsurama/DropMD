@@ -200,20 +200,65 @@ final class EditorController: ObservableObject {
             MainActor.assumeIsolated {
                 self?.lastScrollLine = -1
                 self?.syncScroll()
+                self?.lastCursorLine = -1   // 预览重新渲染后标记没了，重新标
+                self?.syncCursor()
             }
         }
     }
 
     /// 编辑区滚动时，让预览滚动到对应位置
     func syncScroll() {
+        // 刚按预览的滚动把原文滚过去：这次滚动不再传回预览，否则两边来回带动
+        guard Date() >= ignoreEditorScrollUntil else { return }
         guard previewReady, let tv = textView, let webView,
               let lm = tv.layoutManager, let tc = tv.textContainer else { return }
         let visible = tv.visibleRect
         let point = NSPoint(x: 0, y: visible.minY - tv.textContainerInset.height)
         let glyph = lm.glyphIndex(for: point, in: tc)
-        let charIndex = lm.characterIndexForGlyph(at: glyph)
+        let line = Self.lineNumber(in: tv.string as NSString, at: lm.characterIndexForGlyph(at: glyph))
+        guard line != lastScrollLine else { return }
+        lastScrollLine = line
+        webView.callAsyncJavaScript("DropMD.scrollToLine(l)", arguments: ["l": line], in: nil, in: .page, completionHandler: nil)
+    }
+
+    /// 预览滚动时（预览页传来窗口顶端对应原文第几行），原文滚到同一行
+    func previewScrolled(toLine line: Double) {
+        guard let tv = textView, let lm = tv.layoutManager, let tc = tv.textContainer,
+              let clip = tv.enclosingScrollView?.contentView else { return }
         let ns = tv.string as NSString
-        let limit = min(charIndex, ns.length)
+        let whole = Int(line)
+        var index = 0
+        for _ in 0..<whole {
+            let r = ns.range(of: "\n", range: NSRange(location: index, length: ns.length - index))
+            guard r.location != NSNotFound else { break }
+            index = NSMaxRange(r)
+        }
+        guard lm.numberOfGlyphs > 0 else { return }
+        lm.ensureLayout(for: tc)
+        let glyph = min(lm.glyphIndexForCharacter(at: min(index, max(0, ns.length - 1))), lm.numberOfGlyphs - 1)
+        var rect = lm.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        // 小数部分：按这一行的高度往下挪一点，滚动更顺
+        rect.origin.y += rect.height * CGFloat(line - Double(whole))
+        ignoreEditorScrollUntil = Date().addingTimeInterval(0.3)
+        lastScrollLine = whole
+        // 用文字区自己的坐标滚动：它在滚动区里的位置不一定从 0 开始，换算交给系统
+        tv.scroll(NSPoint(x: 0, y: max(0, rect.minY + tv.textContainerInset.height - clip.contentInsets.top)))
+    }
+    private var ignoreEditorScrollUntil = Date.distantPast
+
+    /// 双页：在预览里标出原文光标所在的那一块
+    func syncCursor() {
+        guard previewReady, let tv = textView, let webView else { return }
+        let line = Self.lineNumber(in: tv.string as NSString, at: tv.selectedRange().location)
+        guard line != lastCursorLine else { return }
+        lastCursorLine = line
+        webView.callAsyncJavaScript("DropMD.markCursor(l)", arguments: ["l": line], in: nil, in: .page, completionHandler: nil)
+    }
+    private var lastCursorLine = -1
+
+    /// 第 index 个字在第几行（从 0 开始）
+    static func lineNumber(in ns: NSString, at index: Int) -> Int {
+        let limit = min(index, ns.length)
         var line = 0
         var i = 0
         while i < limit {
@@ -222,9 +267,7 @@ final class EditorController: ObservableObject {
             line += 1
             i = r.location + 1
         }
-        guard line != lastScrollLine else { return }
-        lastScrollLine = line
-        webView.callAsyncJavaScript("DropMD.scrollToLine(l)", arguments: ["l": line], in: nil, in: .page, completionHandler: nil)
+        return line
     }
 
     // MARK: - 编辑操作（均通过 NSTextView 进行，支持撤销）

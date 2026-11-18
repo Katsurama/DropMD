@@ -103,6 +103,10 @@ struct MarkdownTextView: NSViewRepresentable {
         @objc func didScroll(_ note: Notification) {
             MainActor.assumeIsolated { parent.controller.syncScroll() }
         }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            MainActor.assumeIsolated { parent.controller.syncCursor() }
+        }
     }
 }
 
@@ -119,6 +123,7 @@ struct PreviewView: NSViewRepresentable {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent() // 不保存 Cookie、缓存等任何网页数据
         config.userContentController.add(CopyHandler(), name: "copy")   // 代码块的“复制”按钮
+        config.userContentController.add(ScrollHandler(controller), name: "scroll")   // 滚动预览时原文跟着滚
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
@@ -131,6 +136,16 @@ struct PreviewView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {}
+
+    /// 预览滚动时传来窗口顶端对应原文第几行（只弱引用编辑器，避免循环引用）
+    final class ScrollHandler: NSObject, WKScriptMessageHandler {
+        weak var controller: EditorController?
+        init(_ controller: EditorController) { self.controller = controller }
+        func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard let line = message.body as? Double else { return }
+            MainActor.assumeIsolated { controller?.previewScrolled(toLine: line) }
+        }
+    }
 
     /// 预览里代码块的“复制”按钮：页面把代码文字传过来，由 App 写入剪贴板（不引用别的对象，避免循环引用）
     final class CopyHandler: NSObject, WKScriptMessageHandler {
