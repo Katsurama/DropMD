@@ -77,10 +77,12 @@ enum RichBridge {
             case .table(let rows, let align):
                 let cols = max(1, rows.map { $0.count }.max() ?? 1)
                 let table = makeTable(columns: cols)
+                let widths = columnWidths(rows, columns: cols)
                 for (r, row) in rows.enumerated() {
                     for c in 0..<cols {
                         out.append(cellParagraph(table: table, row: r, column: c, runs: c < row.count ? row[c] : [],
-                                                 baseURL: baseURL, alignment: alignment(c < align.count ? align[c] : "---")))
+                                                 baseURL: baseURL, alignment: alignment(c < align.count ? align[c] : "---"),
+                                                 width: widths[c]))
                     }
                 }
 
@@ -190,12 +192,29 @@ enum RichBridge {
 
     // MARK: 表格
 
+    /// 表格占满正文栏，各列按固定比例分（见 columnWidths）。
+    /// 不用系统的“按内容自动分列宽”：它的结果跟上次排版、当时多宽有关，窄的时候会把一列挤成一字一行，时好时坏
     static func makeTable(columns: Int) -> NSTextTable {
         let table = NSTextTable()
         table.numberOfColumns = max(columns, 1)
         table.collapsesBorders = true
-        table.layoutAlgorithm = .automaticLayoutAlgorithm
+        table.layoutAlgorithm = .fixedLayoutAlgorithm
+        table.setContentWidth(100, type: .percentageValueType)
         return table
+    }
+
+    /// 各列占的百分比：按这一列最长的文字算（中日韩文字按两个英文字宽）。
+    /// 取平方根：字多的列宽一些，但字少的列（序号、“时长”）也留够地方放下表头，不会挤成一字一行
+    static func columnWidths(_ rows: [[[MDRun]]], columns: Int) -> [CGFloat] {
+        let weights = (0..<columns).map { c -> CGFloat in
+            let longest = rows.map { row -> Int in
+                guard c < row.count else { return 0 }
+                return row[c].map(\.text).joined().unicodeScalars.reduce(0) { $0 + ($1.value >= 0x2E80 ? 2 : 1) }
+            }.max() ?? 0
+            return CGFloat(min(max(longest, 4), 60)).squareRoot()
+        }
+        let total = weights.reduce(0, +)
+        return weights.map { $0 / total * 100 }
     }
 
     /// 表格列的对齐：Markdown 的 :--、:-:、--: ⇄ 单元格段落的对齐方式
@@ -207,9 +226,11 @@ enum RichBridge {
         [NSTextAlignment.left: ":--", .center: ":-:", .right: "--:"][alignment] ?? "---"
     }
 
+    /// width：这一列占表格宽度的百分比
     static func cellParagraph(table: NSTextTable, row: Int, column: Int, runs: [MDRun], baseURL: URL?,
-                              alignment: NSTextAlignment = .natural) -> NSAttributedString {
+                              alignment: NSTextAlignment = .natural, width: CGFloat) -> NSAttributedString {
         let block = NSTextTableBlock(table: table, startingRow: row, rowSpan: 1, startingColumn: column, columnSpan: 1)
+        block.setValue(width, type: .percentageValueType, for: .width)
         block.setWidth(1, type: .absoluteValueType, for: .border)
         block.setBorderColor(RichStyle.lineColor)
         block.setWidth(6, type: .absoluteValueType, for: .padding)
