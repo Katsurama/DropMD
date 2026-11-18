@@ -166,6 +166,9 @@ enum RichStyle {
         isDark(a) ? NSColor(white: 1, alpha: 0.3) : NSColor(white: 0, alpha: 0.16)
     }
 
+    /// 双页里标出另一边光标所在那一段的颜色。用靛蓝：链接、“注意”提示框、选中文字是蓝色，原文里的行内代码是粉色，避开它们
+    static var markColor: NSColor { .systemIndigo }
+
     /// 提示框的颜色（与 GitHub 相同的含义：蓝 注意、绿 提示、紫 重要、橙 警告、红 小心）
     static func calloutColor(_ c: MDCallout) -> NSColor {
         switch c {

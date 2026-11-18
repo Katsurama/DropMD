@@ -312,9 +312,59 @@ final class EditorController: ObservableObject {
         tv.scroll(NSPoint(x: 0, y: max(0, rect.minY + tv.textContainerInset.height - clip.contentInsets.top)))
     }
 
+    /// 双页：在右边编辑时，左边原文里对应的那几行加上淡淡的底色；不在屏幕里时左边自动滚过去
+    func syncSourceMark() {
+        guard !isRichMode, let rich = richView, rich.window?.firstResponder === rich,
+              let tv = textView, let lm = tv.layoutManager, let tc = tv.textContainer else { return }
+        let map = currentLineMap()
+        guard let i = map.lastIndex(where: { $0.offset <= rich.selectedRange().location }) else { return clearSourceMark() }
+        let ns = tv.string as NSString
+        let start = Self.lineStart(map[i].line, in: ns)
+        var end = i + 1 < map.count ? Self.lineStart(map[i + 1].line, in: ns) : ns.length
+        while end > start, let u = Unicode.Scalar(ns.character(at: end - 1)), CharacterSet.whitespacesAndNewlines.contains(u) { end -= 1 }
+        let range = NSRange(location: start, length: end - start)
+        guard range != sourceMarkRange else { return }
+        clearSourceMark()
+        guard range.length > 0 else { return }
+        lm.addTemporaryAttribute(.backgroundColor, value: RichStyle.markColor.withAlphaComponent(0.16), forCharacterRange: range)
+        sourceMarkRange = range
+        let glyphs = lm.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        let rect = lm.boundingRect(forGlyphRange: glyphs, in: tc).offsetBy(dx: 0, dy: tv.textContainerOrigin.y)
+        guard !tv.visibleRect.insetBy(dx: 0, dy: 40).contains(rect) else { return }
+        ignoreSourceScrollUntil = Date().addingTimeInterval(0.3)
+        tv.scroll(NSPoint(x: 0, y: max(0, rect.minY - tv.visibleRect.height * 0.3)))
+    }
+    private var sourceMarkRange: NSRange?
+
+    /// 左边原文被右边的修改整体替换了：底色跟着文字没了，重新标
+    func sourceTextReplaced() {
+        sourceMarkRange = nil
+        syncSourceMark()
+    }
+
+    func clearSourceMark() {
+        if let r = sourceMarkRange, let tv = textView, NSMaxRange(r) <= (tv.string as NSString).length {
+            tv.layoutManager?.removeTemporaryAttribute(.backgroundColor, forCharacterRange: r)
+        }
+        sourceMarkRange = nil
+    }
+
+    /// 第 line 行（从 0 开始）的第一个字的位置
+    static func lineStart(_ line: Int, in ns: NSString) -> Int {
+        var index = 0
+        for _ in 0..<line {
+            let r = ns.range(of: "\n", range: NSRange(location: index, length: ns.length - index))
+            guard r.location != NSNotFound else { return ns.length }
+            index = NSMaxRange(r)
+        }
+        return index
+    }
+
     /// 双页：在右边标出左边原文光标所在的那一段；那一段不在屏幕里时，右边自动滚过去
     func syncCursor() {
-        guard !isRichMode, let tv = textView, let rich = richView else { return }
+        // 只管你在左边操作的时候：右边改了字、左边跟着更新时也会走到这里，那时不能动右边（你正在右边打字）
+        guard !isRichMode, let tv = textView, tv.window?.firstResponder === tv, let rich = richView else { return }
+        clearSourceMark()   // 回到左边编辑了：左边不用再标
         let line = Self.lineNumber(in: tv.string as NSString, at: tv.selectedRange().location)
         guard line != lastCursorLine else { return }
         lastCursorLine = line
