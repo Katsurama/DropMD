@@ -136,7 +136,7 @@ Choose DropMD → Check for Updates… to open the Updates page in Settings (or 
 - No data collection, usage statistics or ads. Nothing is installed automatically.
 - DropMD remembers your last settings (mode, output location and so on), stored only on your Mac.
 - The Markdown preview has a strict content security policy: it can only read files on your Mac and blocks all network requests and scripts embedded in documents.
-- For the open source components and their versions, see Help → Open Source Licenses → Third-Party Components, and `docs/依赖清单.md` in the project.
+- For the open source components and their versions, see DropMD → Settings… → About → Third-Party Components, and `docs/依赖清单.md` in the project.
 
 ---
 

@@ -63,10 +63,7 @@ struct DropMDApp: App {
                     Button(s.menuTitle) { NSWorkspace.shared.open(s.url) }
                 }
                 Divider()
-                Menu("开源许可") {
-                    Button("DropMD（MIT 许可证）") { HelpDocs.openAppLicense() }
-                    Button("第三方组件") { HelpDocs.openLicenses() }
-                }
+                SettingsPageButton(title: "开源许可…", page: .about)
             }
         }
 
@@ -252,13 +249,13 @@ struct FormatCommands: Commands {
 
 /// 帮助文档：复制到缓存目录后用编辑器打开（避免修改 App 包内的文件）
 enum HelpDocs {
-    private static func openCopy(of name: String, as copyName: String? = nil) {
+    private static func openCopy(of name: String) {
         guard let src = Bundle.main.resourceURL?.appendingPathComponent(name),
               FileManager.default.fileExists(atPath: src.path) else { return }
         let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("DropMD", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let dst = dir.appendingPathComponent(copyName ?? name)
+        let dst = dir.appendingPathComponent(name)
         try? FileManager.default.removeItem(at: dst)
         guard (try? FileManager.default.copyItem(at: src, to: dst)) != nil else { return }
         NSDocumentController.shared.openDocument(withContentsOf: dst, display: true) { _, _, _ in }
@@ -266,7 +263,6 @@ enum HelpDocs {
 
     // 文件名也随界面语言：英文界面打开 User Guide.md，日文 ユーザーガイド.md，繁体 使用說明.md（都在 App 包里）
     static func openGuide() { openCopy(of: String(localized: "使用说明.md")) }
-    static func openLicenses() { openCopy(of: "THIRD_PARTY_LICENSES.md") }
 
     /// GitHub 仓库网页（仓库名取自 Info.plist，和软件更新同一处）
     @MainActor static func repoURL(path: String = "") -> URL? {
@@ -293,5 +289,4 @@ enum HelpDocs {
         return NSImage(contentsOf: url)
     }
 
-    static func openAppLicense() { openCopy(of: "LICENSE", as: String(localized: "DropMD 许可证.md")) }
 }

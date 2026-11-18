@@ -119,9 +119,7 @@
 "使用说明" = "DropMD Help";
 "开源许可" = "Open Source Licenses";
 "使用说明.md" = "User Guide.md";
-"DropMD（MIT 许可证）" = "DropMD (MIT License)";
 "第三方组件" = "Third-Party Components";
-"DropMD 许可证.md" = "DropMD License.md";
 "跟随系统" = "Use System Setting";
 "浅色" = "Light";
 "深色" = "Dark";
@@ -368,3 +366,6 @@
 "使用了 markdown-it、KaTeX、MarkItDown、Docling、Pandoc 等开源组件，中文字体为小米 MiSans。" = "Built with markdown-it, KaTeX, MarkItDown, Docling, Pandoc and other open source components. Chinese font: Xiaomi MiSans.";
 "版本 %@ (%@)" = "Version %@ (%@)";
 "赞助" = "Support";
+"完成" = "Done";
+"开源许可…" = "Open Source Licenses…";
+"找不到许可证文件。" = "License file not found.";
