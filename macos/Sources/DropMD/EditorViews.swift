@@ -344,9 +344,19 @@ struct EditorView: View {
                 Button(EditorAction.exportPDF.title) { editor.perform(.exportPDF) }
                 Button(EditorAction.exportHTML.title) { editor.perform(.exportHTML) }
             } label: {
-                Label("导出", systemImage: "square.and.arrow.up")
+                // 不用“方框加向上箭头”：那是系统“分享”的图标，放在这里会被当成分享
+                Label("导出", systemImage: "doc.badge.arrow.up")
             }
             .help("导出 PDF / HTML")
+            // 苹果的分享面板（隔空投送、邮件、信息…）：分享这个 .md 文件；新文档还没存过、没有文件时不能分享
+            if let fileURL {
+                ShareLink(item: fileURL) { Label("分享", systemImage: "square.and.arrow.up") }
+                    .help("分享")
+            } else {
+                Button {} label: { Label("分享", systemImage: "square.and.arrow.up") }
+                    .disabled(true)
+                    .help("保存后才能分享")
+            }
             Toggle(isOn: $showInspector) { Label("格式", systemImage: "paintbrush") }
                 .help("格式面板（⌥⌘I）")
         }
