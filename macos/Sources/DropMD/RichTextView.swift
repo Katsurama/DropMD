@@ -522,7 +522,21 @@ final class RichTextView: NSTextView {
         if abs(textContainerInset.width - inset.width) > 0.5 || textContainerInset.height != inset.height {
             textContainerInset = inset
         }
+        // 文字栏宽度变了（打开窗口、拉窗口、开关格式面板）：表格要重新排，否则还按旧宽度显示，要手动拉一下窗口才对
+        let width = textContainer?.size.width ?? 0
+        if abs(width - laidOutWidth) > 0.5, let storage = textStorage, storage.length > 0 {
+            laidOutWidth = width
+            var hasTable = false
+            storage.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: storage.length)) { value, _, stop in
+                if ((value as? NSParagraphStyle)?.textBlocks.isEmpty == false) { hasTable = true; stop.pointee = true }
+            }
+            if hasTable {
+                layoutManager?.invalidateLayout(forCharacterRange: NSRange(location: 0, length: storage.length), actualCharacterRange: nil)
+                needsDisplay = true
+            }
+        }
     }
+    private var laidOutWidth: CGFloat = 0
 
     /// 编辑区改变大小（打开窗口、显示格式面板）时，系统会把光标滚到可见处，但计算时没有扣除工具栏遮住的部分，
     /// 刚打开的文档会被往下滚一段。这里保持原来的滚动位置，只有光标真的看不见时才滚动。
