@@ -62,9 +62,7 @@ cp "$ROOT/docs/User Guide.md" "$APP/Contents/Resources/User Guide.md"
 cp "$ROOT/docs/ユーザーガイド.md" "$APP/Contents/Resources/ユーザーガイド.md"
 cp "$ROOT/docs/使用說明.md" "$APP/Contents/Resources/使用說明.md"
 cp "$ROOT/THIRD_PARTY_LICENSES.md" "$APP/Contents/Resources/THIRD_PARTY_LICENSES.md"
-cp Resources/wechat-sponsor.png "$APP/Contents/Resources/wechat-sponsor.png"   # 设置 → 关于：微信赞赏码（中文界面）
-# “关于 DropMD”中的开源致谢：按界面语言放进 .lproj（放在 Resources 根目录时系统总是先用它）
-cp Resources/Credits.html "$APP/Contents/Resources/zh-Hans.lproj/Credits.html"
+cp Resources/wechat-sponsor.png "$APP/Contents/Resources/wechat-sponsor.png"   # 设置 → 赞助：微信赞赏码（中文界面）
 # MiSans 字体（构建时由 tools/fetch_fonts.sh 从小米官网下载，不在仓库中）
 [ -f "$ROOT/build/fonts/MiSans-Regular.otf" ] || { echo "错误：缺少 MiSans 字体，先运行 tools/fetch_fonts.sh" >&2; exit 1; }
 mkdir -p "$APP/Contents/Resources/fonts"

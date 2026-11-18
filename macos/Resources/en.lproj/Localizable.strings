@@ -341,7 +341,6 @@
 "默认打开程序" = "Default App";
 "显示" = "Display";
 "反馈问题…" = "Report an Issue…";
-"当前版本" = "Current Version";
 "关于" = "About";
 "GitHub 仓库" = "GitHub Repository";
 "遇到问题" = "Found a Problem?";
@@ -357,12 +356,15 @@
 "已复制" = "Copied";
 "爱发电" = "Afdian";
 "关于 DropMD" = "About DropMD";
-"“启动时自动检查更新”和“包括测试版”在“检查更新…”打开的窗口里设置。" = "“Check for updates on launch” and “Include beta versions” are in the window that Check for Updates… opens.";
 "如果它帮到了你，可以请我喝杯咖啡，支持我继续更新" = "If it helps you, you can buy me a coffee to support future updates";
 "更新" = "Updates";
-"版本 %@" = "Version %@";
 "通用" = "General";
 "微信" = "WeChat";
 "用微信扫一扫" = "Scan with WeChat";
 "分享" = "Share";
 "保存后才能分享" = "Save the document to share it";
+
+"DropMD 许可证" = "DropMD License";
+"使用了 markdown-it、KaTeX、MarkItDown、Docling、Pandoc 等开源组件，中文字体为小米 MiSans。" = "Built with markdown-it, KaTeX, MarkItDown, Docling, Pandoc and other open source components. Chinese font: Xiaomi MiSans.";
+"版本 %@ (%@)" = "Version %@ (%@)";
+"赞助" = "Support";

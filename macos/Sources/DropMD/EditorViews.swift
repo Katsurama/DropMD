@@ -193,6 +193,7 @@ struct EditorView: View {
     /// 双页在窗口打开后于后台预先加载，第一次切换也不卡
     @State private var sourceLoaded = false
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         // “格式”面板不用系统的 .inspector：它会让工具栏中间的按钮只按编辑区居中，打开面板时偏左
@@ -231,7 +232,7 @@ struct EditorView: View {
         .focusedSceneValue(\.inspectorToggle, { showInspector.toggle() })
         .toolbar { toolbarContent }
         .hidesToolbarTitle()
-        .onReceive(NotificationCenter.default.publisher(for: .showUpdates)) { _ in openWindow(id: "updates") }
+        .onReceive(NotificationCenter.default.publisher(for: .showUpdates)) { _ in SettingsPage.open(.updates, openSettings) }
     }
 
     private var editorColumn: some View {

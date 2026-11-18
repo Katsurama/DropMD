@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// “软件更新”窗口
+/// 设置的“更新”页（菜单“检查更新…”打开这一页）
 struct UpdateView: View {
     @ObservedObject var updater: UpdateChecker
 
@@ -38,7 +38,7 @@ struct UpdateView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(24)
-        .frame(width: 520)
+        .frame(maxWidth: .infinity, alignment: .leading)
         // 窗口高度始终等于内容高度：内容变化（如发现新版本）时窗口跟着变大，不用手动拉
         .fixedSize(horizontal: false, vertical: true)
     }

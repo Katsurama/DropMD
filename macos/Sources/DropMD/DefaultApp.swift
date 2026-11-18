@@ -88,22 +88,35 @@ enum AppLanguage {
 
 /// “DropMD → 设置…”：和苹果自带 App 一样分成几页（顶部的标签），不再是一长条
 struct SettingsView: View {
-    @AppStorage("settingsTab") private var tab = "general"   // 苹果的设计规范：再打开时回到上次看的那一页
+    @AppStorage("settingsTab") private var page = SettingsPage.general   // 苹果的设计规范：再打开时回到上次看的那一页
 
     var body: some View {
-        TabView(selection: $tab) {
+        TabView(selection: $page) {
             GeneralSettings()
                 .tabItem { Label("通用", systemImage: "gearshape") }
-                .tag("general")
-            UpdateSettings()
+                .tag(SettingsPage.general)
+            UpdateView(updater: UpdateChecker.shared)
                 .tabItem { Label("更新", systemImage: "arrow.triangle.2.circlepath") }
-                .tag("updates")
+                .tag(SettingsPage.updates)
+            SponsorSettings()
+                .tabItem { Label("赞助", systemImage: "heart") }
+                .tag(SettingsPage.sponsor)
             AboutSettings()
                 .tabItem { Label("关于", systemImage: "info.circle") }
-                .tag("about")
+                .tag(SettingsPage.about)
         }
-        .frame(width: 460)
+        .frame(width: 500)
         .fixedSize()
+    }
+}
+
+/// 设置窗口的各页；菜单“关于 DropMD”“检查更新…”直接打开对应的页
+enum SettingsPage: String {
+    case general, updates, sponsor, about
+
+    @MainActor static func open(_ page: SettingsPage, _ openSettings: OpenSettingsAction) {
+        UserDefaults.standard.set(page.rawValue, forKey: "settingsTab")
+        openSettings()
     }
 }
 
@@ -162,38 +175,10 @@ private struct GeneralSettings: View {
     }
 }
 
-/// 更新：当前版本、检查更新（自动检查、测试版的开关只在更新窗口里，免得两处看着像冲突）
-private struct UpdateSettings: View {
-    @ObservedObject private var updater = UpdateChecker.shared
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Form {
-            Section {
-                LabeledContent("当前版本") {
-                    HStack {
-                        Text(verbatim: UpdateChecker.currentVersionText)
-                            .foregroundStyle(.secondary)
-                        Button("检查更新…") {
-                            openWindow(id: "updates")
-                            Task { await updater.check() }
-                        }
-                        .disabled(UpdateChecker.repository == nil || updater.state == .checking)
-                    }
-                }
-                Text("“启动时自动检查更新”和“包括测试版”在“检查更新…”打开的窗口里设置。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .formStyle(.grouped)
-        .scrollDisabled(true)   // 内容放得下，不显示滚动条
-        .fixedSize(horizontal: false, vertical: true)
-    }
-}
-
-/// 关于：图标和版本、仓库 / 反馈 / Discord，最下面是赞助卡片
+/// 关于：图标和版本、仓库 / 反馈 / Discord、开源许可、版权（取代系统的“关于”窗口）
 private struct AboutSettings: View {
+    private var build: String { (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "" }
+
     var body: some View {
         VStack(spacing: 16) {
             VStack(spacing: 4) {
@@ -202,7 +187,7 @@ private struct AboutSettings: View {
                     .frame(width: 72, height: 72)
                 Text(verbatim: "DropMD")
                     .font(.title2.weight(.semibold))
-                Text("版本 \(UpdateChecker.currentVersionText)")
+                Text("版本 \(UpdateChecker.currentVersionText) (\(build))")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -224,16 +209,37 @@ private struct AboutSettings: View {
                         Link(destination: HelpDocs.discord) { Text(verbatim: "Discord") }
                     }
                 }
+                Section {
+                    LabeledContent("开源许可") {
+                        HStack {
+                            Button("DropMD 许可证") { HelpDocs.openAppLicense() }
+                            Button("第三方组件") { HelpDocs.openLicenses() }
+                        }
+                    }
+                    Text("使用了 markdown-it、KaTeX、MarkItDown、Docling、Pandoc 等开源组件，中文字体为小米 MiSans。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .formStyle(.grouped)
             .scrollDisabled(true)
             .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, -20)   // 和下面的卡片左右对齐（分组表单自带左右留白）
+            .padding(.horizontal, -20)   // 分组表单自带左右留白，和上下内容对齐
             .padding(.vertical, -12)
 
-            SponsorCard()
+            Text(verbatim: "Copyright © 2026 DropMD contributors. MIT License.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding(20)
+    }
+}
+
+/// 赞助：单独一页，粉色卡片
+private struct SponsorSettings: View {
+    var body: some View {
+        SponsorCard()
+            .padding(20)
     }
 }
 
