@@ -106,7 +106,11 @@ final class EditorController: ObservableObject {
     /// 当前是单页（true）还是双页（false）
     var isRichMode = true
 
-    private var rich: RichTextView? { isRichMode ? richView : nil }
+    /// 格式命令作用在哪边：单页时是单页；双页时看光标在哪边（右边的单页编辑区也能直接改）
+    private var rich: RichTextView? {
+        guard let richView else { return nil }
+        return isRichMode || richView.window?.firstResponder === richView ? richView : nil
+    }
 
     /// 由单页编辑区设置：把尚未写回的修改立即写回文档
     var flushRichEdits: (() -> Void)?
@@ -245,6 +249,9 @@ final class EditorController: ObservableObject {
         tv.scroll(NSPoint(x: 0, y: max(0, rect.minY + tv.textContainerInset.height - clip.contentInsets.top)))
     }
     private var ignoreEditorScrollUntil = Date.distantPast
+
+    /// 单页编辑区按文档重新排过（双页里左边改了字）：对照表要重算
+    func richReloaded() {}
 
     /// 双页：在预览里标出原文光标所在的那一块
     func syncCursor() {
