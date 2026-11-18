@@ -1191,7 +1191,8 @@ final class RichTextView: NSTextView {
         for r in 0..<rows {
             for c in 0..<columns {
                 let runs = r == 0 ? [MDRun(text: String(localized: "标题 \(c + 1)"))] : []
-                s.append(RichBridge.cellParagraph(table: table, row: r, column: c, runs: runs, baseURL: baseURL))
+                s.append(RichBridge.cellParagraph(table: table, row: r, column: c, runs: runs, baseURL: baseURL,
+                                                  width: 100 / CGFloat(columns)))
             }
         }
         insertBlock(s, caretOffset: 0)
@@ -1331,9 +1332,17 @@ final class RichTextView: NSTextView {
             }
             // 最后一格：在表格末尾新增一行
             let row = NSMutableAttributedString()
-            for c in 0..<current.table.numberOfColumns {
+            // 新的一行沿用各列原来的宽度
+            var widths: [Int: CGFloat] = [:]
+            textStorage?.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: textStorage?.length ?? 0)) { value, _, _ in
+                if let b = (value as? NSParagraphStyle)?.textBlocks.first as? NSTextTableBlock, b.table === current.table {
+                    widths[b.startingColumn] = b.value(for: .width)
+                }
+            }
+            let cols = current.table.numberOfColumns
+            for c in 0..<cols {
                 row.append(RichBridge.cellParagraph(table: current.table, row: current.startingRow + 1, column: c,
-                                                    runs: [], baseURL: baseURL))
+                                                    runs: [], baseURL: baseURL, width: widths[c] ?? 100 / CGFloat(cols)))
             }
             replace(NSRange(location: next, length: 0), with: row, caret: next)
             refreshTypingAttributes()
