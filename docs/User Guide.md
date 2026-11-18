@@ -117,7 +117,7 @@ Click Convert Files in the toolbar, or choose File → Convert Files to Markdown
 
 ## 5. Software updates
 
-Choose DropMD → Check for Updates… to open the Software Update window:
+Choose DropMD → Check for Updates… to open the Updates page in Settings (or open DropMD → Settings… and click Updates):
 
 - It shows the current version. Click Check Now to see if GitHub has a newer version and its release notes.
 - If there is one, click Download and Update: DropMD downloads it and **checks its integrity**, then click Restart to switch to the new version (you are asked to save any unsaved documents first). After updating, old DropMD downloads in your Downloads folder are moved to the Trash. If DropMD isn't in a writable place such as Applications, the download opens instead; drag DropMD to Applications to replace the old version.
