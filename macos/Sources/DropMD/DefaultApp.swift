@@ -91,22 +91,26 @@ struct SettingsView: View {
     @AppStorage("settingsTab") private var page = SettingsPage.general   // 苹果的设计规范：再打开时回到上次看的那一页
 
     var body: some View {
+        // 各页同一个大小，切换时窗口不跳；内容靠上，下面留白（高度按最高的“更新”页有新版本时算）
         TabView(selection: $page) {
             GeneralSettings()
+                .frame(maxHeight: .infinity, alignment: .top)
                 .tabItem { Label("通用", systemImage: "gearshape") }
                 .tag(SettingsPage.general)
             UpdateView(updater: UpdateChecker.shared)
+                .frame(maxHeight: .infinity, alignment: .top)
                 .tabItem { Label("更新", systemImage: "arrow.triangle.2.circlepath") }
                 .tag(SettingsPage.updates)
             SponsorSettings()
+                .frame(maxHeight: .infinity, alignment: .top)
                 .tabItem { Label("赞助", systemImage: "heart") }
                 .tag(SettingsPage.sponsor)
             AboutSettings()
+                .frame(maxHeight: .infinity, alignment: .top)
                 .tabItem { Label("关于", systemImage: "info.circle") }
                 .tag(SettingsPage.about)
         }
-        .frame(width: 500)
-        .fixedSize()
+        .frame(width: 500, height: 500)
     }
 }
 
