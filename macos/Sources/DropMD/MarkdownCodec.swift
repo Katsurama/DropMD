@@ -619,7 +619,7 @@ enum MarkdownCodec {
     }
 
     /// 拆分表格的一行；保留 \| 转义，交给行内解析处理
-    private static func splitRow(_ line: String) -> [String] {
+    static func splitRow(_ line: String) -> [String] {
         var s = line.trimmingCharacters(in: .whitespaces)
         if s.hasPrefix("|") { s.removeFirst() }
         if s.hasSuffix("|") && !s.hasSuffix("\\|") { s.removeLast() }

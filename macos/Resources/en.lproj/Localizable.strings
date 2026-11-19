@@ -376,3 +376,11 @@
 "在下方插入一行" = "Insert Row Below";
 "删除这一行" = "Delete Row";
 "删除表格" = "Delete Table";
+"在上方插入一行" = "Insert Row Above";
+"在左边插入一列" = "Insert Column Left";
+"在右边插入一列" = "Insert Column Right";
+"删除这一列" = "Delete Column";
+"这一列靠左" = "Align Column Left";
+"这一列居中" = "Align Column Center";
+"这一列靠右" = "Align Column Right";
+"复制表格" = "Copy Table";
