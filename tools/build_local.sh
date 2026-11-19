@@ -77,12 +77,15 @@ echo "== 启动测试"
 cp packaging/samples/editor_sample.md build/示例.md
 asked=$(defaults read "$APP_ID" askedAutoUpdate 2>/dev/null || true)
 defaults write "$APP_ID" askedAutoUpdate -bool true
+guide=$(defaults read "$APP_ID" shownUserGuide 2>/dev/null || true)
+defaults write "$APP_ID" shownUserGuide -bool true   # 不自动打开使用说明
 open -n -a "$PWD/dist/DropMD.app" build/示例.md
 sleep 10
 pid=$(pgrep -f "$PWD/dist/DropMD.app/Contents/MacOS/" | head -1 || true)
 [ -n "$pid" ] || { echo "DropMD 启动失败"; exit 1; }
 kill "$pid"
 [ -n "$asked" ] || defaults delete "$APP_ID" askedAutoUpdate
+[ -n "$guide" ] || defaults delete "$APP_ID" shownUserGuide
 
 echo "== 生成 .dmg 和 .zip"
 rm -f DropMD-macOS-AppleSilicon.*
