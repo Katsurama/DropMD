@@ -141,6 +141,26 @@ do {
     check(((try? FileManager.default.attributesOfItem(atPath: log.path)[.size] as? Int) ?? -1) == 0, "引擎日志超过 1 MB 清空")
 }
 
+// 引擎“停止”：转换中又查了一次状态（如重新打开转换窗口），停止仍能结束转换。
+// 两个引擎的输出是排队读的，查状态要等转换结束才返回，所以要在它返回前点停止
+do {
+    let fake = work.appendingPathComponent("fake-engine")
+    try! "#!/bin/sh\nif [ \"$2\" = status ]; then echo '{}'; exit 0; fi\ncat >/dev/null\nexec sleep 30\n"
+        .write(to: fake, atomically: true, encoding: .utf8)
+    try! fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fake.path)
+    setenv("DROPMD_ENGINE", fake.path, 1)
+    let engine = Engine()
+    let started = Date()
+    let convert = Task { try await engine.run(["convert"], input: Data("{}".utf8)) { _ in } }
+    try await Task.sleep(nanoseconds: 300_000_000)
+    let status = Task { try await engine.run(["status"]) { _ in } }
+    try await Task.sleep(nanoseconds: 300_000_000)
+    engine.terminate()
+    _ = try? await convert.value
+    _ = try? await status.value
+    check(Date().timeIntervalSince(started) < 10, "转换中查过状态后，停止仍能结束转换")
+}
+
 // 更新窗口里的说明拆成行：标题、列表（嵌套有层级）、普通文字、空行
 check(releaseNoteLines("## DropMD 1.0.0\n\n- 表格可以删行\n  - 选中整行按退格\n* 右键菜单\n普通的一行 - 不是列表") ==
       [.heading("DropMD 1.0.0"), .blank, .bullet(level: 0, text: "表格可以删行"), .bullet(level: 1, text: "选中整行按退格"),

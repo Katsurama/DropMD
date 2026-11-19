@@ -99,6 +99,10 @@ final class AppModel: ObservableObject {
         formulas = defaults.bool(forKey: "formulas")
         outputCustom = defaults.bool(forKey: "outputCustom")
         customDir = defaults.string(forKey: "customDir").map { URL(fileURLWithPath: $0) }
+        // 引擎自成一个进程组，App 退出时不会跟着停：转换到一半退出要主动结束它
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: nil) { [engine] _ in
+            engine.terminate()
+        }
     }
 
     var pandocAvailable: Bool { engineStatus?.pandoc ?? true }
