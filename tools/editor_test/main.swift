@@ -995,6 +995,44 @@ MainActor.assumeIsolated {
         check("表格：表头那一行不能删", md(tv), src)
         tv.deleteTable(nil)
         check("表格：删除表格", md(tv), "前文\n\n后文\n")
+        @MainActor func at(_ s: String) -> RichTextView {
+            let v = makeView(src)
+            v.setSelectedRange(NSRange(location: (v.string as NSString).range(of: s).location, length: 0))
+            return v
+        }
+        tv = at("3"); tv.insertTableRowAbove(nil); type(tv, "新")
+        check("表格：在上方插入一行", md(tv), "前文\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n| 新 |  |\n| 3 | 4 |\n\n后文\n")
+        tv = at("a"); tv.insertTableRowAbove(nil)
+        check("表格：表头上方不插行", md(tv), src)
+        tv = at("2"); tv.insertTableColumnLeft(nil); type(tv, "左")
+        check("表格：在左边插入一列", md(tv), "前文\n\n| a |  | b |\n| --- | --- | --- |\n| 1 | 左 | 2 |\n| 3 |  | 4 |\n\n后文\n")
+        tv = at("2"); tv.insertTableColumnRight(nil); type(tv, "右")
+        check("表格：在右边插入一列", md(tv), "前文\n\n| a | b |  |\n| --- | --- | --- |\n| 1 | 2 | 右 |\n| 3 | 4 |  |\n\n后文\n")
+        tv = at("2"); tv.deleteTableColumn(nil)
+        check("表格：删除这一列", md(tv), "前文\n\n| a |\n| --- |\n| 1 |\n| 3 |\n\n后文\n")
+        tv.deleteTableColumn(nil)
+        check("表格：只剩一列不能删", md(tv), "前文\n\n| a |\n| --- |\n| 1 |\n| 3 |\n\n后文\n")
+        tv = at("2")
+        let center = NSMenuItem(); center.representedObject = ":-:"
+        tv.alignTableColumn(center)
+        check("表格：这一列居中", md(tv), "前文\n\n| a | b |\n| --- | :-: |\n| 1 | 2 |\n| 3 | 4 |\n\n后文\n")
+        // 在格子里点右键：菜单最上面是表格的操作，当前对齐打勾
+        do {
+            let v = at("2")
+            let window = NSWindow(contentRect: v.frame, styleMask: [.titled], backing: .buffered, defer: false)
+            window.contentView = v
+            v.layoutManager!.ensureLayout(for: v.textContainer!)
+            let lm = v.layoutManager!
+            let r = lm.boundingRect(forGlyphRange: lm.glyphRange(forCharacterRange: (v.string as NSString).range(of: "2"), actualCharacterRange: nil), in: v.textContainer!)
+            let p = v.convert(NSPoint(x: r.midX + v.textContainerOrigin.x, y: r.midY + v.textContainerOrigin.y), to: nil)
+            let e = NSEvent.mouseEvent(with: .rightMouseDown, location: p, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber,
+                                       context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+            let items = v.menu(for: e)!.items.prefix(15).map { ($0.isSeparatorItem ? "-" : $0.title) + ($0.state == .on ? "✓" : "") }
+            check("表格：右键菜单", items.joined(separator: "|"),
+                  "在上方插入一行|在下方插入一行|删除这一行|-|在左边插入一列|在右边插入一列|删除这一列|-|这一列靠左|这一列居中|这一列靠右|-|复制表格|删除表格|-")
+        }
+        tv = at("1"); tv.copyTable(nil)
+        check("表格：复制表格", NSPasteboard.general.string(forType: .string) ?? "", "| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n")
     }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }

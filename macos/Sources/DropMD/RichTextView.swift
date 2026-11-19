@@ -1503,19 +1503,19 @@ final class RichTextView: NSTextView {
         return true
     }
 
-    // MARK: - 表格：右键菜单里的插入行、删除行、删除表格
+    // MARK: - 表格：右键菜单里的插入 / 删除行和列、对齐、删除表格、复制表格
 
-    /// 光标所在表格的范围、所在行（0 是表头）、列数；不在表格里时为 nil
-    private func tableContext() -> (range: NSRange, row: Int, columns: Int)? {
+    /// 光标所在表格的范围、所在行（0 是表头）、所在列、列数；不在表格里时为 nil
+    private func tableContext() -> (range: NSRange, row: Int, column: Int, columns: Int)? {
         let at = selectedRange().location
         guard let storage = textStorage, let lm = layoutManager as? RichLayoutManager, let here = cell(at: at),
               let range = lm.tableRange(around: NSRange(location: at, length: 0), in: storage) else { return nil }
-        return (range, here.startingRow, here.table.numberOfColumns)
+        return (range, here.startingRow, here.startingColumn, here.table.numberOfColumns)
     }
 
-    /// 改表格的 Markdown（第 0 行表头、第 1 行分隔线、之后一行一行），整张表重建，光标放到第 caretRow 行第一格。
+    /// 改表格的 Markdown（第 0 行表头、第 1 行分隔线、之后一行一行），整张表重建，光标放到第 caretRow 行第 caretColumn 格。
     /// 走一遍 Markdown 比逐格改 NSTextTableBlock 简单：后面各行的行号、表头样式、列宽都跟着重算
-    private func rewriteTable(caretRow: Int, _ edit: (inout [String]) -> Void) {
+    private func rewriteTable(caretRow: Int, caretColumn: Int = 0, _ edit: (inout [String]) -> Void) {
         guard let storage = textStorage, let ctx = tableContext() else { return }
         let old = storage.attributedSubstring(from: ctx.range)
         var lines = RichBridge.markdown(from: old).components(separatedBy: "\n").filter { !$0.isEmpty }
@@ -1531,7 +1531,8 @@ final class RichTextView: NSTextView {
         if old.attribute(DMKey.inDetails, at: 0, effectiveRange: nil) != nil { RichBridge.markInDetails(new) }
         var caret = 0
         new.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: new.length)) { value, range, stop in
-            if let b = (value as? NSParagraphStyle)?.textBlocks.first as? NSTextTableBlock, b.startingRow == caretRow {
+            if let b = (value as? NSParagraphStyle)?.textBlocks.first as? NSTextTableBlock, b.startingRow == caretRow,
+               b.startingColumn == caretColumn {
                 caret = range.location
                 stop.pointee = true
             }
@@ -1545,6 +1546,70 @@ final class RichTextView: NSTextView {
         rewriteTable(caretRow: ctx.row + 1) { lines in
             lines.insert("|" + String(repeating: "  |", count: ctx.columns), at: min(ctx.row + 2, lines.count))
         }
+    }
+
+    @objc func insertTableRowAbove(_ sender: Any?) {
+        guard let ctx = tableContext(), ctx.row > 0 else { return }
+        rewriteTable(caretRow: ctx.row) { lines in
+            lines.insert("|" + String(repeating: "  |", count: ctx.columns), at: min(ctx.row + 1, lines.count))
+        }
+    }
+
+    /// 每一行按格拆开改，再拼回 Markdown（分隔线那一行是第 1 行）
+    private func rewriteColumns(caretColumn: Int, _ edit: (_ line: Int, _ cells: inout [String]) -> Void) {
+        guard let ctx = tableContext() else { return }
+        rewriteTable(caretRow: ctx.row, caretColumn: caretColumn) { lines in
+            lines = lines.enumerated().map { i, line in
+                var cells = MarkdownCodec.splitRow(line)
+                edit(i, &cells)
+                return "| " + cells.joined(separator: " | ") + " |"
+            }
+        }
+    }
+
+    @objc func insertTableColumnLeft(_ sender: Any?) {
+        guard let ctx = tableContext() else { return }
+        rewriteColumns(caretColumn: ctx.column) { i, cells in cells.insert(i == 1 ? "---" : "", at: min(ctx.column, cells.count)) }
+    }
+
+    @objc func insertTableColumnRight(_ sender: Any?) {
+        guard let ctx = tableContext() else { return }
+        rewriteColumns(caretColumn: ctx.column + 1) { i, cells in cells.insert(i == 1 ? "---" : "", at: min(ctx.column + 1, cells.count)) }
+    }
+
+    @objc func deleteTableColumn(_ sender: Any?) {
+        guard let ctx = tableContext(), ctx.columns > 1 else { return }
+        rewriteColumns(caretColumn: max(ctx.column - 1, 0)) { _, cells in if ctx.column < cells.count { cells.remove(at: ctx.column) } }
+    }
+
+    /// 这一列的对齐（菜单项的 representedObject 是 ":--"、":-:"、"--:"），写进分隔线那一行
+    @objc func alignTableColumn(_ sender: Any?) {
+        guard let ctx = tableContext(), let marker = (sender as? NSMenuItem)?.representedObject as? String else { return }
+        rewriteColumns(caretColumn: ctx.column) { i, cells in if i == 1, ctx.column < cells.count { cells[ctx.column] = marker } }
+    }
+
+    /// 光标所在列现在的对齐：":--"、":-:"、"--:"，没设过是 "---"
+    private func tableColumnMarker() -> String {
+        guard let storage = textStorage, let ctx = tableContext() else { return "---" }
+        let lines = RichBridge.markdown(from: storage.attributedSubstring(from: ctx.range)).components(separatedBy: "\n")
+        guard lines.count > 1 else { return "---" }
+        let cells = MarkdownCodec.splitRow(lines[1])
+        guard ctx.column < cells.count else { return "---" }
+        let t = cells[ctx.column]
+        switch (t.hasPrefix(":"), t.hasSuffix(":")) {
+        case (true, true): return ":-:"
+        case (true, false): return ":--"
+        case (false, true): return "--:"
+        default: return "---"
+        }
+    }
+
+    /// 整张表格复制成 Markdown 文字
+    @objc func copyTable(_ sender: Any?) {
+        guard let storage = textStorage, let ctx = tableContext() else { return }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(RichBridge.markdown(from: storage.attributedSubstring(from: ctx.range)), forType: .string)
     }
 
     @objc func deleteTableRow(_ sender: Any?) {
@@ -1567,10 +1632,29 @@ final class RichTextView: NSTextView {
         guard cell(at: index) != nil else { return menu }
         if !NSLocationInRange(index, selectedRange()) { setSelectedRange(NSRange(location: index, length: 0)) }
         guard let ctx = tableContext() else { return menu }
+        func item(_ title: String, _ action: Selector?) -> NSMenuItem { NSMenuItem(title: title, action: action, keyEquivalent: "") }
+        let current = tableColumnMarker()
+        let aligns = [(String(localized: "这一列靠左"), ":--"), (String(localized: "这一列居中"), ":-:"), (String(localized: "这一列靠右"), "--:")]
+            .map { title, marker in
+                let m = item(title, #selector(alignTableColumn(_:)))
+                m.representedObject = marker
+                m.state = current == marker ? .on : .off
+                return m
+            }
         let items = [
-            NSMenuItem(title: String(localized: "在下方插入一行"), action: #selector(insertTableRowBelow(_:)), keyEquivalent: ""),
-            NSMenuItem(title: String(localized: "删除这一行"), action: ctx.row > 0 ? #selector(deleteTableRow(_:)) : nil, keyEquivalent: ""),
-            NSMenuItem(title: String(localized: "删除表格"), action: #selector(deleteTable(_:)), keyEquivalent: ""),
+            // 表头上面不能再插一行（第一行总是表头）
+            item(String(localized: "在上方插入一行"), ctx.row > 0 ? #selector(insertTableRowAbove(_:)) : nil),
+            item(String(localized: "在下方插入一行"), #selector(insertTableRowBelow(_:))),
+            item(String(localized: "删除这一行"), ctx.row > 0 ? #selector(deleteTableRow(_:)) : nil),
+            NSMenuItem.separator(),
+            item(String(localized: "在左边插入一列"), #selector(insertTableColumnLeft(_:))),
+            item(String(localized: "在右边插入一列"), #selector(insertTableColumnRight(_:))),
+            item(String(localized: "删除这一列"), ctx.columns > 1 ? #selector(deleteTableColumn(_:)) : nil),
+            NSMenuItem.separator(),
+        ] + aligns + [
+            NSMenuItem.separator(),
+            item(String(localized: "复制表格"), #selector(copyTable(_:))),
+            item(String(localized: "删除表格"), #selector(deleteTable(_:))),
             NSMenuItem.separator(),
         ]
         for (i, item) in items.enumerated() {
