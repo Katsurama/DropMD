@@ -139,6 +139,12 @@ private struct GeneralSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            Section("双页") {
+                SourceMarkMenu()
+                Text("在左边原文里移动光标时，右边标出对应的位置。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Section("语言") {
                 Picker("界面语言", selection: $language) {
                     Text("跟随系统").tag("")

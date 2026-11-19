@@ -131,6 +131,20 @@ struct PageMarginMenu: View {
     }
 }
 
+/// 菜单“显示”和设置里的双页位置标记：上面是开关，下面是样式（关掉时样式不能选）
+struct SourceMarkMenu: View {
+    @AppStorage("showSourceMark") private var isOn = true
+    @AppStorage("sourceMarkStyle") private var style = SourceMarkStyle.box.rawValue
+
+    var body: some View {
+        Toggle("显示对应位置标记", isOn: $isOn)
+        Picker("标记样式", selection: $style) {
+            ForEach(SourceMarkStyle.allCases) { Text($0.title).tag($0.rawValue) }
+        }
+        .disabled(!isOn)
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated { AppAppearance.apply(UserDefaults.standard.string(forKey: "appearance")) }
@@ -206,6 +220,7 @@ struct FormatCommands: Commands {
                 .disabled(toggleInspector == nil)
             AppearanceMenu()
             PageMarginMenu()
+            SourceMarkMenu()
             Divider()
         }
         CommandMenu("格式") {

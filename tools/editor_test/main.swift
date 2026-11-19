@@ -1009,6 +1009,33 @@ MainActor.assumeIsolated {
         tv.deleteBackward(nil); type(tv, "X")
         check("表格：空行第一格退格删掉这一行", md(tv), "| a | b |\n| --- | --- |\n| 1 | 2X |\n\n后文\n")
     }
+    // 双页位置标记：表格按格子外框算；侧边线画在文字栏左边；光标画在对应的字前面
+    do {
+        let tv = makeView("前文\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n后文\n")
+        tv.textContainerInset = NSSize(width: 60, height: 20)
+        let lm = tv.layoutManager!, c = tv.textContainer!
+        lm.ensureLayout(for: c)
+        let ns = tv.string as NSString
+        let table = (lm as! RichLayoutManager).tableRange(around: ns.range(of: "a"), in: tv.textStorage!)!
+        tv.sourceCursorRange = table
+        let box = tv.markRect()!
+        var cells = NSRect.null
+        var i = table.location
+        while i < NSMaxRange(table) {
+            let para = ns.paragraphRange(for: NSRange(location: i, length: 0))
+            let b = (tv.textStorage!.attribute(.paragraphStyle, at: i, effectiveRange: nil) as! NSParagraphStyle).textBlocks.first!
+            cells = cells.union(lm.boundsRect(for: b, glyphRange: lm.glyphRange(forCharacterRange: para, actualCharacterRange: nil)))
+            i = NSMaxRange(para)
+        }
+        check("位置标记：表格的框包住整张表", "\(abs(box.minY - (cells.minY + tv.textContainerOrigin.y)) < 0.5 && abs(box.maxY - (cells.maxY + tv.textContainerOrigin.y)) < 0.5)", "true")
+        check("位置标记：侧边线在文字栏左边", "\(tv.markBarRect()!.maxX < tv.textContainerOrigin.x)", "true")
+        tv.sourceCursorRange = ns.range(of: "后文")
+        tv.sourceCaretLocation = ns.range(of: "文").location
+        let caret = tv.markCaretRect()!
+        let glyph = lm.glyphIndexForCharacter(at: ns.range(of: "文").location)
+        let x = lm.location(forGlyphAt: glyph).x + lm.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil).minX + tv.textContainerOrigin.x
+        check("位置标记：光标在对应的字前面", "\(abs(caret.midX - x) < 1.5)", "true")
+    }
     // 重画碰到表格的一小块时，整张表格一起重画（只画几格时边框会断）
     do {
         let tv = makeView("前文\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n后文\n")

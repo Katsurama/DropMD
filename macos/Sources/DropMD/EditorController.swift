@@ -369,6 +369,7 @@ final class EditorController: ObservableObject {
         guard !isRichMode, let tv = textView, tv.window?.firstResponder === tv, let rich = richView else { return }
         clearSourceMark()   // 回到左边编辑了：左边不用再标
         let line = Self.lineNumber(in: tv.string as NSString, at: tv.selectedRange().location)
+        rich.sourceCaretLocation = richCaretLocation(at: tv.selectedRange().location, line: line)
         guard line != lastCursorLine else { return }
         lastCursorLine = line
         guard let (_, range) = richRange(forLine: line) else { rich.sourceCursorRange = nil; return }
@@ -384,6 +385,24 @@ final class EditorController: ObservableObject {
         rich.scroll(NSPoint(x: 0, y: max(0, rect.minY - rich.visibleRect.height * ratio)))
     }
     private var lastCursorLine = -1
+
+    /// 左边原文第 location 个字在右边大约对应的位置：把这一块从开头到光标的原文单独排一遍，看排出来有多少字。
+    /// 原文里的 ** []() 等符号右边没有，按这样算普通文字是准的；光标在符号中间时落在最近的字旁边
+    func richCaretLocation(at location: Int, line: Int) -> Int? {
+        guard let tv = textView, let (entry, range) = richRange(forLine: line) else { return nil }
+        let map = currentLineMap()
+        guard entry < map.count else { return nil }
+        let ns = tv.string as NSString
+        let start = Self.lineStart(map[entry].line, in: ns)
+        guard location >= start else { return range.location }
+        let prefix = ns.substring(with: NSRange(location: start, length: location - start))
+        var rendered = RichBridge.attributed(markdown: prefix, baseURL: nil).string
+        while rendered.hasSuffix("\n") { rendered.removeLast() }
+        // 光标在一行开头（前面是换行）：排出来的字后面本来就有分段
+        let extra = prefix.hasSuffix("\n") && !rendered.isEmpty ? 1 : 0
+        let offset = (rendered as NSString).length + extra
+        return min(range.location + offset, NSMaxRange(range) - 1)
+    }
 
     /// 第 index 个字在第几行（从 0 开始）
     static func lineNumber(in ns: NSString, at index: Int) -> Int {
