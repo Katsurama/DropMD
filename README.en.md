@@ -14,7 +14,7 @@ It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all o
 
 <br>
 
-📦 [**Install**](#-install) &nbsp;·&nbsp; ✨ [Features](#-features) &nbsp;·&nbsp; 🔄 [File conversion](#-file-conversion) &nbsp;·&nbsp; 🔒 [Privacy](#-privacy) &nbsp;·&nbsp; 🛠️ [Build from source](#️-build-from-source) &nbsp;·&nbsp; 📖 [User Guide](docs/User%20Guide.md) &nbsp;·&nbsp; 💬 [Discord](https://discord.gg/VUne62RvrJ)
+📦 [**Install**](#-install) &nbsp;·&nbsp; ✨ [Features](#-features) &nbsp;·&nbsp; 🔄 [File conversion](#-file-conversion) &nbsp;·&nbsp; 🔒 [Privacy](#-privacy) &nbsp;·&nbsp; 🛠️ [Build from source](#️-build-from-source) &nbsp;·&nbsp; 📖 [User Guide](docs/User%20Guide.md) &nbsp;·&nbsp; 💬 [Community](#-community)
 
 <br>
 
@@ -143,6 +143,13 @@ docs/                  User guides, release notes, dependency list
 The Swift interface hands conversions to the local engine inside the app (a child process that exchanges JSON over standard input and output). For dependencies and versions, see the [dependency list](docs/依赖清单.md) (in Chinese).
 
 </details>
+
+## 💬 Community
+
+<div align="center">
+<p>Join the beta, report problems, and chat with other users</p>
+<p><a href="https://discord.gg/VUne62RvrJ"><img src="https://img.shields.io/badge/Discord-Join%20the%20chat-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord: join the chat"></a></p>
+</div>
 
 ## ☕ Support
 

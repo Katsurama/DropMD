@@ -156,8 +156,7 @@ Swift 界面把转换任务交给 App 里的本机引擎（子进程，通过标
 <div align="center">
 <p>参与测试、反馈问题与交流</p>
 <p><a href="https://qun.qq.com/universal-share/share?ac=1&authKey=mbUgS60nnSzR2inccSoO%2BM4r%2BNMmccWLqCLkRWF%2F3aaEx%2FCX30Fizgha%2Fo6qaAvV&busi_data=eyJncm91cENvZGUiOiIxMTI1ODkzNTA0IiwidG9rZW4iOiJkQ1NySUpoeCtmTUlrV3JUWUN5SFZqNU5wZllLa2lFLzFrUjZMKzdnaXV0eUM1R001ZzMzb1ZFOXNTbFNudFVPIiwidWluIjoiMzI0MzY3NzM1MiJ9&data=AJTczm17mcBKqj3VXo3mcTEzkLtb9_ozC8vIN86Zcm8p_2cQJ63-BoTHLDlRXXAZ9OTuDjY1Rqekn1E_zbQZfA&svctype=4&tempid=h5_group_info"><img src="docs/images/qq-group-qr.png" width="150" alt="DropMD 交流群二维码"></a></p>
-<p><b>QQ 群</b>　1125893504　<a href="https://qun.qq.com/universal-share/share?ac=1&authKey=mbUgS60nnSzR2inccSoO%2BM4r%2BNMmccWLqCLkRWF%2F3aaEx%2FCX30Fizgha%2Fo6qaAvV&busi_data=eyJncm91cENvZGUiOiIxMTI1ODkzNTA0IiwidG9rZW4iOiJkQ1NySUpoeCtmTUlrV3JUWUN5SFZqNU5wZllLa2lFLzFrUjZMKzdnaXV0eUM1R001ZzMzb1ZFOXNTbFNudFVPIiwidWluIjoiMzI0MzY3NzM1MiJ9&data=AJTczm17mcBKqj3VXo3mcTEzkLtb9_ozC8vIN86Zcm8p_2cQJ63-BoTHLDlRXXAZ9OTuDjY1Rqekn1E_zbQZfA&svctype=4&tempid=h5_group_info">点链接加入</a><br>
-<b>Discord</b>　<a href="https://discord.gg/VUne62RvrJ">discord.gg/VUne62RvrJ</a></p>
+<p><a href="https://qun.qq.com/universal-share/share?ac=1&authKey=mbUgS60nnSzR2inccSoO%2BM4r%2BNMmccWLqCLkRWF%2F3aaEx%2FCX30Fizgha%2Fo6qaAvV&busi_data=eyJncm91cENvZGUiOiIxMTI1ODkzNTA0IiwidG9rZW4iOiJkQ1NySUpoeCtmTUlrV3JUWUN5SFZqNU5wZllLa2lFLzFrUjZMKzdnaXV0eUM1R001ZzMzb1ZFOXNTbFNudFVPIiwidWluIjoiMzI0MzY3NzM1MiJ9&data=AJTczm17mcBKqj3VXo3mcTEzkLtb9_ozC8vIN86Zcm8p_2cQJ63-BoTHLDlRXXAZ9OTuDjY1Rqekn1E_zbQZfA&svctype=4&tempid=h5_group_info"><img src="https://img.shields.io/badge/QQ%20%E7%BE%A4-1125893504-12B7F5?style=for-the-badge&logo=qq&logoColor=white" alt="QQ 群 1125893504"></a> &nbsp; <a href="https://discord.gg/VUne62RvrJ"><img src="https://img.shields.io/badge/Discord-%E5%8A%A0%E5%85%A5%E4%BA%A4%E6%B5%81-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord 加入交流"></a></p>
 </div>
 
 ## ☕ 支持作者
