@@ -131,6 +131,18 @@ struct PageMarginMenu: View {
     }
 }
 
+/// 设置里“点击链接时”怎么做
+struct LinkClickPicker: View {
+    @AppStorage("linkClickAction") private var action = LinkClickAction.confirm.rawValue
+
+    var body: some View {
+        Picker("点击链接时", selection: $action) {
+            ForEach(LinkClickAction.allCases) { Text($0.title).tag($0.rawValue) }
+        }
+        .pickerStyle(.radioGroup)
+    }
+}
+
 /// 菜单“显示”和设置里的双页位置标记：上面是开关，下面是样式（关掉时样式不能选）
 struct SourceMarkMenu: View {
     @AppStorage("showSourceMark") private var isOn = true

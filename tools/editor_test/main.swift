@@ -1036,6 +1036,28 @@ MainActor.assumeIsolated {
         let x = lm.location(forGlyphAt: glyph).x + lm.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil).minX + tv.textContainerOrigin.x
         check("位置标记：光标在对应的字前面", "\(abs(caret.midX - x) < 1.5)", "true")
     }
+    // 链接指向哪里：网页、本机 Markdown、其他文件、找不到、不支持、文内跳转
+    do {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("linktest-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? "x".write(to: dir.appendingPathComponent("另一篇.md"), atomically: true, encoding: .utf8)
+        try? "x".write(to: dir.appendingPathComponent("图 1.png"), atomically: true, encoding: .utf8)
+        let base = dir.appendingPathComponent("当前.md")
+        func kind(_ t: LinkTarget) -> String {
+            switch t { case .web: return "web"; case .markdown: return "md"; case .file: return "file"
+            case .missing: return "missing"; case .unsupported: return "unsupported"; case .anchor: return "anchor" }
+        }
+        check("链接：网页", kind(LinkTarget.resolve("https://example.com", baseURL: base)), "web")
+        check("链接：邮件", kind(LinkTarget.resolve("mailto:a@example.com", baseURL: base)), "web")
+        check("链接：本机 Markdown", kind(LinkTarget.resolve("另一篇.md", baseURL: base)), "md")
+        check("链接：本机其他文件（含空格编码）", kind(LinkTarget.resolve("图%201.png", baseURL: base)), "file")
+        check("链接：文件不存在", kind(LinkTarget.resolve("不存在.md", baseURL: base)), "missing")
+        check("链接：没保存的文档里的相对路径", kind(LinkTarget.resolve("另一篇.md", baseURL: nil)), "missing")
+        check("链接：不支持的写法", kind(LinkTarget.resolve("javascript:alert(1)", baseURL: base)), "unsupported")
+        check("链接：文内跳转", kind(LinkTarget.resolve("#标题", baseURL: base)), "anchor")
+        check("链接：确认窗口显示文件名", LinkTarget.resolve("另一篇.md", baseURL: base).display, "另一篇.md")
+        try? FileManager.default.removeItem(at: dir)
+    }
     // 重画碰到表格的一小块时，整张表格一起重画（只画几格时边框会断）
     do {
         let tv = makeView("前文\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n后文\n")

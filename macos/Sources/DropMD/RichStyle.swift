@@ -67,6 +67,61 @@ enum PageMargin: String, CaseIterable, Identifiable {
     }
 }
 
+/// 单击链接时怎么做（设置“通用 → 链接”）
+enum LinkClickAction: String, CaseIterable, Identifiable {
+    case open, confirm, command
+    var id: String { rawValue }
+
+    static var current: LinkClickAction { LinkClickAction(rawValue: UserDefaults.standard.string(forKey: "linkClickAction") ?? "") ?? .confirm }
+
+    var title: String {
+        switch self {
+        case .open: return String(localized: "直接打开")
+        case .confirm: return String(localized: "先确认再打开")
+        case .command: return String(localized: "按住 ⌘ 点击才打开")
+        }
+    }
+}
+
+/// 链接指向哪里：网页用浏览器、本机 Markdown 用 DropMD、其他文件在访达中显示；找不到、打不开的要告诉用户
+enum LinkTarget: Equatable {
+    case web(URL)              // http、https、mailto
+    case markdown(URL)         // 本机的 .md
+    case file(URL)             // 本机的其他文件或文件夹
+    case missing(String)       // 本机文件不存在（显示的路径）
+    case unsupported(String)   // 其他写法（javascript: 等），不打开
+    case anchor                // 文内跳转 #标题，不处理
+
+    static func resolve(_ link: Any, baseURL: URL?) -> LinkTarget {
+        let text = (link as? URL)?.absoluteString ?? (link as? String) ?? ""
+        if text.hasPrefix("#") { return .anchor }
+        let scheme = text.range(of: "^[A-Za-z][A-Za-z0-9+.-]*:", options: .regularExpression).map { text[$0].dropLast().lowercased() }
+        if scheme == nil || scheme == "file" {
+            // 本机路径：去掉 #位置 和 ?参数，再把 %20 这类编码还原（不经过 URL，否则中文路径会被再编码一次）
+            var path = scheme == "file" ? (URL(string: text)?.path ?? "") : String(text.split(separator: "#", omittingEmptySubsequences: false)[0])
+            if scheme == nil { path = String(path.split(separator: "?", omittingEmptySubsequences: false)[0]) }
+            path = path.removingPercentEncoding ?? path
+            // 没保存过的文档（没有所在文件夹）里的相对路径找不到
+            guard path.hasPrefix("/") || baseURL != nil else { return .missing(path) }
+            let target = path.hasPrefix("/") ? URL(fileURLWithPath: path) : URL(fileURLWithPath: path, relativeTo: baseURL)
+            guard FileManager.default.fileExists(atPath: target.path) else { return .missing(path) }
+            return ["md", "markdown", "mdown"].contains(target.pathExtension.lowercased()) ? .markdown(target) : .file(target)
+        }
+        guard ["http", "https", "mailto"].contains(scheme ?? ""), let url = (link as? URL) ?? URL(string: text) else { return .unsupported(text) }
+        return .web(url)
+    }
+
+    /// 确认窗口里显示的文字：网页显示网址，文件显示文件名
+    var display: String {
+        switch self {
+        case .web(let u): return u.absoluteString
+        case .markdown(let u), .file(let u): return u.lastPathComponent
+        case .missing(let s), .unsupported(let s): return s
+        case .anchor: return ""
+        }
+    }
+}
+
 /// 双页：右边标出左边原文光标位置的样式
 enum SourceMarkStyle: String, CaseIterable, Identifiable {
     case box, bar, caret
