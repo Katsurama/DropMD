@@ -980,6 +980,35 @@ MainActor.assumeIsolated {
         tv.deleteBackward(nil)
         check("表格：只有一格时选中字只删字", md(tv), "|  |\n| --- |\n")
     }
+    // 删行：选中整行按退格；空行第一格按退格
+    do {
+        let src = "| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n| 5 | 6 |\n\n后文\n"
+        @MainActor func sel(_ v: RichTextView, _ from: String, _ to: String) {
+            let ns = v.string as NSString
+            let a = ns.range(of: from).location, b = NSMaxRange(ns.range(of: to))
+            v.setSelectedRange(NSRange(location: a, length: b - a))
+        }
+        var tv = makeView(src)
+        sel(tv, "3", "4"); tv.deleteBackward(nil); type(tv, "X")
+        check("表格：选中整行退格删掉这一行", md(tv), "| a | b |\n| --- | --- |\n| 1 | 2 |\n| X5 | 6 |\n\n后文\n")
+        tv = makeView(src)
+        sel(tv, "1", "4"); tv.deleteBackward(nil)
+        check("表格：选中两行退格删掉两行", md(tv), "| a | b |\n| --- | --- |\n| 5 | 6 |\n\n后文\n")
+        tv = makeView(src)
+        sel(tv, "5", "6"); tv.deleteBackward(nil); type(tv, "X")
+        check("表格：删掉最后一行，光标到上一行", md(tv), "| a | b |\n| --- | --- |\n| 1 | 2 |\n| X3 | 4 |\n\n后文\n")
+        tv = makeView(src)
+        sel(tv, "4", "6"); tv.deleteBackward(nil)
+        check("表格：没从第一格选起只清空", md(tv), "| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 |  |\n|  |  |\n\n后文\n")
+        tv = makeView(src)
+        sel(tv, "a", "2"); tv.deleteBackward(nil)
+        check("表格：选到表头就删整张表", md(tv), "后文\n")
+        tv = makeView("| a | b |\n| --- | --- |\n| 1 | 2 |\n|  |  |\n\n后文\n")
+        let ns = tv.string as NSString
+        tv.setSelectedRange(NSRange(location: NSMaxRange(ns.range(of: "2")) + 1, length: 0))
+        tv.deleteBackward(nil); type(tv, "X")
+        check("表格：空行第一格退格删掉这一行", md(tv), "| a | b |\n| --- | --- |\n| 1 | 2X |\n\n后文\n")
+    }
     // 重画碰到表格的一小块时，整张表格一起重画（只画几格时边框会断）
     do {
         let tv = makeView("前文\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n后文\n")

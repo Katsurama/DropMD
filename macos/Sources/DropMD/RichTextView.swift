@@ -2071,6 +2071,17 @@ final class RichTextView: NSTextView {
            NSMaxRange(paragraphRange(at: NSMaxRange(sel) - 1)) == NSMaxRange(t) {
             sel = t
         }
+        // 从某一行的第一格选到某一行的最后一格：删掉这几行（选到了表头就删整张表，Markdown 表格不能没有表头）
+        if let t = startTable, t == endTable, sel != t, (storage.string as NSString).substring(with: sel).contains("\n"),
+           let first = cell(at: sel.location), let last = cell(at: NSMaxRange(sel) - 1),
+           first.startingColumn == 0, last.startingColumn == last.table.numberOfColumns - 1, last.startingRow >= first.startingRow {
+            if first.startingRow == 0 {
+                sel = t
+            } else {
+                deleteTableRows(first.startingRow...last.startingRow, at: sel.location)
+                return true
+            }
+        }
         if let t = startTable, t == endTable, NSUnionRange(t, sel) == t, sel != t {
             let picked = storage.attributedSubstring(from: sel)
             guard picked.string.contains("\n") else { return false }   // 只在一格里：照常删
@@ -2093,7 +2104,53 @@ final class RichTextView: NSTextView {
         return true
     }
 
-    /// 光标在格子开头按退格：表格全空时删掉整张表；否则跳到上一格末尾（第一格不动），不把两格并在一起。
+    /// 表格第 row 行的格子都是空的
+    private func rowIsEmpty(_ row: Int, in table: NSRange) -> Bool {
+        guard let storage = textStorage else { return false }
+        var i = table.location
+        while i < NSMaxRange(table) {
+            let para = paragraphRange(at: i)
+            if let b = cell(at: i), b.startingRow == row,
+               !(storage.string as NSString).substring(with: para).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return false }
+            i = NSMaxRange(para)
+        }
+        return true
+    }
+
+    /// 删掉表格里的几行（不含表头），光标放到原来下面那一行的第一格；后面没有行了就放到上一行
+    private func deleteTableRows(_ rows: ClosedRange<Int>, at location: Int) {
+        setSelectedRange(NSRange(location: location, length: 0))
+        guard tableContext() != nil, rows.lowerBound > 0 else { return }
+        var total = 0
+        rewriteTable(caretRow: 0) { lines in
+            for r in rows.reversed() where r + 1 < lines.count { lines.remove(at: r + 1) }
+            total = lines.count - 2   // 剩下的行数（不含表头）
+        }
+        let target = min(rows.lowerBound, total)
+        moveCaret(toRow: target)
+    }
+
+    /// 光标移到表格（光标所在的那张）第 row 行第一格
+    private func moveCaret(toRow row: Int, lastCellEnd: Bool = false) {
+        guard let storage = textStorage, let lm = layoutManager as? RichLayoutManager,
+              let table = lm.tableRange(around: NSRange(location: selectedRange().location, length: 0), in: storage) else { return }
+        var target: NSRange?
+        var i = table.location
+        while i < NSMaxRange(table) {
+            let para = paragraphRange(at: i)
+            if let b = cell(at: i), b.startingRow == row {
+                if target == nil || lastCellEnd { target = para }
+                if !lastCellEnd { break }
+            }
+            i = NSMaxRange(para)
+        }
+        guard let target else { return }
+        setSelectedRange(NSRange(location: lastCellEnd ? max(NSMaxRange(target) - 1, target.location) : target.location, length: 0))
+        refreshTypingAttributes()
+    }
+
+    /// 光标在格子开头按退格：表格全空时删掉整张表；整行都空时删掉这一行（表头除外）；
+    /// 否则跳到上一格末尾（第一格不动），不把两格并在一起。
     /// 光标在表格下面一段的开头：第一下选中整张表格，再按一下删掉（不把这一段并进表格）。返回是否处理
     private func deleteBackwardAtTable(_ location: Int) -> Bool {
         guard let storage = textStorage, let lm = layoutManager as? RichLayoutManager, location > 0 || cell(at: location) != nil else { return false }
@@ -2104,6 +2161,10 @@ final class RichTextView: NSTextView {
             if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, location == table.location {
                 replace(table, with: NSAttributedString(), caret: table.location)
                 refreshTypingAttributes()
+            } else if let here = cell(at: location), here.startingColumn == 0, here.startingRow > 0, rowIsEmpty(here.startingRow, in: table) {
+                let row = here.startingRow
+                deleteTableRows(row...row, at: location)
+                moveCaret(toRow: row - 1, lastCellEnd: true)
             } else if location > table.location {
                 setSelectedRange(NSRange(location: location - 1, length: 0))
                 refreshTypingAttributes()
@@ -2309,6 +2370,28 @@ final class RichTextView: NSTextView {
     }
 
     // MARK: - 表格：重画时整张表一起画（只重画几格时，边框线会被擦掉一截、补不回来）
+
+    /// 画之前先把要画到的表格整张排好：刚打开时系统只排到能看见的地方，一行里有的格子还没排，
+    /// 先画出来的格子高度不对，线就断开（操作一下整张表重画才好）
+    override func draw(_ dirtyRect: NSRect) {
+        if let lm = layoutManager as? RichLayoutManager, let container = textContainer, let storage = textStorage, storage.length > 0 {
+            let origin = textContainerOrigin
+            let glyphs = lm.glyphRange(forBoundingRect: dirtyRect.offsetBy(dx: -origin.x, dy: -origin.y), in: container)
+            if glyphs.length > 0 {
+                let chars = lm.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+                var i = chars.location
+                while i < NSMaxRange(chars) {
+                    if let table = lm.tableRange(around: NSRange(location: i, length: 0), in: storage) {
+                        lm.ensureLayout(forCharacterRange: table)
+                        i = NSMaxRange(table)
+                    } else {
+                        i = NSMaxRange((storage.string as NSString).paragraphRange(for: NSRange(location: i, length: 0)))
+                    }
+                }
+            }
+        }
+        super.draw(dirtyRect)
+    }
 
     private var expandingRedraw = false
 
