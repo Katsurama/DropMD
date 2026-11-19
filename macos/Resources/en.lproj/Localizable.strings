@@ -397,3 +397,9 @@
 "编辑替代文本" = "Edit Alt Text";
 "图片无法显示时显示此文本，读屏软件也会朗读。" = "Shown when the image can’t be displayed and read aloud by screen readers.";
 "转换为引用" = "Convert to Quote";
+"侧边线" = "Side Bar";
+"光标" = "Cursor";
+"在左边原文里移动光标时，右边标出对应的位置。" = "When you move the cursor in the source on the left, the matching position is marked on the right.";
+"显示对应位置标记" = "Show Matching Position";
+"标记样式" = "Marker Style";
+"边框" = "Border";

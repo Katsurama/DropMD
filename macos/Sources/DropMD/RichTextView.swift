@@ -596,7 +596,7 @@ final class RichTextView: NSTextView {
         super.viewDidMoveToWindow()
         guard marginObserver == nil, window != nil else { return }
         marginObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.needsLayout = true }
+            MainActor.assumeIsolated { self?.needsLayout = true; self?.needsDisplay = true; self?.updateBlink() }
         }
     }
 
@@ -652,20 +652,88 @@ final class RichTextView: NSTextView {
         // 不画纸张（纸张在中间像一个方块）
         RichStyle.paperColor.setFill()
         rect.fill()
-        // 双页：左边原文光标所在的那一段，用靛蓝色的圆角框标出（不用竖线，免得和引用、提示框的竖线混在一起）
-        if let box = markRect(), box.intersects(rect.insetBy(dx: -10, dy: -10)) {
-            let path = NSBezierPath(roundedRect: box.insetBy(dx: -8, dy: -4), xRadius: 6, yRadius: 6)
-            RichStyle.markColor.withAlphaComponent(0.07).setFill()
-            path.fill()
-            RichStyle.markColor.withAlphaComponent(0.55).setStroke()
-            path.lineWidth = 1.5
-            path.stroke()
+        // 双页：标出左边原文光标的位置（设置里可关掉、可选样式）
+        guard SourceMarkStyle.isOn else { return }
+        switch SourceMarkStyle.current {
+        case .box:
+            if let box = markRect(), box.intersects(rect.insetBy(dx: -10, dy: -10)) {
+                let path = NSBezierPath(roundedRect: box.insetBy(dx: -8, dy: -4), xRadius: 6, yRadius: 6)
+                RichStyle.markColor.withAlphaComponent(0.07).setFill()
+                path.fill()
+                RichStyle.markColor.withAlphaComponent(0.55).setStroke()
+                path.lineWidth = 1.5
+                path.stroke()
+            }
+        case .bar:
+            if let bar = markBarRect(), bar.intersects(rect) {
+                RichStyle.markColor.withAlphaComponent(0.8).setFill()
+                NSBezierPath(roundedRect: bar, xRadius: 1.5, yRadius: 1.5).fill()
+            }
+        case .caret:
+            if caretBlinkOn, let caret = markCaretRect(), caret.intersects(rect) {
+                RichStyle.markColor.setFill()
+                caret.fill()
+            }
         }
     }
 
     /// 双页：左边原文光标所在的那一段在这里的范围；右边自己在编辑时不画
     var sourceCursorRange: NSRange? {
         didSet { if sourceCursorRange != oldValue { needsDisplay = true } }
+    }
+
+    /// 双页：左边原文光标在这里大约对应的位置（“光标”样式用）
+    var sourceCaretLocation: Int? {
+        didSet {
+            guard sourceCaretLocation != oldValue else { return }
+            caretBlinkOn = true
+            needsDisplay = true
+            updateBlink()
+        }
+    }
+
+    private var caretBlinkOn = true
+    private var blinkTimer: Timer?
+
+    /// “光标”样式时让标记闪烁（和系统光标一样快）；不需要时停掉
+    private func updateBlink() {
+        let need = sourceCaretLocation != nil && SourceMarkStyle.isOn && SourceMarkStyle.current == .caret
+        if need, blinkTimer == nil {
+            blinkTimer = Timer.scheduledTimer(withTimeInterval: 0.53, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, let r = self.markCaretRect() else { return }
+                    self.caretBlinkOn.toggle()
+                    self.setNeedsDisplay(r.insetBy(dx: -2, dy: -2))
+                }
+            }
+        } else if !need {
+            blinkTimer?.invalidate()
+            blinkTimer = nil
+        }
+    }
+
+    /// 侧边线：画在文字栏左边的页边里，比引用、提示框的竖线和列表符号都靠左，不挡内容
+    func markBarRect() -> NSRect? {
+        guard let box = markRect() else { return nil }
+        let x = max(4, textContainerOrigin.x - 14)
+        return NSRect(x: x, y: box.minY, width: 3, height: box.height)
+    }
+
+    /// 光标：对应位置那个字前面的一条竖线，高度是那一行
+    func markCaretRect() -> NSRect? {
+        guard markRect() != nil, let loc = sourceCaretLocation, let lm = layoutManager, let tc = textContainer,
+              let length = textStorage?.length, length > 0 else { return nil }
+        let at = min(loc, length)
+        let glyph = lm.glyphIndexForCharacter(at: min(at, length - 1))
+        let line = lm.lineFragmentUsedRect(forGlyphAt: glyph, effectiveRange: nil)
+        var x = lm.location(forGlyphAt: glyph).x + lm.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil).minX
+        // 在最后一个字后面（段末）：放到那个字的右边
+        if at >= length || (string as NSString).character(at: at) == 0x0A, at > 0 {
+            let prev = lm.glyphIndexForCharacter(at: at - 1)
+            let r = lm.boundingRect(forGlyphRange: NSRange(location: prev, length: 1), in: tc)
+            if (string as NSString).character(at: at - 1) != 0x0A { x = r.maxX }
+        }
+        return NSRect(x: textContainerOrigin.x + x - 1, y: textContainerOrigin.y + line.minY, width: 2, height: line.height)
     }
 
     /// 标记的位置（文字区坐标）：横跨整个文字栏，高度是那一段
@@ -676,11 +744,23 @@ final class RichTextView: NSTextView {
         let r = NSRange(location: range.location, length: min(range.length, length - range.location))
         let glyphs = lm.glyphRange(forCharacterRange: r, actualCharacterRange: nil)
         guard glyphs.length > 0 else { return nil }
-        let first = lm.lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil)
-        let last = lm.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
+        var top = lm.lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil).minY
+        var bottom = lm.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil).maxY
+        // 表格：按格子的外框算（含边框和内边距），不按格子里文字的位置，否则框比表格小一圈、上下对不齐
+        var i = r.location
+        while i < NSMaxRange(r) {
+            let para = (string as NSString).paragraphRange(for: NSRange(location: i, length: 0))
+            if let block = cell(at: i) {
+                let g = lm.glyphRange(forCharacterRange: para, actualCharacterRange: nil)
+                let bounds = lm.boundsRect(for: block, glyphRange: g)
+                top = min(top, bounds.minY)
+                bottom = max(bottom, bounds.maxY)
+            }
+            i = NSMaxRange(para)
+        }
         let pad = tc.lineFragmentPadding
-        return NSRect(x: textContainerOrigin.x + pad, y: textContainerOrigin.y + first.minY,
-                      width: tc.size.width - pad * 2, height: last.maxY - first.minY)
+        return NSRect(x: textContainerOrigin.x + pad, y: textContainerOrigin.y + top,
+                      width: tc.size.width - pad * 2, height: bottom - top)
     }
 
     /// 将要成为焦点时调用（在接收打字之前）：双页里先把等着做的重排做完，免得在旧内容上打字、冲掉左边刚改的字
@@ -2354,9 +2434,14 @@ final class RichTextView: NSTextView {
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
         let point = convert(event.locationInWindow, from: nil)
-        if clickTarget(at: point) != nil { NSCursor.pointingHand.set() }
-        else if columnBoundary(at: point) != nil { NSCursor.resizeLeftRight.set() }
         updateCopyButton(at: point)
+        if clickTarget(at: point) != nil || overCopyButton(point) { NSCursor.pointingHand.set() }
+        else if columnBoundary(at: point) != nil { NSCursor.resizeLeftRight.set() }
+    }
+
+    /// 鼠标在代码块的“复制”按钮上（按钮在编辑区里面，系统按编辑区显示 I 形指针，要自己改成手形）
+    private func overCopyButton(_ point: NSPoint) -> Bool {
+        !copyButton.isHidden && copyButton.frame.contains(point)
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -2548,7 +2633,7 @@ final class RichTextView: NSTextView {
 
     override func cursorUpdate(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        if clickTarget(at: point) != nil {
+        if clickTarget(at: point) != nil || overCopyButton(point) {
             NSCursor.pointingHand.set()
         } else if columnBoundary(at: point) != nil {
             NSCursor.resizeLeftRight.set()

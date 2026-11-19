@@ -67,6 +67,23 @@ enum PageMargin: String, CaseIterable, Identifiable {
     }
 }
 
+/// 双页：右边标出左边原文光标位置的样式
+enum SourceMarkStyle: String, CaseIterable, Identifiable {
+    case box, bar, caret
+    var id: String { rawValue }
+
+    static var isOn: Bool { UserDefaults.standard.object(forKey: "showSourceMark") as? Bool ?? true }
+    static var current: SourceMarkStyle { SourceMarkStyle(rawValue: UserDefaults.standard.string(forKey: "sourceMarkStyle") ?? "") ?? .box }
+
+    var title: String {
+        switch self {
+        case .box: return String(localized: "边框")
+        case .bar: return String(localized: "侧边线")
+        case .caret: return String(localized: "光标")
+        }
+    }
+}
+
 /// 段落样式
 enum RichKind: Equatable {
     case body
