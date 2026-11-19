@@ -62,6 +62,22 @@ func releaseNotes(_ body: String, language: String) -> String {
         .trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
+/// 更新窗口里显示的说明：标题（## ）改成粗体一行、列表（- 、* ）改成“•”，其他行内写法（粗体、链接）照常显示
+func releaseNotesForDisplay(_ notes: String) -> String {
+    notes.components(separatedBy: "\n").map { line -> String in
+        let t = line.trimmingCharacters(in: .whitespaces)
+        if let r = t.range(of: "^#{1,6} +", options: .regularExpression) {
+            let title = t[r.upperBound...].trimmingCharacters(in: .whitespaces)
+            return title.isEmpty ? "" : "**\(title)**"
+        }
+        if let r = line.range(of: "^ *[-*+] +", options: .regularExpression) {
+            let indent = String(repeating: "    ", count: line.prefix { $0 == " " }.count / 2)
+            return indent + "•  " + line[r.upperBound...]
+        }
+        return line
+    }.joined(separator: "\n")
+}
+
 struct ReleaseInfo: Decodable, Identifiable {
     struct Asset: Decodable {
         let name: String

@@ -38,9 +38,7 @@ struct UpdateView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(24)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // 窗口高度始终等于内容高度：内容变化（如发现新版本）时窗口跟着变大，不用手动拉
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var busy: Bool {
@@ -93,13 +91,15 @@ struct UpdateView: View {
                 Button("在浏览器中查看") { NSWorkspace.shared.open(release.htmlUrl) }
                     .buttonStyle(.link)
             }
+            // 说明占满页面剩下的高度；再长也只在这一框里滚动，下面的按钮和开关不动
             ScrollView {
                 Text(notes(release))
+                    .lineSpacing(3)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
-                    .padding(10)
+                    .padding(12)
             }
-            .frame(height: 140)
+            .frame(minHeight: 140, maxHeight: .infinity)
             .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
 
             switch updater.state {
@@ -146,7 +146,7 @@ struct UpdateView: View {
     private func notes(_ release: ReleaseInfo) -> AttributedString {
         let ui = Bundle.main.preferredLocalizations.first ?? ""
         let lang = ui.hasPrefix("zh-Hant") ? "zh-Hant" : ui.hasPrefix("zh") ? "zh" : ui.hasPrefix("ja") ? "ja" : "en"
-        let body = release.body.map { releaseNotes($0, language: lang) } ?? String(localized: "（没有更新说明）")
+        let body = release.body.map { releaseNotesForDisplay(releaseNotes($0, language: lang)) } ?? String(localized: "（没有更新说明）")
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         return (try? AttributedString(markdown: body, options: options)) ?? AttributedString(body)
     }
