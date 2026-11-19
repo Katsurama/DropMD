@@ -163,6 +163,12 @@ If it helps you, your support keeps the updates coming ❤️
 
 ---
 
+### 💖 Sponsors
+
+**Special thanks**: your name could be here
+
+**Thanks list**: be the first supporter ☕
+
 ## 📄 License
 
 [MIT](LICENSE) © 2026 DropMD contributors. Third-party licenses are in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md), and in the app under **Help → Open Source Licenses**.
