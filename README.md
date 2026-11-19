@@ -10,7 +10,7 @@
 
 还能把 Word、Excel、PowerPoint、PDF 等文件转换为 Markdown，全部在本机完成
 
-[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-安装) [![版本](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.6.0-0a84ff?style=flat-square)](docs/发行说明.md) [![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-3b82f6?style=flat-square)](LICENSE) [![爱发电](https://img.shields.io/badge/%E7%88%B1%E5%8F%91%E7%94%B5-%E6%94%AF%E6%8C%81%E4%BD%9C%E8%80%85-946ce6?style=flat-square)](https://afdian.com/a/katsurama) [![Discord](https://img.shields.io/badge/Discord-%E5%8A%A0%E5%85%A5%E4%BA%A4%E6%B5%81-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/VUne62RvrJ) [![QQ 群](https://img.shields.io/badge/QQ%20%E7%BE%A4-1125893504-12B7F5?style=flat-square&logo=qq&logoColor=white)](https://qun.qq.com/universal-share/share?ac=1&authKey=mbUgS60nnSzR2inccSoO%2BM4r%2BNMmccWLqCLkRWF%2F3aaEx%2FCX30Fizgha%2Fo6qaAvV&busi_data=eyJncm91cENvZGUiOiIxMTI1ODkzNTA0IiwidG9rZW4iOiJkQ1NySUpoeCtmTUlrV3JUWUN5SFZqNU5wZllLa2lFLzFrUjZMKzdnaXV0eUM1R001ZzMzb1ZFOXNTbFNudFVPIiwidWluIjoiMzI0MzY3NzM1MiJ9&data=AJTczm17mcBKqj3VXo3mcTEzkLtb9_ozC8vIN86Zcm8p_2cQJ63-BoTHLDlRXXAZ9OTuDjY1Rqekn1E_zbQZfA&svctype=4&tempid=h5_group_info)
+[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-安装) [![版本](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-1.0.0-0a84ff?style=flat-square)](docs/发行说明.md) [![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-3b82f6?style=flat-square)](LICENSE) [![爱发电](https://img.shields.io/badge/%E7%88%B1%E5%8F%91%E7%94%B5-%E6%94%AF%E6%8C%81%E4%BD%9C%E8%80%85-946ce6?style=flat-square)](https://afdian.com/a/katsurama) [![Discord](https://img.shields.io/badge/Discord-%E5%8A%A0%E5%85%A5%E4%BA%A4%E6%B5%81-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/VUne62RvrJ) [![QQ 群](https://img.shields.io/badge/QQ%20%E7%BE%A4-1125893504-12B7F5?style=flat-square&logo=qq&logoColor=white)](https://qun.qq.com/universal-share/share?ac=1&authKey=mbUgS60nnSzR2inccSoO%2BM4r%2BNMmccWLqCLkRWF%2F3aaEx%2FCX30Fizgha%2Fo6qaAvV&busi_data=eyJncm91cENvZGUiOiIxMTI1ODkzNTA0IiwidG9rZW4iOiJkQ1NySUpoeCtmTUlrV3JUWUN5SFZqNU5wZllLa2lFLzFrUjZMKzdnaXV0eUM1R001ZzMzb1ZFOXNTbFNudFVPIiwidWluIjoiMzI0MzY3NzM1MiJ9&data=AJTczm17mcBKqj3VXo3mcTEzkLtb9_ozC8vIN86Zcm8p_2cQJ63-BoTHLDlRXXAZ9OTuDjY1Rqekn1E_zbQZfA&svctype=4&tempid=h5_group_info)
 
 <br>
 
@@ -37,12 +37,13 @@
 - **双页**：左边 Markdown 原文，右边是单页，两边都能直接改、实时同步；滚动一起走，右边会标出左边光标所在的那一段
 - **常用格式**：标题、粗体、斜体、下划线、删除线、高亮、列表、待办、表格、图片、链接、代码块
 - **更多格式**：提示框（`> [!NOTE]`）、折叠块、脚注、数学公式、上标 / 下标、键盘按键
+- **表格和右键菜单**：右键插入、删除行和列，设置对齐；拖动列边界调整列宽；右键菜单按点中的内容（链接、图片、代码块、提示框）给出常用操作
 - **界面语言**：简体中文、繁体中文、英文或日文，跟随系统，也可以在“设置”里单独选择
 - **中文输入法友好**：段首输入“－ ”“》 ”“1。 ”“【】 ”“＃ ”也能自动变成列表、引用、待办、标题
 - **原生 Mac 界面**：SwiftUI 开发，macOS 26 起使用 Liquid Glass，浅色 / 深色都有专门配色
 - **文件转换**：Word、Excel、PowerPoint、PDF 转成 Markdown；扫描版 PDF 可选 [Xiaomi-OCR-0](#-新接入xiaomi-ocr-0) 识别 🆕
 - **快速查看**：在访达里选中 .md 文件按空格，不用打开就能看到排版效果
-- **导出**：PDF、HTML；自动保存和版本历史
+- **导出和分享**：PDF、HTML，或用“分享”按钮通过隔空投送、邮件发送；自动保存和版本历史
 - **软件更新**：在 App 里检查新版本，下载后校验完整性，点“重新启动”即完成
 
 ## 📦 安装
