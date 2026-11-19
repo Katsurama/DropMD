@@ -99,13 +99,13 @@ sleeper.executableURL = URL(fileURLWithPath: "/bin/sleep")
 sleeper.arguments = ["30"]
 try! sleeper.run()
 try! AppUpdateInstaller.replaceAfterExit(pid: sleeper.processIdentifier, app: app, staged: staged, relaunch: false)
-Thread.sleep(forTimeInterval: 1.5)
+try await Task.sleep(nanoseconds: 1_500_000_000)
 check(version(of: app) == "1.0.0", "进程退出前不替换")
 sleeper.terminate()
 sleeper.waitUntilExit()
 var replaced = false
 for _ in 0..<20 where !replaced {
-    Thread.sleep(forTimeInterval: 0.5)
+    try await Task.sleep(nanoseconds: 500_000_000)
     replaced = version(of: app) == "2.0.0"
 }
 check(replaced, "进程退出后换成新版本")
@@ -118,6 +118,21 @@ check(newer("1.0.0", "1.0.0-beta.3"), "正式版比同号测试版新")
 check(newer("0.2.0-beta.1", "0.1.9"), "大版本号优先")
 check(AppVersion("v1.2")! == AppVersion("1.2.0")!, "v1.2 与 1.2.0 相同")
 check(AppVersion("abc") == nil, "无效版本号")
+
+// 选出要提示的新版本：默认只要正式版；勾了测试版才有 beta；版本号带 -beta 但漏标“预发布”也算测试版；草稿不要
+do {
+    func release(_ tag: String, pre: Bool = false, draft: Bool = false) -> ReleaseInfo {
+        let json = #"{"tag_name":"\#(tag)","prerelease":\#(pre),"draft":\#(draft),"html_url":"https://example.com","assets":[]}"#
+        let d = JSONDecoder()
+        d.keyDecodingStrategy = .convertFromSnakeCase
+        return try! d.decode(ReleaseInfo.self, from: Data(json.utf8))
+    }
+    let list = [release("v1.0.0"), release("v1.1.0-beta.1", pre: true), release("v1.1.0-beta.2"), release("v2.0.0", draft: true)]
+    check(ReleaseInfo.newest(list, includeBeta: false)?.tagName == "v1.0.0", "不要测试版时只提示正式版（漏标预发布的 beta 也不提示）")
+    check(ReleaseInfo.newest(list, includeBeta: true)?.tagName == "v1.1.0-beta.2", "要测试版时提示最新的 beta")
+    check(ReleaseInfo.newest(list + [release("v1.1.0")], includeBeta: true)?.tagName == "v1.1.0", "正式版出来后比同号 beta 优先")
+    check(release("v1.1.0-beta.2").isBeta && !release("v1.0.0").isBeta, "按版本号认出测试版")
+}
 
 // 更新说明只显示界面语言那一段
 let notes = "## DropMD 1.0\n\n**新功能**\n- 中文\n\n**English**\n- English\n\n**日本語**\n- 日本語\n\n---\n\n## DropMD 0.9\n\n- 旧中文\n\n**English**\n- old"
