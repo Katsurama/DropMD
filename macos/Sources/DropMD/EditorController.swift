@@ -103,8 +103,16 @@ final class EditorController: ObservableObject {
         }
         renderPreview()
     }
-    /// 当前是单页（true）还是双页（false）
-    var isRichMode = true
+    /// 当前是单页（true）还是双页（false）。切到单页时清掉双页的位置标记，
+    /// 否则单页失去焦点时（如弹出分享面板）会画出双页留下的框
+    var isRichMode = true {
+        didSet {
+            guard isRichMode != oldValue else { return }
+            richView?.sourceCursorRange = nil
+            richView?.sourceCaretLocation = nil
+            lastCursorLine = -1
+        }
+    }
 
     /// 格式命令作用在哪边：单页时是单页；双页时看光标在哪边（右边的单页编辑区也能直接改）
     private var rich: RichTextView? {
