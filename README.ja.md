@@ -16,7 +16,7 @@ Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換す�
 
 <br>
 
-📦 [**インストール**](#-インストール) &nbsp;·&nbsp; ✨ [機能](#-機能) &nbsp;·&nbsp; 🔄 [ファイル変換](#-ファイル変換) &nbsp;·&nbsp; 🔒 [プライバシー](#-プライバシー) &nbsp;·&nbsp; 🛠️ [ソースからビルド](#️-ソースからビルド) &nbsp;·&nbsp; 📖 [ユーザガイド（英語）](docs/User%20Guide.md) &nbsp;·&nbsp; 💬 [Discord](https://discord.gg/VUne62RvrJ)
+📦 [**インストール**](#-インストール) &nbsp;·&nbsp; ✨ [機能](#-機能) &nbsp;·&nbsp; 🔄 [ファイル変換](#-ファイル変換) &nbsp;·&nbsp; 🔒 [プライバシー](#-プライバシー) &nbsp;·&nbsp; 🛠️ [ソースからビルド](#️-ソースからビルド) &nbsp;·&nbsp; 📖 [ユーザガイド（英語）](docs/User%20Guide.md) &nbsp;·&nbsp; 💬 [コミュニティ](#-コミュニティ)
 
 <br>
 
@@ -157,6 +157,13 @@ docs/                  ユーザガイド、リリースノート、依存関係
 Swift のインターフェイスは、アプリ内のローカルエンジン（標準入出力で JSON をやり取りする子プロセス）に変換を任せます。依存関係とバージョンは[依存関係の一覧](docs/依赖清单.md)（中国語）を参照してください。
 
 </details>
+
+## 💬 コミュニティ
+
+<div align="center">
+<p>テストへの参加、不具合の報告、ユーザー同士の交流はこちら</p>
+<p><a href="https://discord.gg/VUne62RvrJ"><img src="https://img.shields.io/badge/Discord-%E5%8F%82%E5%8A%A0%E3%81%99%E3%82%8B-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord に参加する"></a></p>
+</div>
 
 ## ☕ 支援
 
