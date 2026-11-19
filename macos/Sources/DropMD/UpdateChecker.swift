@@ -258,8 +258,8 @@ final class UpdateChecker: ObservableObject {
     /// 下载安装包，校验 SHA-256 后准备好新版本，用户点击“重新启动”后替换。
     /// App 所在位置不能写入时（如没有权限），改为打开安装包，由用户拖到“应用程序”。
     func downloadLatest() {
-        let staged = Self.stagingURL
-        // 能自动替换时优先下载 zip；只能手动安装时下载 dmg
+        // 能自动替换时下载 zip；只能手动安装（或发布里没有 zip）时下载 dmg
+        let staged = latest?.zip != nil ? Self.stagingURL : nil
         guard let release = latest, let package = (staged != nil ? release.zip : nil) ?? release.dmg else {
             if let url = latest?.htmlUrl { NSWorkspace.shared.open(url) }
             return

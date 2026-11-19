@@ -37,7 +37,6 @@ final class Engine: @unchecked Sendable {
     }
 
     struct Status: Decodable, Sendable {
-        let version: String
         let pandoc: Bool
         let ocrEngines: [String]
         let defaultOcr: String

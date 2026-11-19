@@ -17,6 +17,7 @@ import subprocess
 import threading
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import unquote
 
 from .errors import ConversionError, tr
 from .paths import pandoc_path, resource_root
@@ -136,6 +137,21 @@ def _save_images(text: str, dst: Path) -> str:
     return _DATA_URI_IMG.sub(save, text)
 
 
+PANDOC_IMAGE = re.compile(r"image\d+\.[A-Za-z0-9]+")   # Pandoc 照 Word 里的名字导出：media/image1.png
+DOCLING_IMAGE = re.compile(r"image_\d{6}_[0-9a-f]+\.png")   # 高精度模式：image_000000_<哈希>.png
+
+
+def drop_unused_images(dst: Path, folder: str, text: str, ours: re.Pattern) -> None:
+    """重新转换后，删掉上次导出、新的 .md 已经不用的图片。只删本程序命名的，用户自己放的文件不动"""
+    d = dst.parent / folder
+    if not d.is_dir():
+        return
+    used = text + unquote(text)   # 高精度模式写的路径里中文会被编码
+    for p in d.rglob("*"):
+        if p.is_file() and ours.fullmatch(p.name) and p.relative_to(dst.parent).as_posix() not in used:
+            p.unlink()
+
+
 def convert_markitdown(src: Path, dst: Path) -> str:
     result = _markitdown().convert_local(str(src), keep_data_uris=True)
     text = (result.markdown or "").strip()
@@ -159,6 +175,7 @@ def convert_pandoc(src: Path, dst: Path) -> str:
         raise ConversionError(tr("找不到 Pandoc 组件，请改用 MarkItDown 引擎。", "Pandoc can't be found. Use the MarkItDown engine instead.", "找不到 Pandoc 元件，請改用 MarkItDown 引擎。"))
     dst.parent.mkdir(parents=True, exist_ok=True)
     img_dir = images_dir_name(dst)
+    reconvert = dst.exists()   # .md 还不存在时，同名文件夹不是本程序建的，里面的文件一个都不动
     tmp_name = dst.name + ".part"
     args = [
         exe, str(src),
@@ -184,6 +201,8 @@ def convert_pandoc(src: Path, dst: Path) -> str:
     if fixed != text:
         tmp.write_text(fixed, encoding="utf-8", newline="\n")
     tmp.replace(dst)
+    if reconvert:
+        drop_unused_images(dst, img_dir, fixed, PANDOC_IMAGE)
     media = dst.parent / img_dir
     n = sum(1 for p in media.rglob("*") if p.is_file()) if media.is_dir() else 0
     return tr(f"Pandoc；导出 {n} 张图片", f"Pandoc; {n} images exported", f"Pandoc；輸出 {n} 張圖片") if n else "Pandoc"

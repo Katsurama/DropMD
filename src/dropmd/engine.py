@@ -3,7 +3,7 @@
 协议：标准输出只输出 JSON（每行一个对象），日志等其他输出一律重定向到标准错误。
 
   dropmd-engine --engine status [--formula] [--xiaomi]
-      → {"version", "pandoc", "ocr_engines", "default_ocr", "models_dir",
+      → {"pandoc", "ocr_engines", "default_ocr", "models_dir",
          "missing": [{"key","title","source","size_mb","repo_id","revision","folder","marker"}]}
       macOS 界面用这些信息通过系统网络（URLSession）自行下载模型。
 
@@ -38,13 +38,12 @@ class _Out:
 
 
 def _status(out: _Out, args: list[str]) -> int:
-    from . import __version__, hq, models
+    from . import hq, models
     from .model_manifest import FILES
     from .paths import models_dir, pandoc_path
 
     keys = models.required_components("--formula" in args, "--xiaomi" in args)
     out.send({
-        "version": __version__,
         "pandoc": bool(pandoc_path()),
         "ocr_engines": hq.available_ocr_engines(),
         "default_ocr": hq.default_ocr_engine(),

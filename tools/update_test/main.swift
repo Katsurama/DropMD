@@ -1,7 +1,7 @@
 import Foundation
 
 // 用假的 App（只有 Info.plist）测试 AppUpdateInstaller：
-// 1. 从 .zip / .dmg 取出新版本；2. 包名或版本不对时拒绝；3. 等进程退出后替换旧版本。
+// 1. 从 .zip 取出新版本；2. 包名或版本不对时拒绝；3. 等进程退出后替换旧版本。
 
 let work = URL(fileURLWithPath: CommandLine.arguments[1])
 let fm = FileManager.default
@@ -34,19 +34,6 @@ func version(of app: URL) -> String? {
     NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))?["CFBundleShortVersionString"] as? String
 }
 
-func makeDMG(id: String, version: String, name: String) -> URL {
-    let src = work.appendingPathComponent("src-\(name)")
-    makeApp(at: src.appendingPathComponent("DropMD.app"), id: id, version: version)
-    try? fm.createSymbolicLink(atPath: src.appendingPathComponent("应用程序").path, withDestinationPath: "/Applications")
-    let dmg = work.appendingPathComponent("\(name).dmg")
-    let p = Process()
-    p.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-    p.arguments = ["create", "-quiet", "-fs", "HFS+", "-format", "ULFO", "-volname", "DropMD", "-srcfolder", src.path, dmg.path]
-    try! p.run(); p.waitUntilExit()
-    precondition(p.terminationStatus == 0, "hdiutil create 失败")
-    return dmg
-}
-
 func makeZIP(id: String, version: String, name: String) -> URL {
     let src = work.appendingPathComponent("zipsrc-\(name)/DropMD.app")
     makeApp(at: src, id: id, version: version)
@@ -65,32 +52,21 @@ makeApp(at: app, id: id, version: "1.0.0")
 let staged = work.appendingPathComponent("Apps/.DropMD-update.app")
 
 // 包名不对：拒绝，不留下文件
-let wrong = makeDMG(id: "com.example.other", version: "2.0.0", name: "wrong")
-check((try? AppUpdateInstaller.stage(package: wrong, to: staged, bundleID: id, version: "2.0.0")) == nil
+let wrongZip = makeZIP(id: "com.example.other", version: "2.0.0", name: "wrong")
+check((try? AppUpdateInstaller.stage(package: wrongZip, to: staged, bundleID: id, version: "2.0.0")) == nil
       && !fm.fileExists(atPath: staged.path), "包名不对时拒绝")
 
 // 版本不对：拒绝
-let good = makeDMG(id: id, version: "2.0.0", name: "good")
+let good = makeZIP(id: id, version: "2.0.0", name: "good")
 check((try? AppUpdateInstaller.stage(package: good, to: staged, bundleID: id, version: "3.0.0")) == nil
       && !fm.fileExists(atPath: staged.path), "版本不对时拒绝")
 
-// zip：包名不对时拒绝，正常时取出新版本
-let wrongZip = makeZIP(id: "com.example.other", version: "2.0.0", name: "wrong")
-check((try? AppUpdateInstaller.stage(package: wrongZip, to: staged, bundleID: id, version: "2.0.0")) == nil
-      && !fm.fileExists(atPath: staged.path), "zip 包名不对时拒绝")
+// 正常：取出新版本
 do {
-    try AppUpdateInstaller.stage(package: makeZIP(id: id, version: "2.0.0", name: "good"), to: staged, bundleID: id, version: "2.0.0")
+    try AppUpdateInstaller.stage(package: good, to: staged, bundleID: id, version: "2.0.0")
     check(version(of: staged) == "2.0.0", "从 zip 取出新版本")
 } catch {
     check(false, "从 zip 取出新版本（\(error)）")
-}
-
-// 正常：从 dmg 取出新版本
-do {
-    try AppUpdateInstaller.stage(package: good, to: staged, bundleID: id, version: "2.0.0")
-    check(version(of: staged) == "2.0.0", "从 dmg 取出新版本")
-} catch {
-    check(false, "从 dmg 取出新版本（\(error)）")
 }
 
 // 等进程退出后替换
@@ -110,6 +86,20 @@ for _ in 0..<20 where !replaced {
 }
 check(replaced, "进程退出后换成新版本")
 check(!fm.fileExists(atPath: staged.path) && !fm.fileExists(atPath: app.path + ".old"), "替换后不留临时文件")
+
+// 替换失败（新版本不见了）：旧版本挪回原处，App 不会没了
+do {
+    let old = work.appendingPathComponent("Apps2/DropMD.app")
+    makeApp(at: old, id: id, version: "1.0.0")
+    let exited = Process()
+    exited.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+    try! exited.run()
+    exited.waitUntilExit()
+    try! AppUpdateInstaller.replaceAfterExit(pid: exited.processIdentifier, app: old,
+                                             staged: work.appendingPathComponent("Apps2/不存在.app"), relaunch: false)
+    try await Task.sleep(nanoseconds: 1_500_000_000)
+    check(version(of: old) == "1.0.0" && !fm.fileExists(atPath: old.path + ".old"), "替换失败时旧版本留在原处")
+}
 
 // 版本号比较：决定是否提示更新
 func newer(_ a: String, _ b: String) -> Bool { AppVersion(a)! > AppVersion(b)! }
