@@ -10,7 +10,7 @@
 
 还能把 Word、Excel、PowerPoint、PDF 等文件转换为 Markdown，全部在本机完成
 
-[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-安装) [![版本](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.6.0-0a84ff?style=flat-square)](docs/发行说明.md) [![界面](https://img.shields.io/badge/%E7%95%8C%E9%9D%A2-SwiftUI%20%C2%B7%20Liquid%20Glass-f05138?style=flat-square&logo=swift&logoColor=white)](macos) [![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-3b82f6?style=flat-square)](LICENSE) [![爱发电](https://img.shields.io/badge/%E7%88%B1%E5%8F%91%E7%94%B5-%E6%94%AF%E6%8C%81%E4%BD%9C%E8%80%85-946ce6?style=flat-square)](https://afdian.com/a/katsurama) [![Discord](https://img.shields.io/badge/Discord-%E5%8A%A0%E5%85%A5%E4%BA%A4%E6%B5%81-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/VUne62RvrJ) [![QQ 群](https://img.shields.io/badge/QQ%20%E7%BE%A4-1125893504-12B7F5?style=flat-square&logo=qq&logoColor=white)](https://qun.qq.com/universal-share/share?ac=1&authKey=mbUgS60nnSzR2inccSoO%2BM4r%2BNMmccWLqCLkRWF%2F3aaEx%2FCX30Fizgha%2Fo6qaAvV&busi_data=eyJncm91cENvZGUiOiIxMTI1ODkzNTA0IiwidG9rZW4iOiJkQ1NySUpoeCtmTUlrV3JUWUN5SFZqNU5wZllLa2lFLzFrUjZMKzdnaXV0eUM1R001ZzMzb1ZFOXNTbFNudFVPIiwidWluIjoiMzI0MzY3NzM1MiJ9&data=AJTczm17mcBKqj3VXo3mcTEzkLtb9_ozC8vIN86Zcm8p_2cQJ63-BoTHLDlRXXAZ9OTuDjY1Rqekn1E_zbQZfA&svctype=4&tempid=h5_group_info)
+[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-安装) [![版本](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.6.0-0a84ff?style=flat-square)](docs/发行说明.md) [![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-3b82f6?style=flat-square)](LICENSE)
 
 <br>
 
@@ -27,7 +27,7 @@
 </div>
 
 > [!NOTE]
-> 有问题请在 Issues 里反馈，或者来 [QQ 群](https://qun.qq.com/universal-share/share?ac=1&authKey=mbUgS60nnSzR2inccSoO%2BM4r%2BNMmccWLqCLkRWF%2F3aaEx%2FCX30Fizgha%2Fo6qaAvV&busi_data=eyJncm91cENvZGUiOiIxMTI1ODkzNTA0IiwidG9rZW4iOiJkQ1NySUpoeCtmTUlrV3JUWUN5SFZqNU5wZllLa2lFLzFrUjZMKzdnaXV0eUM1R001ZzMzb1ZFOXNTbFNudFVPIiwidWluIjoiMzI0MzY3NzM1MiJ9&data=AJTczm17mcBKqj3VXo3mcTEzkLtb9_ozC8vIN86Zcm8p_2cQJ63-BoTHLDlRXXAZ9OTuDjY1Rqekn1E_zbQZfA&svctype=4&tempid=h5_group_info) / [Discord](https://discord.gg/VUne62RvrJ) 聊聊天。
+> 有问题请在 [Issues](../../issues) 里反馈，或到下方[交流](#-交流)加入 QQ 群和 Discord。
 
 ## ✨ 功能
 
@@ -76,7 +76,6 @@ xattr -dr com.apple.quarantine /Applications/DropMD.app
 
 > [!NOTE]
 > 只需要做一次。之后在 App 内更新的新版本不会再被拦下。
-
 
 ## 🔄 文件转换
 
@@ -163,29 +162,21 @@ Swift 界面把转换任务交给 App 里的本机引擎（子进程，通过标
 
 ## ☕ 支持作者
 
----
-
 <div align="center">
-<table width="100%"><tr><td align="center">
-<br>
-<h1>☕ 喜欢 DropMD？请我喝杯咖啡吧</h1>
-如果它帮到了你，你的支持会让我继续更新下去 ❤️
-<br><br>
-<a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20%E5%96%9C%E6%AC%A2%E8%BF%99%E4%B8%AA%E9%A1%B9%E7%9B%AE%EF%BC%9F-%E5%9C%A8%E7%88%B1%E5%8F%91%E7%94%B5%E6%94%AF%E6%8C%81%E6%88%91%20%E2%86%92-946ce6?style=for-the-badge&labelColor=2d2640" alt="在爱发电支持我" height="80"></a><br><br>
-或者用微信扫码赞赏
-<br>
-<img src="docs/images/wechat-reward.jpg" alt="微信赞赏码" width="300">
-<br><br>
-</td></tr></table>
-</div>
 
----
+如果 DropMD 帮到了你，欢迎请我喝杯咖啡，你的支持会让我继续更新下去 ❤️
+
+<a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20%E5%96%9C%E6%AC%A2%E8%BF%99%E4%B8%AA%E9%A1%B9%E7%9B%AE%EF%BC%9F-%E5%9C%A8%E7%88%B1%E5%8F%91%E7%94%B5%E6%94%AF%E6%8C%81%E6%88%91%20%E2%86%92-946ce6?style=for-the-badge&labelColor=2d2640" alt="在爱发电支持我" height="80"></a><br><br>
+
+或者用微信扫码赞赏
+
+<img src="docs/images/wechat-reward.jpg" alt="微信赞赏码" width="300">
+
+</div>
 
 ### 💖 赞助者
 
-**特别鸣谢**：虚位以待
-
-**感谢名单**：虚位以待，成为第一位支持者 ☕
+还没有赞助者，欢迎成为第一位 ☕
 
 ## 📄 许可证
 
