@@ -2045,9 +2045,12 @@ final class RichTextView: NSTextView {
             let atEnd = sel.location >= NSMaxRange(para) - 1
             // 格子末尾：不把下一格并进来
             if cell(at: sel.location) != nil, atEnd { return }
-            // 表格上面一段的末尾：空段删掉，有字就不动（不把第一格并上来）
+            // 表格上面一段的末尾：第一下选中整张表格，再按一下删掉（不把第一格并上来）
             if atEnd, cell(at: NSMaxRange(para)) != nil {
-                if para.length <= 1 { replace(para, with: NSAttributedString(), caret: para.location); refreshTypingAttributes() }
+                if let lm = layoutManager as? RichLayoutManager,
+                   let table = lm.tableRange(around: NSRange(location: NSMaxRange(para), length: 0), in: storage) {
+                    setSelectedRange(table)
+                }
                 return
             }
         }
@@ -2062,6 +2065,12 @@ final class RichTextView: NSTextView {
         var sel = selectedRange()
         let startTable = lm.tableRange(around: NSRange(location: sel.location, length: 0), in: storage)
         let endTable = lm.tableRange(around: NSRange(location: NSMaxRange(sel) - 1, length: 0), in: storage)
+        // 从第一格选到最后一格（不用选到最后一个字）：算选中了整张表格
+        if let t = startTable, t == endTable, sel.length > 0, (storage.string as NSString).substring(with: sel).contains("\n"),
+           paragraphRange(at: sel.location).location == t.location,
+           NSMaxRange(paragraphRange(at: NSMaxRange(sel) - 1)) == NSMaxRange(t) {
+            sel = t
+        }
         if let t = startTable, t == endTable, NSUnionRange(t, sel) == t, sel != t {
             let picked = storage.attributedSubstring(from: sel)
             guard picked.string.contains("\n") else { return false }   // 只在一格里：照常删
@@ -2085,7 +2094,7 @@ final class RichTextView: NSTextView {
     }
 
     /// 光标在格子开头按退格：表格全空时删掉整张表；否则跳到上一格末尾（第一格不动），不把两格并在一起。
-    /// 光标在表格下面一段的开头：空段删掉、有字也不并进表格，光标都回到最后一格末尾。返回是否处理
+    /// 光标在表格下面一段的开头：第一下选中整张表格，再按一下删掉（不把这一段并进表格）。返回是否处理
     private func deleteBackwardAtTable(_ location: Int) -> Bool {
         guard let storage = textStorage, let lm = layoutManager as? RichLayoutManager, location > 0 || cell(at: location) != nil else { return false }
         let para = paragraphRange(at: min(location, max(storage.length - 1, 0)))
@@ -2103,13 +2112,8 @@ final class RichTextView: NSTextView {
         }
         guard location > 0, cell(at: location - 1) != nil else { return false }
         let here = location < storage.length ? para : NSRange(location: location, length: 0)
-        guard location == here.location else { return false }
-        if (storage.string as NSString).substring(with: here).trimmingCharacters(in: .newlines).isEmpty {
-            replace(here, with: NSAttributedString(), caret: location - 1)
-        } else {
-            setSelectedRange(NSRange(location: location - 1, length: 0))
-        }
-        refreshTypingAttributes()
+        guard location == here.location, let table = lm.tableRange(around: NSRange(location: location - 1, length: 0), in: storage) else { return false }
+        setSelectedRange(table)
         return true
     }
 
