@@ -1672,12 +1672,83 @@ final class RichTextView: NSTextView {
 
     override func deleteForward(_ sender: Any?) {
         let sel = selectedRange()
+        if sel.length > 0, deleteSelectionWithTables() { return }
+        if sel.length == 0, let storage = textStorage, sel.location < storage.length {
+            let para = paragraphRange(at: sel.location)
+            let atEnd = sel.location >= NSMaxRange(para) - 1
+            // 格子末尾：不把下一格并进来
+            if cell(at: sel.location) != nil, atEnd { return }
+            // 表格上面一段的末尾：空段删掉，有字就不动（不把第一格并上来）
+            if atEnd, cell(at: NSMaxRange(para)) != nil {
+                if para.length <= 1 { replace(para, with: NSAttributedString(), caret: para.location); refreshTypingAttributes() }
+                return
+            }
+        }
         if sel.length == 0, let r = objectRange(at: sel.location) { setSelectedRange(r) } else { expandSelectionToObjects() }
         super.deleteForward(sender)
     }
 
+    /// 选区碰到表格时删除（和 Word / Notion 相同），返回是否处理：
+    /// 选区在一张表格里、跨了几格 → 清空这几格的字，格子留着；选区从表格里伸到表格外 → 整张表格一起删
+    private func deleteSelectionWithTables() -> Bool {
+        guard let storage = textStorage, let lm = layoutManager as? RichLayoutManager else { return false }
+        var sel = selectedRange()
+        let startTable = lm.tableRange(around: NSRange(location: sel.location, length: 0), in: storage)
+        let endTable = lm.tableRange(around: NSRange(location: NSMaxRange(sel) - 1, length: 0), in: storage)
+        if let t = startTable, t == endTable, NSUnionRange(t, sel) == t, sel != t {
+            let picked = storage.attributedSubstring(from: sel)
+            guard picked.string.contains("\n") else { return false }   // 只在一格里：照常删
+            // 只留下格子之间的分段符（带着各格的格式），字都去掉
+            let kept = NSMutableAttributedString(attributedString: picked)
+            var i = kept.length - 1
+            while i >= 0 {
+                if (kept.string as NSString).character(at: i) != 0x0A { kept.deleteCharacters(in: NSRange(location: i, length: 1)) }
+                i -= 1
+            }
+            replace(sel, with: kept, caret: sel.location)
+            refreshTypingAttributes()
+            return true
+        }
+        guard startTable != nil || endTable != nil else { return false }
+        if let t = startTable { sel = NSUnionRange(sel, t) }
+        if let t = endTable { sel = NSUnionRange(sel, t) }
+        replace(sel, with: NSAttributedString(), caret: sel.location)
+        refreshTypingAttributes()
+        return true
+    }
+
+    /// 光标在格子开头按退格：表格全空时删掉整张表；否则跳到上一格末尾（第一格不动），不把两格并在一起。
+    /// 光标在表格下面一段的开头：空段删掉、有字也不并进表格，光标都回到最后一格末尾。返回是否处理
+    private func deleteBackwardAtTable(_ location: Int) -> Bool {
+        guard let storage = textStorage, let lm = layoutManager as? RichLayoutManager, location > 0 || cell(at: location) != nil else { return false }
+        let para = paragraphRange(at: min(location, max(storage.length - 1, 0)))
+        if location < storage.length, cell(at: location) != nil {
+            guard location == para.location, let table = lm.tableRange(around: NSRange(location: location, length: 0), in: storage) else { return false }
+            let text = (storage.string as NSString).substring(with: table)
+            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, location == table.location {
+                replace(table, with: NSAttributedString(), caret: table.location)
+                refreshTypingAttributes()
+            } else if location > table.location {
+                setSelectedRange(NSRange(location: location - 1, length: 0))
+                refreshTypingAttributes()
+            }
+            return true
+        }
+        guard location > 0, cell(at: location - 1) != nil else { return false }
+        let here = location < storage.length ? para : NSRange(location: location, length: 0)
+        guard location == here.location else { return false }
+        if (storage.string as NSString).substring(with: here).trimmingCharacters(in: .newlines).isEmpty {
+            replace(here, with: NSAttributedString(), caret: location - 1)
+        } else {
+            setSelectedRange(NSRange(location: location - 1, length: 0))
+        }
+        refreshTypingAttributes()
+        return true
+    }
+
     override func deleteBackward(_ sender: Any?) {
         let sel = selectedRange()
+        if sel.length > 0, deleteSelectionWithTables() { return }
         if sel.length > 0 { expandSelectionToObjects() }
         if sel.length == 0 {
             let para = paragraphRange(at: sel.location)
@@ -1688,6 +1759,7 @@ final class RichTextView: NSTextView {
                 if kind.depth > 0 { changeDepth(-1) } else { applyKinds { _ in .body } }
                 return
             }
+            if deleteBackwardAtTable(sel.location) { return }
             if let r = objectRange(at: sel.location - 1) { setSelectedRange(r) }
         }
         super.deleteBackward(sender)
@@ -1863,6 +1935,41 @@ final class RichTextView: NSTextView {
     override func didChangeText() {
         super.didChangeText()
         updateCopyButton(at: nil)   // 打字后代码块的位置可能变了
+    }
+
+    // MARK: - 表格：重画时整张表一起画（只重画几格时，边框线会被擦掉一截、补不回来）
+
+    private var expandingRedraw = false
+
+    override func setNeedsDisplay(_ invalidRect: NSRect) {
+        super.setNeedsDisplay(rectWithTables(invalidRect))
+    }
+
+    override func setNeedsDisplay(_ rect: NSRect, avoidAdditionalLayout flag: Bool) {
+        super.setNeedsDisplay(rectWithTables(rect), avoidAdditionalLayout: flag)
+    }
+
+    /// 重画区域碰到表格时，扩大到整张表格（不触发排版：只用已经排好的位置）
+    func rectWithTables(_ rect: NSRect) -> NSRect {
+        guard !expandingRedraw, !rect.isEmpty, let lm = layoutManager as? RichLayoutManager, let container = textContainer,
+              let storage = textStorage, storage.length > 0 else { return rect }
+        expandingRedraw = true
+        defer { expandingRedraw = false }
+        let origin = textContainerOrigin
+        let glyphs = lm.glyphRange(forBoundingRectWithoutAdditionalLayout: rect.offsetBy(dx: -origin.x, dy: -origin.y), in: container)
+        guard glyphs.length > 0 else { return rect }
+        let chars = lm.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+        var out = rect
+        var done: [NSRange] = []
+        for i in [chars.location, NSMaxRange(chars) - 1] where i >= 0 && i < storage.length {
+            guard let table = lm.tableRange(around: NSRange(location: i, length: 0), in: storage), !done.contains(table) else { continue }
+            done.append(table)
+            let g = lm.glyphRange(forCharacterRange: table, actualCharacterRange: nil)
+            guard let first = lm.textContainer(forGlyphAt: g.location, effectiveRange: nil, withoutAdditionalLayout: true),
+                  first === container else { continue }
+            out = out.union(lm.boundingRect(forGlyphRange: g, in: container).offsetBy(dx: origin.x, dy: origin.y).insetBy(dx: -2, dy: -2))
+        }
+        return out
     }
 
     // MARK: - 表格：拖两列的交界调整列宽（系统自带的只认边框那一条线，很难点中）

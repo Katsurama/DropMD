@@ -926,6 +926,58 @@ MainActor.assumeIsolated {
         tv.insertNewline(nil); type(tv, "X")
         check("表格后有文字，回车移到后文", md(tv), "| a |\n| --- |\n| 1 |\n\nX后文\n")
     }
+    // 表格里的退格、向前删（和 Word / Notion 相同：不把两格并在一起、不把别的段落并进表格）
+    do {
+        let src = "| a | b |\n| --- | --- |\n| 1 | 2 |\n\n后文\n"
+        func at(_ tv: RichTextView, _ s: String, end: Bool = false) {
+            let r = (tv.string as NSString).range(of: s)
+            tv.setSelectedRange(NSRange(location: end ? NSMaxRange(r) : r.location, length: 0))
+        }
+        var tv = makeView(src)
+        at(tv, "2"); tv.deleteBackward(nil); type(tv, "X")
+        check("表格：格子开头退格跳到上一格", md(tv), "| a | b |\n| --- | --- |\n| 1X | 2 |\n\n后文\n")
+        tv = makeView(src)
+        at(tv, "a"); tv.deleteBackward(nil)
+        check("表格：第一格开头退格不动", md(tv), src)
+        tv = makeView(src)
+        at(tv, "后文"); tv.deleteBackward(nil); type(tv, "X")
+        check("表格：下面有字的段首退格，回到最后一格", md(tv), "| a | b |\n| --- | --- |\n| 1 | 2X |\n\n后文\n")
+        tv = makeView("| a | b |\n| --- | --- |\n| 1 | 2 |\n")
+        at(tv, "2"); tv.moveDown(nil); tv.deleteBackward(nil); type(tv, "X")
+        check("表格：下面的空段退格删掉", md(tv), "| a | b |\n| --- | --- |\n| 1 | 2X |\n")
+        tv = makeView("前文\n\n|  |  |\n| --- | --- |\n|  |  |\n\n后文\n")
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "前文").location + 3, length: 0))
+        tv.deleteBackward(nil)
+        check("表格：全空表格第一格退格删掉整张表", md(tv), "前文\n\n后文\n")
+        tv = makeView(src)
+        let ns = tv.string as NSString
+        tv.setSelectedRange(NSRange(location: ns.range(of: "b").location, length: ns.range(of: "1").location + 1 - ns.range(of: "b").location))
+        tv.deleteBackward(nil)
+        check("表格：选中几格退格清空这几格", md(tv), "| a |  |\n| --- | --- |\n|  | 2 |\n\n后文\n")
+        tv = makeView(src)
+        let ns2 = tv.string as NSString
+        tv.setSelectedRange(NSRange(location: ns2.range(of: "2").location, length: ns2.range(of: "文").location - ns2.range(of: "2").location))
+        tv.deleteBackward(nil)
+        check("表格：选区伸到表格外，整张表删掉", md(tv), "文\n")
+        tv = makeView(src)
+        at(tv, "1", end: true); tv.deleteForward(nil)
+        check("表格：格子末尾向前删不动", md(tv), src)
+        tv = makeView("前文\n\n" + src)
+        at(tv, "前文", end: true); tv.deleteForward(nil)
+        check("表格：上面一段末尾向前删不动", md(tv), "前文\n\n" + src)
+    }
+    // 重画碰到表格的一小块时，整张表格一起重画（只画几格时边框会断）
+    do {
+        let tv = makeView("前文\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n后文\n")
+        let lm = tv.layoutManager!, c = tv.textContainer!
+        lm.ensureLayout(for: c)
+        let ns = tv.string as NSString
+        let small = lm.boundingRect(forGlyphRange: lm.glyphRange(forCharacterRange: ns.range(of: "2"), actualCharacterRange: nil), in: c)
+        let table = lm.boundingRect(forGlyphRange: lm.glyphRange(forCharacterRange: (lm as! RichLayoutManager).tableRange(around: ns.range(of: "a"), in: tv.textStorage!)!, actualCharacterRange: nil), in: c)
+        check("表格：重画区域扩大到整张表", "\(tv.rectWithTables(small).contains(table))", "true")
+        let text = lm.boundingRect(forGlyphRange: lm.glyphRange(forCharacterRange: ns.range(of: "后文"), actualCharacterRange: nil), in: c)
+        check("表格：表格外的重画区域不变", "\(tv.rectWithTables(text) == text)", "true")
+    }
     // 右键菜单：在下方插入一行、删除这一行、删除表格
     do {
         let src = "前文\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n\n后文\n"
