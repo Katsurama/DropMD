@@ -139,7 +139,6 @@ struct LinkClickPicker: View {
         Picker("点击链接时", selection: $action) {
             ForEach(LinkClickAction.allCases) { Text($0.title).tag($0.rawValue) }
         }
-        .pickerStyle(.radioGroup)
     }
 }
 
