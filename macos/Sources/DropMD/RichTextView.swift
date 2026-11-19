@@ -1667,13 +1667,20 @@ final class RichTextView: NSTextView {
         return menu
     }
 
-    /// 系统的“打开链接 / 打开方式 / 拷贝链接 / 编辑链接 / 移除链接”改的是系统的链接记号，保存时不认，用 DropMD 自己的几项
+    /// 去掉系统菜单里用不上的项：
+    /// 链接的几项改的是系统的链接记号，保存时不认（用 DropMD 自己的）；字体、文字方向、快速查看附件 Markdown 存不下来
     private func removeSystemLinkItems(_ menu: NSMenu) {
-        let names: Set<String> = ["_openLinkFromMenu:", "copyLink:", "orderFrontLinkPanel:", "_removeLinkFromMenu:"]
+        let names: Set<String> = ["_openLinkFromMenu:", "copyLink:", "orderFrontLinkPanel:", "_removeLinkFromMenu:", "toggleQuickLookPreviewPanel:"]
+        let subPrefixes = ["orderFrontFontPanel", "addFontTrait", "changeLayoutOrientation", "makeBaseWritingDirection", "makeTextWritingDirection"]
         var i = 0
         while i < menu.items.count {
             let item = menu.items[i]
             let name = item.action.map { NSStringFromSelector($0) } ?? ""
+            let subActions = item.submenu?.items.compactMap { $0.action.map { NSStringFromSelector($0) } } ?? []
+            if subActions.contains(where: { a in subPrefixes.contains { a.hasPrefix($0) } }) {
+                menu.removeItem(at: i)
+                continue
+            }
             if names.contains(name) {
                 menu.removeItem(at: i)
                 // 紧跟在“打开链接”后面的“打开方式”子菜单
@@ -1718,8 +1725,6 @@ final class RichTextView: NSTextView {
             let active = selectionState.active
             groups.append([actionItem(.strike, on: active.contains(.strike)), actionItem(.highlight, on: active.contains(.highlight)),
                            actionItem(.inlineCode, on: active.contains(.inlineCode)),
-                           actionItem(.superscriptText, on: active.contains(.superscriptText)),
-                           actionItem(.subscriptText, on: active.contains(.subscriptText)),
                            menuItem(String(localized: "清除格式"), #selector(clearFormatting(_:)))])
         }
         if hit < storage.length {
@@ -1727,7 +1732,7 @@ final class RichTextView: NSTextView {
             if a[DMKey.image] != nil, let r = objectRange(at: hit) {
                 let path = a[DMKey.image] as? String ?? ""
                 let file = imageFile(path)
-                groups.append([menuItem(String(localized: "修改图片说明…"), #selector(editImageAlt(_:)), NSValue(range: r)),
+                groups.append([menuItem(String(localized: "编辑替代文本…"), #selector(editImageAlt(_:)), NSValue(range: r)),
                                menuItem(String(localized: "在访达中显示"), file == nil ? nil : #selector(revealImage(_:)), file),
                                menuItem(String(localized: "删除图片"), #selector(deleteImage(_:)), NSValue(range: r))])
             } else if let url = a[DMKey.link] as? String {
@@ -1735,8 +1740,8 @@ final class RichTextView: NSTextView {
                 storage.attribute(DMKey.link, at: hit, longestEffectiveRange: &r, in: NSRange(location: 0, length: storage.length))
                 groups.append([menuItem(String(localized: "打开链接"), #selector(openLinkItem(_:)), url),
                                menuItem(String(localized: "编辑链接…"), #selector(editLink(_:)), NSValue(range: r)),
-                               menuItem(String(localized: "复制链接地址"), #selector(copyLinkAddress(_:)), url),
-                               menuItem(String(localized: "去掉链接"), #selector(removeLink(_:)), NSValue(range: r))])
+                               menuItem(String(localized: "复制链接"), #selector(copyLinkAddress(_:)), url),
+                               menuItem(String(localized: "移除链接"), #selector(removeLink(_:)), NSValue(range: r))])
             }
         }
         let at = selectedRange().location
@@ -1746,14 +1751,14 @@ final class RichTextView: NSTextView {
         } else if lm?.codeBlock(at: min(at, max(storage.length - 1, 0))) != nil, at < storage.length {
             let lang: String = { if case .code(let l) = currentKind { return l } else { return "" } }()
             groups.append([menuItem(String(localized: "复制代码"), #selector(copyCode(_:))),
-                           submenu(String(localized: "代码语言"), ([""] + codeLanguages).map {
+                           submenu(String(localized: "语言"), ([""] + codeLanguages).map {
                                menuItem($0.isEmpty ? String(localized: "纯文本") : $0, #selector(setCodeLanguage(_:)), $0, on: $0 == lang)
                            })])
         } else if storage.length > 0, let type = lm?.callout(at: min(at, storage.length - 1), in: storage) {
             groups.append([submenu(String(localized: "提示框类型"), MDCallout.allCases.map {
                                menuItem($0.title, #selector(setCalloutType(_:)), $0.rawValue, on: $0 == type)
                            }),
-                           menuItem(String(localized: "改回普通引用"), #selector(removeCallout(_:)))])
+                           menuItem(String(localized: "转换为引用"), #selector(removeCallout(_:)))])
         } else if currentKind.isList {
             groups.append([actionItem(.indent), actionItem(.outdent)])
         } else if sel.length == 0 {
@@ -1775,16 +1780,16 @@ final class RichTextView: NSTextView {
         let current = tableColumnMarker()
         return [
             // 表头上面不能再插一行（第一行总是表头）
-            [menuItem(String(localized: "在上方插入一行"), ctx.row > 0 ? #selector(insertTableRowAbove(_:)) : nil),
-             menuItem(String(localized: "在下方插入一行"), #selector(insertTableRowBelow(_:))),
-             menuItem(String(localized: "删除这一行"), ctx.row > 0 ? #selector(deleteTableRow(_:)) : nil)],
-            [menuItem(String(localized: "在左边插入一列"), #selector(insertTableColumnLeft(_:))),
-             menuItem(String(localized: "在右边插入一列"), #selector(insertTableColumnRight(_:))),
-             menuItem(String(localized: "删除这一列"), ctx.columns > 1 ? #selector(deleteTableColumn(_:)) : nil)],
-            [(String(localized: "这一列靠左"), ":--"), (String(localized: "这一列居中"), ":-:"), (String(localized: "这一列靠右"), "--:")].map {
+            [menuItem(String(localized: "在上方插入行"), ctx.row > 0 ? #selector(insertTableRowAbove(_:)) : nil),
+             menuItem(String(localized: "在下方插入行"), #selector(insertTableRowBelow(_:))),
+             menuItem(String(localized: "删除行"), ctx.row > 0 ? #selector(deleteTableRow(_:)) : nil)],
+            [menuItem(String(localized: "在左侧插入列"), #selector(insertTableColumnLeft(_:))),
+             menuItem(String(localized: "在右侧插入列"), #selector(insertTableColumnRight(_:))),
+             menuItem(String(localized: "删除列"), ctx.columns > 1 ? #selector(deleteTableColumn(_:)) : nil)],
+            [submenu(String(localized: "对齐方式"), [(String(localized: "左对齐"), ":--"), (String(localized: "居中对齐"), ":-:"), (String(localized: "右对齐"), "--:")].map {
                 menuItem($0.0, #selector(alignTableColumn(_:)), $0.1, on: current == $0.1)
-            },
-            [menuItem(String(localized: "复制表格"), #selector(copyTable(_:))),
+            }),
+             menuItem(String(localized: "复制表格"), #selector(copyTable(_:))),
              menuItem(String(localized: "删除表格"), #selector(deleteTable(_:)))],
         ]
     }
@@ -1859,8 +1864,8 @@ final class RichTextView: NSTextView {
         guard let storage = textStorage, let r = ((sender as? NSMenuItem)?.representedObject as? NSValue)?.rangeValue,
               NSMaxRange(r) <= storage.length else { return }
         let alert = NSAlert()
-        alert.messageText = String(localized: "修改图片说明")
-        alert.informativeText = String(localized: "图片显示不出来时显示这段文字，读屏软件也会读它。")
+        alert.messageText = String(localized: "编辑替代文本")
+        alert.informativeText = String(localized: "图片无法显示时显示此文本，读屏软件也会朗读。")
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
         field.stringValue = storage.attribute(DMKey.alt, at: r.location, effectiveRange: nil) as? String ?? ""
         alert.accessoryView = field
