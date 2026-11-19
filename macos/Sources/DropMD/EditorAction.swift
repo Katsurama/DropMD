@@ -207,3 +207,7 @@ func toggledPrefixLines(_ lines: [String], prefix: String, numbered: Bool) -> [S
         return l.replacingOccurrences(of: any, with: "$1" + NSRegularExpression.escapedTemplate(for: numbered ? "\(n). " : prefix), options: .regularExpression)
     }
 }
+
+/// 代码块可选的语言（用于导出和其他编辑器中的语法高亮）
+let codeLanguages = ["swift", "python", "javascript", "typescript", "java", "c", "cpp", "csharp", "go", "rust",
+                     "html", "css", "json", "yaml", "sql", "bash", "markdown", "mermaid"]

@@ -56,6 +56,8 @@ struct RichTextEditor: NSViewRepresentable {
 
         controller.richView = tv
         controller.flushRichEdits = { [weak coordinator = context.coordinator] in coordinator?.flush() }
+        tv.onAction = { [weak controller] action in controller?.perform(action) }
+        tv.onOpenLink = { [weak coordinator = context.coordinator] link in coordinator?.openLink(link) }
         tv.onFocus = { [weak coordinator = context.coordinator, weak tv] in
             guard let coordinator, let tv else { return }
             MainActor.assumeIsolated { coordinator.reloadIfPending(tv) }
@@ -211,9 +213,15 @@ struct RichTextEditor: NSViewRepresentable {
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
             // 按住 ⌘ 点击链接才打开，普通点击用于编辑文字
             guard NSEvent.modifierFlags.contains(.command) else { return true }
+            openLink(link)
+            return true
+        }
+
+        /// 打开链接：网址用浏览器；本机的 Markdown 文件用 DropMD 打开，其他文件在访达中显示
+        func openLink(_ link: Any) {
             var url = link as? URL
             if url == nil, let s = link as? String { url = URL(string: s) }
-            guard let url else { return true }
+            guard let url else { return }
             if url.scheme == nil || url.isFileURL {
                 let target = url.isFileURL ? url : URL(fileURLWithPath: url.path, relativeTo: parent.baseURL)
                 if ["md", "markdown", "mdown"].contains(target.pathExtension.lowercased()) {
@@ -224,7 +232,6 @@ struct RichTextEditor: NSViewRepresentable {
             } else if ["http", "https", "mailto"].contains(url.scheme?.lowercased() ?? "") {
                 NSWorkspace.shared.open(url)
             }
-            return true
         }
     }
 }
