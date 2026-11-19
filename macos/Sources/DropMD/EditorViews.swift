@@ -512,7 +512,6 @@ struct SplitHandle: NSViewRepresentable {
 
         override init(frame: NSRect) {
             super.init(frame: frame)
-            toolTip = String(localized: "拖动调整左右宽度，双击恢复一半一半")
             addTrackingArea(NSTrackingArea(rect: .zero, options: [.cursorUpdate, .activeInKeyWindow, .inVisibleRect], owner: self))
         }
         required init?(coder: NSCoder) { fatalError() }
