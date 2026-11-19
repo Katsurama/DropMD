@@ -62,6 +62,10 @@ struct DropMDApp: App {
                 if let url = HelpDocs.repoURL(path: "/issues") {
                     Button("反馈问题…") { NSWorkspace.shared.open(url) }
                 }
+                // QQ 群只在中文界面显示（简体、繁体写法相同，不用翻译）
+                if HelpDocs.showsQQGroup {
+                    Button { NSWorkspace.shared.open(HelpDocs.qqGroup) } label: { Text(verbatim: "加入 QQ 交流群…") }
+                }
                 Button("加入 Discord 社区…") { NSWorkspace.shared.open(HelpDocs.discord) }
                 Divider()
                 ForEach(HelpDocs.sponsors, id: \.url) { s in
@@ -301,6 +305,9 @@ enum HelpDocs {
     }
     /// Discord 社区（永久邀请链接）
     static let discord = URL(string: "https://discord.gg/VUne62RvrJ")!
+    /// QQ 交流群（群号 1125893504），只在中文界面显示
+    static let qqGroup = URL(string: "https://qun.qq.com/universal-share/share?ac=1&authKey=mbUgS60nnSzR2inccSoO%2BM4r%2BNMmccWLqCLkRWF%2F3aaEx%2FCX30Fizgha%2Fo6qaAvV&busi_data=eyJncm91cENvZGUiOiIxMTI1ODkzNTA0IiwidG9rZW4iOiJkQ1NySUpoeCtmTUlrV3JUWUN5SFZqNU5wZllLa2lFLzFrUjZMKzdnaXV0eUM1R001ZzMzb1ZFOXNTbFNudFVPIiwidWluIjoiMzI0MzY3NzM1MiJ9&data=AJTczm17mcBKqj3VXo3mcTEzkLtb9_ozC8vIN86Zcm8p_2cQJ63-BoTHLDlRXXAZ9OTuDjY1Rqekn1E_zbQZfA&svctype=4&tempid=h5_group_info")!
+    static var showsQQGroup: Bool { (Bundle.main.preferredLocalizations.first ?? "").hasPrefix("zh") }
 
     /// 赞助：爱发电和 Patreon，所有语言都显示（爱发电已支持英文和海外付款，非中文界面叫 Afdian）。中文界面爱发电在前
     struct Sponsor { let name: String; let menuTitle: String; let url: URL }
