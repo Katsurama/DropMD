@@ -1077,13 +1077,28 @@ MainActor.assumeIsolated {
         tv = at("> [!NOTE]\n> 内容\n", "内容")
         tv.removeCallout(nil)
         check("右键：改回普通引用", md(tv), "> 内容\n")
+        // 在链接上点右键：只有 DropMD 自己的链接项，系统的那几项去掉；没选字时不出现格式项
+        do {
+            let v = at("前 [链接](https://a.com) 后\n", "后")
+            let window = NSWindow(contentRect: v.frame, styleMask: [.titled], backing: .buffered, defer: false)
+            window.contentView = v
+            v.layoutManager!.ensureLayout(for: v.textContainer!)
+            let lm = v.layoutManager!
+            let r = lm.boundingRect(forGlyphRange: lm.glyphRange(forCharacterRange: (v.string as NSString).range(of: "链"), actualCharacterRange: nil), in: v.textContainer!)
+            let p = v.convert(NSPoint(x: r.midX + v.textContainerOrigin.x, y: r.midY + v.textContainerOrigin.y), to: nil)
+            let e = NSEvent.mouseEvent(with: .rightMouseDown, location: p, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber,
+                                       context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+            let menu = v.menu(for: e)!
+            let names = menu.items.compactMap { $0.action.map { NSStringFromSelector($0) } }
+            check("右键：链接上不重复", "\(names.filter { ["openLinkItem:", "_openLinkFromMenu:", "copyLink:", "orderFrontLinkPanel:", "_removeLinkFromMenu:"].contains($0) })", "[\"openLinkItem:\"]")
+            check("右键：没选字时没有格式项", "\(names.contains("clearFormatting:"))", "false")
+            check("右键：没有连着的分隔线", "\(zip(menu.items, menu.items.dropFirst()).contains { $0.isSeparatorItem && $1.isSeparatorItem })", "false")
+        }
         NSPasteboard.general.clearContents()
         tv = at("- 项目\n", "项目")
         check("右键：列表里有缩进", titles(tv), "增加缩进|减少缩进")
         tv = at("正文\n", "文")
         check("右键：普通段落", titles(tv), "转换为|插入")
-        NSPasteboard.general.clearContents(); NSPasteboard.general.setString("x", forType: .string)
-        check("右键：剪贴板有字时可粘贴为纯文本", titles(tv), "转换为|插入|-|粘贴为纯文本")
     }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }

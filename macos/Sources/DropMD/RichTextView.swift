@@ -1632,12 +1632,25 @@ final class RichTextView: NSTextView {
     /// 由编辑器窗口设置：打开链接（和按住 ⌘ 点链接相同）
     var onOpenLink: ((Any) -> Void)?
 
+    /// 按下右键前的选区：系统会先自动选中点到的词，那不算用户选的字
+    private var selectionBeforeMenu: NSRange?
+
+    override func rightMouseDown(with event: NSEvent) {
+        selectionBeforeMenu = selectedRange()
+        super.rightMouseDown(with: event)
+        selectionBeforeMenu = nil
+    }
+
     override func menu(for event: NSEvent) -> NSMenu? {
+        let before = selectionBeforeMenu ?? selectedRange()
         let menu = super.menu(for: event) ?? NSMenu()
+        removeSystemLinkItems(menu)
         let point = convert(event.locationInWindow, from: nil)
         let index = characterIndexForInsertion(at: point)
-        // 点在选区外：光标先移到点的地方（和 Word 相同）
-        if !NSLocationInRange(index, selectedRange()), index != NSMaxRange(selectedRange()) || selectedRange().length == 0 {
+        // 点在自己选的字上：保留选区；否则光标移到点的地方（不用系统自动选中的词）
+        if before.length > 0, NSLocationInRange(index, before) || index == NSMaxRange(before) {
+            setSelectedRange(before)
+        } else {
             setSelectedRange(NSRange(location: index, length: 0))
         }
         // 点中的那个字（链接、图片要看点中的字，不是光标后面的字）
@@ -1652,6 +1665,28 @@ final class RichTextView: NSTextView {
             menu.insertItem(item, at: i)
         }
         return menu
+    }
+
+    /// 系统的“打开链接 / 打开方式 / 拷贝链接 / 编辑链接 / 移除链接”改的是系统的链接记号，保存时不认，用 DropMD 自己的几项
+    private func removeSystemLinkItems(_ menu: NSMenu) {
+        let names: Set<String> = ["_openLinkFromMenu:", "copyLink:", "orderFrontLinkPanel:", "_removeLinkFromMenu:"]
+        var i = 0
+        while i < menu.items.count {
+            let item = menu.items[i]
+            let name = item.action.map { NSStringFromSelector($0) } ?? ""
+            if names.contains(name) {
+                menu.removeItem(at: i)
+                // 紧跟在“打开链接”后面的“打开方式”子菜单
+                if name == "_openLinkFromMenu:", i < menu.items.count, menu.items[i].submenu != nil { menu.removeItem(at: i) }
+                continue
+            }
+            i += 1
+        }
+        // 去掉连在一起的、开头的分隔线
+        i = 0
+        while i < menu.items.count {
+            if menu.items[i].isSeparatorItem, i == 0 || menu.items[i - 1].isSeparatorItem { menu.removeItem(at: i) } else { i += 1 }
+        }
     }
 
     private func menuItem(_ title: String, _ action: Selector?, _ object: Any? = nil, on: Bool = false) -> NSMenuItem {
@@ -1700,7 +1735,7 @@ final class RichTextView: NSTextView {
                 storage.attribute(DMKey.link, at: hit, longestEffectiveRange: &r, in: NSRange(location: 0, length: storage.length))
                 groups.append([menuItem(String(localized: "打开链接"), #selector(openLinkItem(_:)), url),
                                menuItem(String(localized: "编辑链接…"), #selector(editLink(_:)), NSValue(range: r)),
-                               menuItem(String(localized: "复制链接地址"), #selector(copyLink(_:)), url),
+                               menuItem(String(localized: "复制链接地址"), #selector(copyLinkAddress(_:)), url),
                                menuItem(String(localized: "去掉链接"), #selector(removeLink(_:)), NSValue(range: r))])
             }
         }
@@ -1731,9 +1766,6 @@ final class RichTextView: NSTextView {
                     submenu(EditorAction.callout.title, MDCallout.allCases.map { menuItem($0.title, #selector(insertCalloutItem(_:)), $0.rawValue) }),
                     actionItem(.details), actionItem(.mathBlock), actionItem(.date)]),
             ])
-        }
-        if cell(at: at) == nil, NSPasteboard.general.string(forType: .string) != nil {
-            groups.append([menuItem(String(localized: "粘贴为纯文本"), #selector(pasteAsPlainText(_:)))])
         }
         return groups.filter { !$0.isEmpty }.reduce([NSMenuItem]()) { $0.isEmpty ? $1 : $0 + [NSMenuItem.separator()] + $1 }
     }
@@ -1791,7 +1823,7 @@ final class RichTextView: NSTextView {
         onAction?(.link)
     }
 
-    @objc func copyLink(_ sender: Any?) {
+    @objc func copyLinkAddress(_ sender: Any?) {
         guard let url = (sender as? NSMenuItem)?.representedObject as? String else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url, forType: .string)
