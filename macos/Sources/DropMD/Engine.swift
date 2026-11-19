@@ -111,7 +111,9 @@ final class Engine: @unchecked Sendable {
         p.standardInput = inp
         p.standardError = Engine.logHandle()
         try p.run()
-        locked { process = p }
+        // 只记住转换用的引擎：转换中查状态（如重新打开转换窗口）的引擎不能把它顶掉，否则“停止”失灵
+        let converting = args.first == "convert"
+        if converting { locked { process = p } }
         if let input {
             // 引擎启动就退出时写入会失败：不能让 SIGPIPE 结束整个 App，错误由下面的退出码和“引擎意外退出”反馈
             signal(SIGPIPE, SIG_IGN)
@@ -122,7 +124,7 @@ final class Engine: @unchecked Sendable {
             onLine(Data(line.utf8))
         }
         p.waitUntilExit()
-        locked { process = nil }
+        if converting { locked { if process === p { process = nil } } }
         return p.terminationStatus
     }
 
