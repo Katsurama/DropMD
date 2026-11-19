@@ -1034,6 +1034,57 @@ MainActor.assumeIsolated {
         tv = at("1"); tv.copyTable(nil)
         check("表格：复制表格", NSPasteboard.general.string(forType: .string) ?? "", "| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n")
     }
+    // 右键菜单：跟着点中的东西变，放工具栏上没有的操作
+    do {
+        @MainActor func at(_ src: String, _ s: String, select: Bool = false) -> RichTextView {
+            let v = makeView(src)
+            let r = (v.string as NSString).range(of: s)
+            v.setSelectedRange(select ? r : NSRange(location: r.location, length: 0))
+            return v
+        }
+        @MainActor func titles(_ v: RichTextView, hit: Int? = nil) -> String {
+            v.contextItems(hit: hit ?? v.selectedRange().location).map { $0.isSeparatorItem ? "-" : $0.title }.joined(separator: "|")
+        }
+        func obj(_ o: Any) -> NSMenuItem { let m = NSMenuItem(); m.representedObject = o; return m }
+        NSPasteboard.general.clearContents()
+        var tv = at("**粗** ~~删~~ `码` [链](https://a.com)\n", "粗", select: true)
+        tv.setSelectedRange(NSRange(location: 0, length: (tv.string as NSString).length - 1))
+        check("右键：选中文字有格式项", "\(titles(tv).hasPrefix("删除线|高亮|行内代码|上标|下标|清除格式"))", "true")
+        tv.clearFormatting(nil)
+        check("右键：清除格式（链接留着）", md(tv), "粗 删 码 [链](https://a.com)\n")
+        tv = at("前 [链接](https://a.com) 后\n", "接")
+        check("右键：链接上的操作", "\(titles(tv, hit: tv.selectedRange().location).hasPrefix("打开链接|编辑链接…|复制链接地址|去掉链接"))", "true")
+        let linkItem = tv.contextItems(hit: tv.selectedRange().location).first { $0.title == "去掉链接" }!
+        tv.removeLink(linkItem)
+        check("右键：去掉链接", md(tv), "前 链接 后\n")
+        tv = at("![旧说明](a.png)\n", "旧")
+        let img = NSRange(location: 0, length: (tv.string as NSString).length - 1)
+        check("右键：图片上的操作", "\(titles(tv, hit: 0).hasPrefix("修改图片说明…|在访达中显示|删除图片"))", "true")
+        tv.setImageAlt("新说明", in: img)
+        check("右键：修改图片说明", md(tv), "![新说明](a.png)\n")
+        tv = at("```swift\nlet a = 1\nlet b = 2\n```\n", "b")
+        check("右键：代码块里的操作", "\(titles(tv).hasPrefix("复制代码|代码语言"))", "true")
+        tv.setCodeLanguage(obj("python"))
+        check("右键：更改代码语言", md(tv), "```python\nlet a = 1\nlet b = 2\n```\n")
+        tv.copyCode(nil)
+        check("右键：复制代码", NSPasteboard.general.string(forType: .string) ?? "", "let a = 1\nlet b = 2")
+        tv = at("> [!NOTE]\n> 内容\n", "内容")
+        check("右键：提示框里的操作", "\(titles(tv).hasPrefix("提示框类型|改回普通引用"))", "true")
+        tv.setCalloutType(obj(MDCallout.allCases.first { $0 != .note }!.rawValue))
+        check("右键：改提示框类型", md(tv), "> \(MDCallout.allCases.first { $0 != .note }!.header)\n> 内容\n")
+        type(tv, "X")
+        check("右键：改类型后光标还在内容里", "\(md(tv).contains("X内容"))", "true")
+        tv = at("> [!NOTE]\n> 内容\n", "内容")
+        tv.removeCallout(nil)
+        check("右键：改回普通引用", md(tv), "> 内容\n")
+        NSPasteboard.general.clearContents()
+        tv = at("- 项目\n", "项目")
+        check("右键：列表里有缩进", titles(tv), "增加缩进|减少缩进")
+        tv = at("正文\n", "文")
+        check("右键：普通段落", titles(tv), "转换为|插入")
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString("x", forType: .string)
+        check("右键：剪贴板有字时可粘贴为纯文本", titles(tv), "转换为|插入|-|粘贴为纯文本")
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

@@ -432,10 +432,6 @@ private extension View {
     }
 }
 
-/// 代码块可选的语言（用于导出和其他编辑器中的语法高亮）
-let codeLanguages = ["swift", "python", "javascript", "typescript", "java", "c", "cpp", "csharp", "go", "rust",
-                     "html", "css", "json", "yaml", "sql", "bash", "markdown", "mermaid"]
-
 /// 菜单栏“显示 → 单页 / 双页”用来切换当前窗口的显示方式
 struct EditorModeSwitchKey: FocusedValueKey {
     typealias Value = (EditorMode) -> Void
