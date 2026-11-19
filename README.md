@@ -172,6 +172,12 @@ Swift 界面把转换任务交给 App 里的本机引擎（子进程，通过标
 
 ---
 
+### 💖 赞助者
+
+**特别鸣谢**：虚位以待
+
+**感谢名单**：虚位以待，成为第一位支持者 ☕
+
 ## 📄 许可证
 
 [MIT](LICENSE) © 2026 DropMD contributors。第三方组件的许可证见 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)，在 App 的 **帮助 → 开源许可** 中也能查看。
