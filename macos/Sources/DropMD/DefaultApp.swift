@@ -218,7 +218,12 @@ private struct AboutSettings: View {
                         }
                     }
                     LabeledContent("交流") {
-                        Link(destination: HelpDocs.discord) { Text(verbatim: "Discord") }
+                        HStack(spacing: 12) {
+                            if HelpDocs.showsQQGroup {
+                                Link(destination: HelpDocs.qqGroup) { Text(verbatim: "QQ 群") }
+                            }
+                            Link(destination: HelpDocs.discord) { Text(verbatim: "Discord") }
+                        }
                     }
                 }
                 Section {
