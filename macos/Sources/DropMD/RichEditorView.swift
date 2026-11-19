@@ -210,28 +210,66 @@ struct RichTextEditor: NSViewRepresentable {
             }
         }
 
+        /// 单击链接：按设置直接打开、先确认，或按住 ⌘ 才打开（按住 ⌘ 总是直接打开）
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
-            // 按住 ⌘ 点击链接才打开，普通点击用于编辑文字
-            guard NSEvent.modifierFlags.contains(.command) else { return true }
-            openLink(link)
+            let command = NSEvent.modifierFlags.contains(.command)
+            switch LinkClickAction.current {
+            case .open: openLink(link)
+            case .command: if command { openLink(link) }
+            case .confirm:
+                if command { openLink(link); break }
+                let target = LinkTarget.resolve(link, baseURL: parent.baseURL)
+                // 打不开的不用先问，直接说为什么打不开；文内跳转不处理
+                switch target {
+                case .web, .markdown, .file: break
+                default: openLink(link); return true
+                }
+                guard let window = textView.window else { break }
+                let alert = NSAlert()
+                alert.messageText = String(localized: "要打开这个链接吗？")
+                alert.informativeText = target.display
+                alert.addButton(withTitle: String(localized: "打开"))
+                alert.addButton(withTitle: String(localized: "取消"))
+                alert.beginSheetModal(for: window) { [weak self] response in
+                    if response == .alertFirstButtonReturn { self?.openLink(link) }
+                }
+            }
             return true
         }
 
-        /// 打开链接：网址用浏览器；本机的 Markdown 文件用 DropMD 打开，其他文件在访达中显示
+        /// 打开链接：网页用浏览器；本机的 Markdown 文件用 DropMD 打开，其他文件在访达中显示；
+        /// 文件找不到、链接打不开时弹出提示
         func openLink(_ link: Any) {
-            var url = link as? URL
-            if url == nil, let s = link as? String { url = URL(string: s) }
-            guard let url else { return }
-            if url.scheme == nil || url.isFileURL {
-                let target = url.isFileURL ? url : URL(fileURLWithPath: url.path, relativeTo: parent.baseURL)
-                if ["md", "markdown", "mdown"].contains(target.pathExtension.lowercased()) {
-                    NSDocumentController.shared.openDocument(withContentsOf: target, display: true) { _, _, _ in }
-                } else {
-                    NSWorkspace.shared.activateFileViewerSelecting([target])
+            switch LinkTarget.resolve(link, baseURL: parent.baseURL) {
+            case .web(let url):
+                if !NSWorkspace.shared.open(url) {
+                    showLinkError(String(localized: "无法打开这个链接"), detail: url.absoluteString)
                 }
-            } else if ["http", "https", "mailto"].contains(url.scheme?.lowercased() ?? "") {
-                NSWorkspace.shared.open(url)
+            case .markdown(let url):
+                NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { [weak self] _, _, error in
+                    if let error { self?.showLinkError(String(localized: "无法打开这个文件"), detail: error.localizedDescription) }
+                }
+            case .file(let url):
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            case .missing(let path):
+                showLinkError(String(localized: "找不到链接指向的文件"),
+                              detail: parent.baseURL == nil && !path.hasPrefix("/")
+                                ? String(localized: "文档还没有保存，无法按相对路径查找：\(path)")
+                                : String(localized: "文件可能已被移动、改名或删除：\(path)"))
+            case .unsupported(let text):
+                showLinkError(String(localized: "不支持打开这种链接"), detail: text)
+            case .anchor:
+                break
             }
+        }
+
+        private func showLinkError(_ title: String, detail: String) {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = title
+            alert.informativeText = detail
+            alert.addButton(withTitle: String(localized: "好"))
+            if let window = NSApp.keyWindow { alert.beginSheetModal(for: window) } else { alert.runModal() }
         }
     }
 }

@@ -139,6 +139,9 @@ private struct GeneralSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            Section("链接") {
+                LinkClickPicker()
+            }
             Section("双页") {
                 SourceMarkMenu()
                 Text("在左边原文里移动光标时，右边标出对应的位置。")
@@ -175,9 +178,7 @@ private struct GeneralSettings: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
-        .scrollDisabled(true)   // 内容放得下，不显示滚动条
-        .fixedSize(horizontal: false, vertical: true)
+        .formStyle(.grouped)   // 内容比窗口高时可以上下滚动
         // 用户可能在访达的“显示简介”里改了默认程序，回到 DropMD 时重新查看
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             isDefault = DefaultApp.isDefault

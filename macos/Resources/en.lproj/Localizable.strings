@@ -403,3 +403,15 @@
 "显示对应位置标记" = "Show Matching Position";
 "标记样式" = "Marker Style";
 "边框" = "Border";
+"不支持打开这种链接" = "This Type of Link Can’t Be Opened";
+"先确认再打开" = "Ask Before Opening";
+"打开" = "Open";
+"找不到链接指向的文件" = "The Linked File Can’t Be Found";
+"按住 ⌘ 点击才打开" = "Open Only with ⌘-Click";
+"文件可能已被移动、改名或删除：%@" = "The file may have been moved, renamed, or deleted: %@";
+"文档还没有保存，无法按相对路径查找：%@" = "The document hasn’t been saved, so the relative path can’t be found: %@";
+"无法打开这个文件" = "The File Can’t Be Opened";
+"无法打开这个链接" = "The Link Can’t Be Opened";
+"点击链接时" = "When Clicking a Link";
+"直接打开" = "Open Immediately";
+"要打开这个链接吗？" = "Open This Link?";
