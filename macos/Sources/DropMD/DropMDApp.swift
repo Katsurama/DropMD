@@ -170,6 +170,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             MainActor.assumeIsolated {
                 DefaultApp.askOnFirstLaunch()
+                HelpDocs.openGuideOnFirstLaunch()
                 UpdateChecker.shared.launchCheck()
             }
         }
@@ -298,6 +299,14 @@ enum HelpDocs {
 
     // 文件名也随界面语言：英文界面打开 User Guide.md，日文 ユーザーガイド.md，繁体 使用說明.md（都在 App 包里）
     static func openGuide() { openCopy(of: String(localized: "使用说明.md")) }
+
+    /// 第一次打开 DropMD 时（从旧版本升级后的第一次也算）自动打开使用说明，只打开一次
+    @MainActor static func openGuideOnFirstLaunch() {
+        let key = "shownUserGuide"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        openGuide()
+    }
 
     /// GitHub 仓库网页（仓库名取自 Info.plist，和软件更新同一处）
     @MainActor static func repoURL(path: String = "") -> URL? {
