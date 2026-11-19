@@ -93,11 +93,15 @@ struct UpdateView: View {
             }
             // 说明占满页面剩下的高度；再长也只在这一框里滚动，下面的按钮和开关不动
             ScrollView {
-                Text(notes(release))
-                    .lineSpacing(3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-                    .padding(12)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(noteLines(release).enumerated()), id: \.offset) { _, line in
+                        noteLine(line)
+                    }
+                }
+                .lineSpacing(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+                .padding(12)
             }
             .frame(minHeight: 140, maxHeight: .infinity)
             .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
@@ -143,11 +147,36 @@ struct UpdateView: View {
         }
     }
 
-    private func notes(_ release: ReleaseInfo) -> AttributedString {
+    /// 界面语言那一段说明，拆成一行一行
+    private func noteLines(_ release: ReleaseInfo) -> [ReleaseNoteLine] {
         let ui = Bundle.main.preferredLocalizations.first ?? ""
         let lang = ui.hasPrefix("zh-Hant") ? "zh-Hant" : ui.hasPrefix("zh") ? "zh" : ui.hasPrefix("ja") ? "ja" : "en"
-        let body = release.body.map { releaseNotesForDisplay(releaseNotes($0, language: lang)) } ?? String(localized: "（没有更新说明）")
+        guard let body = release.body else { return [.text(String(localized: "（没有更新说明）"))] }
+        return releaseNoteLines(releaseNotes(body, language: lang))
+    }
+
+    /// 行内的粗体、链接等照常显示
+    private func inline(_ s: String) -> AttributedString {
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        return (try? AttributedString(markdown: body, options: options)) ?? AttributedString(body)
+        return (try? AttributedString(markdown: s, options: options)) ?? AttributedString(s)
+    }
+
+    @ViewBuilder
+    private func noteLine(_ line: ReleaseNoteLine) -> some View {
+        switch line {
+        case .heading(let s):
+            Text(inline(s)).font(.headline).padding(.top, 2)
+        case .bullet(let level, let s):
+            // 圆点和文字分开排：文字折行时第二行和第一行的字对齐
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("•")
+                Text(inline(s)).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.leading, CGFloat(level) * 16)
+        case .text(let s):
+            Text(inline(s))
+        case .blank:
+            Spacer().frame(height: 4)
+        }
     }
 }
