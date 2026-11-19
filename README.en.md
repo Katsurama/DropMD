@@ -10,7 +10,7 @@
 
 It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all on your own Mac
 
-[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-install) [![Version](https://img.shields.io/badge/Version-0.6.0-0a84ff?style=flat-square)](docs/发行说明.md) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE) [![Patreon](https://img.shields.io/badge/Patreon-Support%20me-F96854?style=flat-square&logo=patreon&logoColor=white)](https://www.patreon.com/c/katsurama/membership) [![Afdian](https://img.shields.io/badge/Afdian-Support%20me-946ce6?style=flat-square)](https://afdian.com/a/katsurama) [![Discord](https://img.shields.io/badge/Discord-Join%20chat-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/VUne62RvrJ)
+[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-install) [![Version](https://img.shields.io/badge/Version-1.0.0-0a84ff?style=flat-square)](docs/发行说明.md) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE) [![Patreon](https://img.shields.io/badge/Patreon-Support%20me-F96854?style=flat-square&logo=patreon&logoColor=white)](https://www.patreon.com/c/katsurama/membership) [![Afdian](https://img.shields.io/badge/Afdian-Support%20me-946ce6?style=flat-square)](https://afdian.com/a/katsurama) [![Discord](https://img.shields.io/badge/Discord-Join%20chat-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/VUne62RvrJ)
 
 <br>
 
@@ -34,10 +34,11 @@ It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all o
 - **Split view**: Markdown source on the left, Page view on the right; edit either side and the other updates right away. Both sides scroll together, and the right side marks the paragraph your cursor is in
 - **Everyday formatting**: headings, bold, italic, underline, strikethrough, highlight, lists, checklists, tables, images, links, code blocks
 - **More formatting**: callouts (`> [!NOTE]`), collapsible sections, footnotes, math formulas, superscript / subscript, keyboard keys
+- **Tables and the context menu**: right-click to insert or delete rows and columns and set alignment; drag a column edge to resize; the context menu offers common actions for links, images, code blocks and callouts
 - **Chinese, Japanese and Korean text**: choose the document language so characters use the right glyph shapes, on screen and in exported files
 - **A native Mac app**: built with SwiftUI, uses Liquid Glass on macOS 26 and later, with colors designed for both light and dark mode
 - **Quick Look**: select a .md file in Finder and press Space to see it formatted without opening it
-- **Export**: PDF and HTML; auto save and version history
+- **Export and share**: PDF and HTML, or send the file via AirDrop or Mail with the Share button; auto save and version history
 - **Software updates**: check for new versions in the app; downloads are checked for integrity, then click Restart to finish
 
 ## 📦 Install

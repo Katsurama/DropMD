@@ -12,7 +12,7 @@
 
 Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換することもできます。すべてお使いの Mac 上で処理します
 
-[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-インストール) [![Version](https://img.shields.io/badge/Version-0.6.0-0a84ff?style=flat-square)](docs/发行说明.md) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE) [![Patreon](https://img.shields.io/badge/Patreon-%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-F96854?style=flat-square&logo=patreon&logoColor=white)](https://www.patreon.com/c/katsurama/membership) [![Afdian](https://img.shields.io/badge/Afdian-%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-946ce6?style=flat-square)](https://afdian.com/a/katsurama) [![Discord](https://img.shields.io/badge/Discord-%E5%8F%82%E5%8A%A0%E3%81%99%E3%82%8B-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/VUne62RvrJ)
+[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-インストール) [![Version](https://img.shields.io/badge/Version-1.0.0-0a84ff?style=flat-square)](docs/发行说明.md) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE) [![Patreon](https://img.shields.io/badge/Patreon-%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-F96854?style=flat-square&logo=patreon&logoColor=white)](https://www.patreon.com/c/katsurama/membership) [![Afdian](https://img.shields.io/badge/Afdian-%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-946ce6?style=flat-square)](https://afdian.com/a/katsurama) [![Discord](https://img.shields.io/badge/Discord-%E5%8F%82%E5%8A%A0%E3%81%99%E3%82%8B-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/VUne62RvrJ)
 
 <br>
 
@@ -40,10 +40,11 @@ Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換す�
 - **分割表示**：左に Markdown ソース、右にページ表示。どちらでも直接編集でき、すぐに反映されます。スクロールも連動し、右側には左のカーソルがある段落が表示されます
 - **よく使う書式**：見出し、太字、斜体、下線、取り消し線、ハイライト、リスト、チェックリスト、表、画像、リンク、コードブロック
 - **その他の書式**：コールアウト（`> [!NOTE]`）、折りたたみセクション、脚注、数式、上付き / 下付き、キーボードのキー
+- **表と右クリックメニュー**：右クリックで行・列の挿入と削除、配置の設定。列の境目をドラッグして幅を変更。右クリックメニューには、リンク・画像・コードブロック・コールアウトに合わせたよく使う操作が並びます
 - **日本語・中国語・韓国語**：書類の言語を選ぶと、漢字がその言語の字形で表示されます（画面上でも、書き出したファイルでも）
 - **クイックルック**：Finder で .md ファイルを選んでスペースキーを押すと、開かずに書式付きで確認できます
 - **Mac ネイティブのアプリ**：SwiftUI で作られ、macOS 26 以降では Liquid Glass を使用。ライト / ダークの両方に合わせた配色です
-- **書き出し**：PDF と HTML。自動保存とバージョン履歴にも対応
+- **書き出しと共有**：PDF と HTML。「共有」ボタンで AirDrop やメールでも送れます。自動保存とバージョン履歴にも対応
 - **ソフトウェア・アップデート**：アプリ内で新しいバージョンを確認。ダウンロードしたファイルの完全性を確認したうえで、“再起動”を押すだけで更新できます
 
 ## 📦 インストール
