@@ -1,29 +1,21 @@
 import Foundation
 
-/// 安装新版本：从安装包（.zip 或 .dmg）中取出新 App，等旧 App 退出后替换并重新打开。
+/// 安装新版本：从 .zip 安装包中取出新 App，等旧 App 退出后替换并重新打开。
 /// 只依赖 Foundation，可单独测试（tools/test_update.sh）。
 enum AppUpdateInstaller {
     enum InstallError: Error {
         case badPackage
     }
 
-    /// 从安装包取出 .app 复制到 staged，检查是同一个 App 且版本正确。
-    /// .zip 直接解压（访达里不会出现任何东西）；.dmg 需要挂载（旧版本的发布只有 .dmg）。
+    /// 从 .zip 安装包解压出 .app 复制到 staged（访达里不会出现任何东西），检查是同一个 App 且版本正确。
     static func stage(package: URL, to staged: URL, bundleID: String?, version: String?) throws {
         let fm = FileManager.default
         let work = fm.temporaryDirectory.appendingPathComponent("DropMD-update-\(UUID().uuidString)")
         try fm.createDirectory(at: work, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: work) }
         try? fm.removeItem(at: staged)
-        if package.pathExtension.lowercased() == "zip" {
-            try run("/usr/bin/ditto", ["-x", "-k", package.path, work.path])
-            try copyApp(from: work, to: staged)
-        } else {
-            try run("/usr/bin/hdiutil", ["attach", "-nobrowse", "-readonly", "-noautoopen", "-noverify",
-                                         "-mountpoint", work.path, package.path])
-            defer { try? run("/usr/bin/hdiutil", ["detach", work.path, "-force"]) }
-            try copyApp(from: work, to: staged)
-        }
+        try run("/usr/bin/ditto", ["-x", "-k", package.path, work.path])
+        try copyApp(from: work, to: staged)
         let info = NSDictionary(contentsOf: staged.appendingPathComponent("Contents/Info.plist"))
         let id = info?["CFBundleIdentifier"] as? String
         let v = info?["CFBundleShortVersionString"] as? String

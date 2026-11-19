@@ -1,5 +1,5 @@
 #!/bin/bash
-# 软件更新测试：版本号比较；从 .zip / .dmg 取出新版本，等旧进程退出后替换。需要 macOS。
+# 软件更新测试：版本号比较；从 .zip 取出新版本，等旧进程退出后替换。需要 macOS。
 # 用法：tools/test_update.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."

@@ -54,7 +54,8 @@ final class ModelDownloader: @unchecked Sendable {
 
     init() {
         let config = URLSessionConfiguration.ephemeral // 不保存 Cookie、缓存、凭据
-        config.httpAdditionalHeaders = ["User-Agent": "DropMD/1.1 (macOS)"]
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        config.httpAdditionalHeaders = ["User-Agent": "DropMD/\(version) (macOS)"]
         config.timeoutIntervalForRequest = 60
         config.timeoutIntervalForResource = 6 * 3600
         config.requestCachePolicy = .reloadIgnoringLocalCacheData

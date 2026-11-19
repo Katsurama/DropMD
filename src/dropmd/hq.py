@@ -108,6 +108,9 @@ def convert_pdf(src: Path, dst: Path, ocr_engine: str, formulas: bool, images_di
     """转换 PDF，Markdown 写入 dst，图片写入 dst 同级的 images_dir_name 文件夹。"""
     from docling_core.types.doc import ImageRefMode
 
+    from .converters import DOCLING_IMAGE, drop_unused_images
+
+    reconvert = dst.exists()   # .md 还不存在时，同名文件夹不是本程序建的，里面的文件一个都不动
     converter = get_converter(ocr_engine, formulas, vision_lang)
     result = converter.convert(str(src), raises_on_error=True)
     doc = result.document
@@ -131,6 +134,8 @@ def convert_pdf(src: Path, dst: Path, ocr_engine: str, formulas: bool, images_di
     if fixed != text:
         tmp.write_text(fixed, encoding="utf-8")
     tmp.replace(dst)
+    if reconvert:
+        drop_unused_images(dst, images_dir_name, fixed, DOCLING_IMAGE)
 
     img_dir = dst.parent / images_dir_name
     if img_dir.is_dir() and not any(img_dir.iterdir()):

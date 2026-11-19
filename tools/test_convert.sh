@@ -148,6 +148,24 @@ with tempfile.TemporaryDirectory() as d:
     ok = b'"start"' in first and left == []
     failed += not ok
     print("ok  " if ok else "FAIL", "停止时 Pandoc 一起结束", "" if ok else f"\n     引擎第一行：{first!r}，留下了：{left}")
+# 重新转换（Pandoc、高精度模式）后删掉新 .md 不再用的旧图片：只删本程序命名的；
+# 还在用的不删，包括高精度模式里中文路径被编码的；用户自己放的不动
+from dropmd.converters import DOCLING_IMAGE, PANDOC_IMAGE, drop_unused_images
+with tempfile.TemporaryDirectory() as d:
+    root = Path(d)
+    files = ["报告_images/media/image1.png", "报告_images/media/image2.png", "报告_images/media/我的.png",
+             "报告_images/image_000000_ab12.png", "报告_images/image_000001_cd34.png"]
+    for f in files:
+        (root / f).parent.mkdir(parents=True, exist_ok=True)
+        (root / f).write_bytes(b"x")
+    dst = root / "报告.md"
+    drop_unused_images(dst, "报告_images", "![](报告_images/media/image1.png)", PANDOC_IMAGE)
+    drop_unused_images(dst, "报告_images", "![Image](%E6%8A%A5%E5%91%8A_images/image_000000_ab12.png)", DOCLING_IMAGE)
+    left = sorted(p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file())
+    want = ["报告_images/image_000000_ab12.png", "报告_images/media/image1.png", "报告_images/media/我的.png"]
+    ok = left == want
+    failed += not ok
+    print("ok  " if ok else "FAIL", "重新转换删掉不用的旧图片", "" if ok else f"\n     left: {left!r}")
 print("全部通过" if not failed else f"失败 {failed} 项")
 raise SystemExit(1 if failed else 0)
 EOF

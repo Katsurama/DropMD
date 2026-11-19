@@ -305,12 +305,7 @@ final class EditorController: ObservableObject {
               let clip = tv.enclosingScrollView?.contentView else { return }
         let ns = tv.string as NSString
         let whole = Int(line)
-        var index = 0
-        for _ in 0..<whole {
-            let r = ns.range(of: "\n", range: NSRange(location: index, length: ns.length - index))
-            guard r.location != NSNotFound else { break }
-            index = NSMaxRange(r)
-        }
+        let index = Self.lineStart(whole, in: ns)
         guard lm.numberOfGlyphs > 0 else { return }
         lm.ensureLayout(for: tc)
         let glyph = min(lm.glyphIndexForCharacter(at: min(index, max(0, ns.length - 1))), lm.numberOfGlyphs - 1)
