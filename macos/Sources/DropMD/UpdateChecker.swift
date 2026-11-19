@@ -103,6 +103,14 @@ struct ReleaseInfo: Decodable, Identifiable {
 
     var id: String { tagName }
     var version: AppVersion? { AppVersion(tagName) }
+    /// 测试版：GitHub 上标了“预发布”，或版本号带 -beta 等后缀（发布时漏标也不会推给只要正式版的人）
+    var isBeta: Bool { prerelease || !(version?.prerelease.isEmpty ?? true) }
+
+    /// 可以提示的最新版本：去掉草稿和看不懂的版本号；不要测试版时去掉测试版
+    static func newest(_ releases: [ReleaseInfo], includeBeta: Bool) -> ReleaseInfo? {
+        releases.filter { !$0.draft && $0.version != nil && (includeBeta || !$0.isBeta) }
+            .max { $0.version! < $1.version! }
+    }
     var dmg: Asset? { assets.first { $0.name.lowercased().hasSuffix(".dmg") } }
     /// App 内更新用的 zip（解压即可，不用挂载磁盘）；旧版本的发布没有
     var zip: Asset? { assets.first { $0.name.lowercased().hasSuffix(".zip") } }
@@ -136,7 +144,17 @@ final class UpdateChecker: ObservableObject {
 
     private let defaults = UserDefaults.standard
     @Published var autoCheck: Bool { didSet { defaults.set(autoCheck, forKey: "autoCheckUpdates") } }
-    @Published var includeBeta: Bool { didSet { defaults.set(includeBeta, forKey: "includeBetaUpdates") } }
+    @Published var includeBeta: Bool {
+        didSet {
+            defaults.set(includeBeta, forKey: "includeBetaUpdates")
+            // 已经检查过（页面上有结果）时按新设置马上重查，否则还显示改之前的结果；没检查过不联网
+            guard includeBeta != oldValue else { return }
+            switch state {
+            case .upToDate, .available, .failed: Task { await check() }
+            default: break
+            }
+        }
+    }
 
     private var downloadTask: Task<Void, Never>?
     private var replaceScheduled = false
@@ -221,8 +239,7 @@ final class UpdateChecker: ObservableObject {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             let releases = try decoder.decode([ReleaseInfo].self, from: data)
-            let candidates = releases.filter { !$0.draft && $0.version != nil && (includeBeta || !$0.prerelease) }
-            let newest = candidates.max { ($0.version!) < ($1.version!) }
+            let newest = ReleaseInfo.newest(releases, includeBeta: includeBeta)
             lastChecked = Date()
             defaults.set(lastChecked, forKey: "lastUpdateCheck")
             latest = newest

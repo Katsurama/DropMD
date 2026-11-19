@@ -80,7 +80,7 @@ struct UpdateView: View {
             HStack {
                 Label("新版本：\(release.version?.description ?? release.tagName)", systemImage: "sparkles")
                     .font(.headline)
-                if release.prerelease {
+                if release.isBeta {
                     Text("测试版")
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 6)
