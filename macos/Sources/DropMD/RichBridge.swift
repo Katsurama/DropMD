@@ -231,11 +231,8 @@ enum RichBridge {
                               alignment: NSTextAlignment = .natural, width: CGFloat) -> NSAttributedString {
         let block = NSTextTableBlock(table: table, startingRow: row, rowSpan: 1, startingColumn: column, columnSpan: 1)
         block.setValue(width, type: .percentageValueType, for: .width)
-        // 每格只画右边和下边，第一列再画左边、第一行再画上边：相邻两格的线不叠成双线
-        block.setWidth(1, type: .absoluteValueType, for: .border, edge: .maxX)
-        block.setWidth(1, type: .absoluteValueType, for: .border, edge: .maxY)
-        block.setWidth(column == 0 ? 1 : 0, type: .absoluteValueType, for: .border, edge: .minX)
-        block.setWidth(row == 0 ? 1 : 0, type: .absoluteValueType, for: .border, edge: .minY)
+        // 每格四边都画（表格合并相邻边框，不成双线）：只重画一格时也是完整的框，不靠邻格补线
+        block.setWidth(1, type: .absoluteValueType, for: .border)
         block.setBorderColor(RichStyle.lineColor)
         block.setWidth(10, type: .absoluteValueType, for: .padding, edge: .minX)
         block.setWidth(10, type: .absoluteValueType, for: .padding, edge: .maxX)
