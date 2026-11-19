@@ -1027,9 +1027,9 @@ MainActor.assumeIsolated {
             let p = v.convert(NSPoint(x: r.midX + v.textContainerOrigin.x, y: r.midY + v.textContainerOrigin.y), to: nil)
             let e = NSEvent.mouseEvent(with: .rightMouseDown, location: p, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber,
                                        context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
-            let items = v.menu(for: e)!.items.prefix(15).map { ($0.isSeparatorItem ? "-" : $0.title) + ($0.state == .on ? "✓" : "") }
+            let items = v.menu(for: e)!.items.prefix(12).map { ($0.isSeparatorItem ? "-" : $0.title) + ($0.state == .on ? "✓" : "") }
             check("表格：右键菜单", items.joined(separator: "|"),
-                  "在上方插入一行|在下方插入一行|删除这一行|-|在左边插入一列|在右边插入一列|删除这一列|-|这一列靠左|这一列居中|这一列靠右|-|复制表格|删除表格|-")
+                  "在上方插入行|在下方插入行|删除行|-|在左侧插入列|在右侧插入列|删除列|-|对齐方式|复制表格|删除表格|-")
         }
         tv = at("1"); tv.copyTable(nil)
         check("表格：复制表格", NSPasteboard.general.string(forType: .string) ?? "", "| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n")
@@ -1049,27 +1049,27 @@ MainActor.assumeIsolated {
         NSPasteboard.general.clearContents()
         var tv = at("**粗** ~~删~~ `码` [链](https://a.com)\n", "粗", select: true)
         tv.setSelectedRange(NSRange(location: 0, length: (tv.string as NSString).length - 1))
-        check("右键：选中文字有格式项", "\(titles(tv).hasPrefix("删除线|高亮|行内代码|上标|下标|清除格式"))", "true")
+        check("右键：选中文字有格式项", "\(titles(tv).hasPrefix("删除线|高亮|行内代码|清除格式"))", "true")
         tv.clearFormatting(nil)
         check("右键：清除格式（链接留着）", md(tv), "粗 删 码 [链](https://a.com)\n")
         tv = at("前 [链接](https://a.com) 后\n", "接")
-        check("右键：链接上的操作", "\(titles(tv, hit: tv.selectedRange().location).hasPrefix("打开链接|编辑链接…|复制链接地址|去掉链接"))", "true")
-        let linkItem = tv.contextItems(hit: tv.selectedRange().location).first { $0.title == "去掉链接" }!
+        check("右键：链接上的操作", "\(titles(tv, hit: tv.selectedRange().location).hasPrefix("打开链接|编辑链接…|复制链接|移除链接"))", "true")
+        let linkItem = tv.contextItems(hit: tv.selectedRange().location).first { $0.title == "移除链接" }!
         tv.removeLink(linkItem)
         check("右键：去掉链接", md(tv), "前 链接 后\n")
         tv = at("![旧说明](a.png)\n", "旧")
         let img = NSRange(location: 0, length: (tv.string as NSString).length - 1)
-        check("右键：图片上的操作", "\(titles(tv, hit: 0).hasPrefix("修改图片说明…|在访达中显示|删除图片"))", "true")
+        check("右键：图片上的操作", "\(titles(tv, hit: 0).hasPrefix("编辑替代文本…|在访达中显示|删除图片"))", "true")
         tv.setImageAlt("新说明", in: img)
         check("右键：修改图片说明", md(tv), "![新说明](a.png)\n")
         tv = at("```swift\nlet a = 1\nlet b = 2\n```\n", "b")
-        check("右键：代码块里的操作", "\(titles(tv).hasPrefix("复制代码|代码语言"))", "true")
+        check("右键：代码块里的操作", "\(titles(tv).hasPrefix("复制代码|语言"))", "true")
         tv.setCodeLanguage(obj("python"))
         check("右键：更改代码语言", md(tv), "```python\nlet a = 1\nlet b = 2\n```\n")
         tv.copyCode(nil)
         check("右键：复制代码", NSPasteboard.general.string(forType: .string) ?? "", "let a = 1\nlet b = 2")
         tv = at("> [!NOTE]\n> 内容\n", "内容")
-        check("右键：提示框里的操作", "\(titles(tv).hasPrefix("提示框类型|改回普通引用"))", "true")
+        check("右键：提示框里的操作", "\(titles(tv).hasPrefix("提示框类型|转换为引用"))", "true")
         tv.setCalloutType(obj(MDCallout.allCases.first { $0 != .note }!.rawValue))
         check("右键：改提示框类型", md(tv), "> \(MDCallout.allCases.first { $0 != .note }!.header)\n> 内容\n")
         type(tv, "X")
@@ -1092,6 +1092,7 @@ MainActor.assumeIsolated {
             let names = menu.items.compactMap { $0.action.map { NSStringFromSelector($0) } }
             check("右键：链接上不重复", "\(names.filter { ["openLinkItem:", "_openLinkFromMenu:", "copyLink:", "orderFrontLinkPanel:", "_removeLinkFromMenu:"].contains($0) })", "[\"openLinkItem:\"]")
             check("右键：没选字时没有格式项", "\(names.contains("clearFormatting:"))", "false")
+            check("右键：没有字体、快速查看等用不上的系统项", "\(names.contains { $0.hasPrefix("toggleQuickLook") } || menu.items.contains { $0.submenu?.items.contains { $0.action.map { NSStringFromSelector($0).hasPrefix("orderFrontFontPanel") } ?? false } ?? false })", "false")
             check("右键：没有连着的分隔线", "\(zip(menu.items, menu.items.dropFirst()).contains { $0.isSeparatorItem && $1.isSeparatorItem })", "false")
         }
         NSPasteboard.general.clearContents()
