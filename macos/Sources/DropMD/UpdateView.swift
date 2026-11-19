@@ -169,7 +169,7 @@ struct UpdateView: View {
         case .bullet(let level, let s):
             // 圆点和文字分开排：文字折行时第二行和第一行的字对齐
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("•")
+                Text(verbatim: "•")
                 Text(inline(s)).frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.leading, CGFloat(level) * 16)
