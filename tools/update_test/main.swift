@@ -141,8 +141,9 @@ do {
     check(((try? FileManager.default.attributesOfItem(atPath: log.path)[.size] as? Int) ?? -1) == 0, "引擎日志超过 1 MB 清空")
 }
 
-// 更新窗口里的说明：标题变粗体、列表变圆点，嵌套列表缩进，普通行不变
-check(releaseNotesForDisplay("## DropMD 1.0.0\n\n- 表格可以删行\n  - 选中整行按退格\n* 右键菜单\n普通的一行 - 不是列表") ==
-      "**DropMD 1.0.0**\n\n•  表格可以删行\n    •  选中整行按退格\n•  右键菜单\n普通的一行 - 不是列表", "更新说明的标题和列表")
+// 更新窗口里的说明拆成行：标题、列表（嵌套有层级）、普通文字、空行
+check(releaseNoteLines("## DropMD 1.0.0\n\n- 表格可以删行\n  - 选中整行按退格\n* 右键菜单\n普通的一行 - 不是列表") ==
+      [.heading("DropMD 1.0.0"), .blank, .bullet(level: 0, text: "表格可以删行"), .bullet(level: 1, text: "选中整行按退格"),
+       .bullet(level: 0, text: "右键菜单"), .text("普通的一行 - 不是列表")], "更新说明拆成行")
 print(failures == 0 ? "全部通过" : "\(failures) 项失败")
 exit(failures == 0 ? 0 : 1)

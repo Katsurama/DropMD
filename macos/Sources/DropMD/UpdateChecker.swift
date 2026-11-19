@@ -62,20 +62,27 @@ func releaseNotes(_ body: String, language: String) -> String {
         .trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
-/// 更新窗口里显示的说明：标题（## ）改成粗体一行、列表（- 、* ）改成“•”，其他行内写法（粗体、链接）照常显示
-func releaseNotesForDisplay(_ notes: String) -> String {
-    notes.components(separatedBy: "\n").map { line -> String in
+/// 更新窗口里说明的一行：标题、列表项（level 是缩进层级）、普通文字、空行
+enum ReleaseNoteLine: Equatable {
+    case heading(String)
+    case bullet(level: Int, text: String)
+    case text(String)
+    case blank
+}
+
+/// 把更新说明拆成一行一行（标题 ## 、列表 - * + ），列表项单独排版，折行时和上一行的字对齐
+func releaseNoteLines(_ notes: String) -> [ReleaseNoteLine] {
+    notes.components(separatedBy: "\n").map { line in
         let t = line.trimmingCharacters(in: .whitespaces)
+        if t.isEmpty { return .blank }
         if let r = t.range(of: "^#{1,6} +", options: .regularExpression) {
-            let title = t[r.upperBound...].trimmingCharacters(in: .whitespaces)
-            return title.isEmpty ? "" : "**\(title)**"
+            return .heading(t[r.upperBound...].trimmingCharacters(in: .whitespaces))
         }
         if let r = line.range(of: "^ *[-*+] +", options: .regularExpression) {
-            let indent = String(repeating: "    ", count: line.prefix { $0 == " " }.count / 2)
-            return indent + "•  " + line[r.upperBound...]
+            return .bullet(level: line.prefix { $0 == " " }.count / 2, text: String(line[r.upperBound...]))
         }
-        return line
-    }.joined(separator: "\n")
+        return .text(line)
+    }
 }
 
 struct ReleaseInfo: Decodable, Identifiable {
