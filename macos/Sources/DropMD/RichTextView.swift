@@ -618,7 +618,8 @@ final class RichTextView: NSTextView {
         }
         let blockStart = s.length
         let content = NSMutableAttributedString(attributedString: block)
-        if keepInDetails, paragraphAttributes(para)[DMKey.inDetails] != nil { RichBridge.markInDetails(content) }
+        let pa = paragraphAttributes(para)   // 折叠块的标题行也算在折叠块里
+        if keepInDetails, pa[DMKey.inDetails] != nil || pa[DMKey.summary] != nil { RichBridge.markInDetails(content) }
         s.append(content)
         if at >= ns.length {
             s.append(RichBridge.paragraph(NSAttributedString(), kind: .body))   // 让光标能移到块之后
@@ -734,19 +735,41 @@ final class RichTextView: NSTextView {
         ref.literal = true
         let caret = selectedRange()
         let refString = RichBridge.runsString([ref], kind: .body, baseURL: baseURL)
-        replace(caret, with: refString)
+        replace(caret, with: fitted(refString, to: paragraphAttributes(paragraphRange(at: caret.location))))
         let afterRef = selectedRange().location
         let s = NSMutableAttributedString()
-        if storage.length > 0 && !string.hasSuffix("\n") {
+        // 文末表格、折叠块后面那个空的占位段落：说明直接写在这一段，否则保存时多出一个空段（&nbsp;）
+        let last = paragraphRange(at: max(storage.length - 1, 0)), lastAttrs = paragraphAttributes(last)
+        var at = NSRange(location: storage.length, length: 0)
+        if last.length == 1, last.location > 0, string.hasSuffix("\n"), RichBridge.kind(of: lastAttrs) == .body,
+           lastAttrs[DMKey.inDetails] == nil, RichBridge.tableBlock(of: lastAttrs) == nil {
+            at = last
+        } else if storage.length > 0 && !string.hasSuffix("\n") {
             s.append(NSAttributedString(string: "\n", attributes: RichStyle.attributes(for: MDRun(), kind: .body)))
         }
         s.append(RichBridge.paragraph(RichBridge.runsString([ref, MDRun(text: ": \(note)")], kind: .body, baseURL: baseURL),
                                       kind: .body))
-        replace(NSRange(location: storage.length, length: 0), with: s, caret: afterRef)
+        replace(at, with: s, caret: afterRef)
     }
 
     func insertImage(path: String, alt: String) {
-        replace(selectedRange(), with: RichBridge.imageString(path: Self.encodedImagePath(path), alt: alt, baseURL: baseURL))
+        let image = RichBridge.imageString(path: Self.encodedImagePath(path), alt: alt, baseURL: baseURL)
+        replace(selectedRange(), with: fitted(image, to: paragraphAttributes(paragraphRange(at: selectedRange().location))))
+    }
+
+    /// 放进一段里的内容：去掉它自己的段落格式，换成这一段的（列表、表格、折叠块、缩进），否则这一段会被拆开。
+    /// 放进表格单元格时换行改成空格，一个格子不会拆成几个
+    func fitted(_ s: NSAttributedString, to dest: [NSAttributedString.Key: Any]) -> NSAttributedString {
+        let out = NSMutableAttributedString(attributedString: s)
+        if RichBridge.tableBlock(of: dest) != nil {
+            out.mutableString.replaceOccurrences(of: "\n", with: " ", range: NSRange(location: 0, length: out.length))
+        }
+        let whole = NSRange(location: 0, length: out.length)
+        for k in DMKey.paragraphKeys + [.paragraphStyle, DMKey.inDetails, DMKey.codeGap] {
+            out.removeAttribute(k, range: whole)
+            if let v = dest[k] { out.addAttribute(k, value: v, range: whole) }
+        }
+        return out
     }
 
     /// 文件名里的 % # ? 在 Markdown 地址里有别的意思，要编码

@@ -587,7 +587,12 @@ final class EditorController: ObservableObject {
     /// 代码块；lang 为编程语言（用于语法高亮），可以为空
     func codeBlock(_ lang: String = "") {
         if let r = rich {
-            r.setKind(.code(lang), toggle: lang.isEmpty)
+            // 已在代码块里：不带语言是退出代码块，带语言是整块换成这种语言（不动列表、折叠块）
+            if case .code = r.currentKind {
+                if lang.isEmpty { r.setKind(.body) } else { r.setCodeLanguage(to: lang) }
+            } else {
+                r.setKind(.code(lang))
+            }
         } else {
             insertBlock(String(localized: "```\(lang)\n代码\n```"), selectPlaceholder: String(localized: "代码"))
         }

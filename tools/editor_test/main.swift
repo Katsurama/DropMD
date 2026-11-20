@@ -1231,6 +1231,75 @@ MainActor.assumeIsolated {
         tv = at("正文\n", "文")
         check("右键：普通段落", titles(tv), "转换为|插入")
     }
+    // 单页内复制粘贴、插入图片和脚注：不拆开表格、列表、折叠块
+    do {
+        @MainActor func at(_ tv: RichTextView, _ s: String) -> NSRange { (tv.string as NSString).range(of: s) }
+        @MainActor func copyPaste(_ src: String, copy: String, onto: String) -> String {
+            let tv = makeView(src)
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDTest5-\(UUID().uuidString)"))
+            tv.setSelectedRange(at(tv, copy))
+            board.clearContents()
+            _ = tv.writeSelection(to: board, types: tv.writablePasteboardTypes)
+            tv.setSelectedRange(at(tv, onto))
+            _ = tv.readSelection(from: board)
+            board.releaseGlobally()
+            return md(tv)
+        }
+        let table = "一段正文\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n"
+        let details = "外部文字\n\n<details>\n<summary>折叠</summary>\n\n第一段\n\n第二段\n\n</details>\n"
+        check("正文粘进表格单元格", copyPaste(table, copy: "正文", onto: "1"), "一段正文\n\n| A | B |\n| --- | --- |\n| 正文 | 2 |\n")
+        check("单元格文字粘进正文", copyPaste(table, copy: "1", onto: "一段正文"), "1\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n")
+        check("折叠块外的文字粘进折叠块", copyPaste(details, copy: "外部文字", onto: "第一段"),
+              "外部文字\n\n<details>\n<summary>折叠</summary>\n\n外部文字\n\n第二段\n\n</details>\n")
+        check("多段粘进折叠块", copyPaste("甲\n\n乙\n\n" + details.dropFirst(6), copy: "甲\n乙", onto: "第一段"),
+              "甲\n\n乙\n\n<details>\n<summary>折叠</summary>\n\n甲\n\n乙\n\n第二段\n\n</details>\n")
+        do {
+            let tv = makeView(details)
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDTest6-\(UUID().uuidString)"))
+            board.clearContents()
+            board.setString("新内容", forType: .string)
+            tv.setSelectedRange(at(tv, "第一段"))
+            _ = tv.readSelection(from: board)
+            board.releaseGlobally()
+            check("纯文字粘进折叠块", md(tv), "外部文字\n\n<details>\n<summary>折叠</summary>\n\n新内容\n\n第二段\n\n</details>\n")
+        }
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("DropMDTest-\(UUID().uuidString)")
+        try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let png = dir.appendingPathComponent("pic.png").path
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 4, pixelsHigh: 4, bitsPerSample: 8, samplesPerPixel: 4,
+                                   hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: png))
+        for (name, src, spot, image, note) in [
+            ("表格", "| A | B |\n| --- | --- |\n| 1 | 2 |\n", "1",
+             "| A | B |\n| --- | --- |\n| ![图](P)1 | 2 |\n", "| A | B |\n| --- | --- |\n| [^1]1 | 2 |\n\n[^1]: 说明\n"),
+            ("列表", "- 第一项\n", "第一项", "- ![图](P)第一项\n", "- [^1]第一项\n\n[^1]: 说明\n"),
+            ("折叠块", details, "第一段",
+             "外部文字\n\n<details>\n<summary>折叠</summary>\n\n![图](P)第一段\n\n第二段\n\n</details>\n",
+             "外部文字\n\n<details>\n<summary>折叠</summary>\n\n[^1]第一段\n\n第二段\n\n</details>\n\n[^1]: 说明\n"),
+        ] {
+            var tv = makeView(src)
+            tv.setSelectedRange(NSRange(location: at(tv, spot).location, length: 0))
+            tv.insertImage(path: png, alt: "图")
+            check("插入图片是附件：\(name)", "\(tv.textStorage!.attribute(.attachment, at: at(tv, spot).location - 1, effectiveRange: nil) != nil)", "true")
+            check("插入图片：\(name)", md(tv).replacingOccurrences(of: png, with: "P"), image)
+            tv = makeView(src)
+            tv.setSelectedRange(NSRange(location: at(tv, spot).location, length: 0))
+            tv.insertFootnote(label: "1", note: "说明")
+            check("插入脚注：\(name)", md(tv), note)
+        }
+        var tv = makeView("<details open>\n<summary>折叠</summary>\n\n内容\n\n</details>\n")
+        tv.setSelectedRange(NSRange(location: at(tv, "折叠").location, length: 0))
+        tv.insertRule()
+        check("折叠块标题上插入分隔线", md(tv), "<details open>\n<summary>折叠</summary>\n\n---\n\n内容\n\n</details>\n")
+        tv = makeView("---\ntitle: Demo\n---\n\n```python\nprint(1)\n```\n")
+        let block = (tv.layoutManager as! RichLayoutManager).codeBlock(at: at(tv, "print").location)
+        check("复制代码不带 YAML 信息", block.map { (tv.string as NSString).substring(with: $0) } ?? "无", "print(1)\n")
+        tv = makeView("```python\nline1\nline2\n```\n")
+        tv.setSelectedRange(NSRange(location: at(tv, "line2").location, length: 0))
+        tv.setCodeLanguage(to: "swift")
+        check("第 2 行换语言：整块换", md(tv), "```swift\nline1\nline2\n```\n")
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }
