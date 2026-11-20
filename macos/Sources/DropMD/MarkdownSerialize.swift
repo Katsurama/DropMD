@@ -196,7 +196,8 @@ extension MarkdownCodec {
             if x.kind.listDepth != nil, y.kind.listDepth == nil { return "\n\n" }
             return "\n"
         }
-        if case .raw = a, case .raw = b { return "\n" }
+        // 相邻的原样内容只隔一个换行（列表项下面缩进的 HTML 被拆成两段时要接回去）；公式块要隔空行，否则再打开时被并进上面的 HTML
+        if case .raw(let x) = a, case .raw(let y) = b, !isMathBlock(x), !isMathBlock(y) { return "\n" }
         return "\n\n"
     }
 

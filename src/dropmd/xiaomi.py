@@ -43,12 +43,16 @@ def _table(block: str) -> str:
     rows: list[list[str]] = []
     row: list[str] = []
     after = ""
+    done: list[str] = []   # 同一段里的前几张表（连同表后的文字），已转好
     for tag, text in zip(parts[1::2], parts[2::2]):
         if tag == "nl":
             if row:
                 rows.append(row)
             row, after = [], text
             continue
+        if after.strip() and rows:   # 表后有文字又开始新的表：前一张表和这段文字先输出
+            done += [_rows(rows), after.strip()]
+            rows = []
         after = ""
         if tag == "fcel":
             row.append(" ".join(text.split()).replace("|", r"\|"))
@@ -60,10 +64,14 @@ def _table(block: str) -> str:
             row.append("")
     if row:
         rows.append(row)
+    return "\n\n".join(p for p in (parts[0].strip(), *done, _rows(rows), after.strip()) if p)
+
+
+def _rows(rows: list[list[str]]) -> str:
     width = max(map(len, rows), default=0)
     lines = ["| " + " | ".join(r + [""] * (width - len(r))) + " |" for r in rows]
     lines[1:1] = ["| " + " | ".join(["---"] * width) + " |"] if lines else []
-    return "\n\n".join(p for p in (parts[0].strip(), "\n".join(lines), after.strip()) if p)
+    return "\n".join(lines)
 
 
 def clean(text: str) -> str:

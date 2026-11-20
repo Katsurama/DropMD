@@ -1330,12 +1330,89 @@ MainActor.assumeIsolated {
               "5:1:正文标题 | 11:1:下划线标题 | 17:2:折叠里的")
         // 目录跳转：单页里第 n 个标题与目录第 n 条是同一个；跳进收起的折叠块时展开
         let tv = makeView(doc2)
-        check("单页第 n 个标题", (0..<4).map { tv.headingParagraph($0).map { (tv.string as NSString).substring(with: $0).trimmingCharacters(in: .newlines) } ?? "无" }.joined(separator: " | "),
-              "正文标题 | 下划线标题 | 折叠里的 | 无")
-        let inside = tv.headingParagraph(2)!
+        // 目录里每一条在单页里都找得到同一个标题
+        @MainActor func jumps(_ d: String) -> String {
+            let v = makeView(d), list = extractHeadings(d)
+            return list.enumerated().map { i, h in
+                let k = list.prefix(i).filter { $0.title == h.title }.count
+                return v.headingParagraph(title: h.title, occurrence: k).map { (v.string as NSString).substring(with: $0).trimmingCharacters(in: .newlines) } ?? "无"
+            }.joined(separator: " | ")
+        }
+        check("目录每条都跳得到", jumps(doc2), "正文标题 | 下划线标题 | 折叠里的")
+        check("目录：只有图片的标题不算", jumps("# ![](a.png)\n\n# 真实标题\n"), "真实标题")
+        check("目录：折叠块里的折叠块不往里找", jumps("<details>\n<summary>外层</summary>\n\n<details>\n<summary>内层</summary>\n\n## 内层标题\n\n</details>\n\n</details>\n\n# 后面标题\n"), "后面标题")
+        check("目录：折叠块开头的 --- 不是 YAML", jumps("<details>\n<summary>折叠</summary>\n---\n## 两条线中间的标题\n---\n\n</details>\n\n# 后面标题\n"), "两条线中间的标题 | 后面标题")
+        check("目录：同名标题按第几个找", jumps("# 小结\n\n正文\n\n# 小结\n"), "小结 | 小结")
+        let inside = tv.headingParagraph(title: "折叠里的", occurrence: 0)!
         check("折叠块开始时是收起的", "\((tv.layoutManager as! RichLayoutManager).hiddenRanges.isEmpty)", "false")
         tv.setSelectedRange(NSRange(location: inside.location, length: 0))
         check("跳进收起的折叠块时展开", "\((tv.layoutManager as! RichLayoutManager).hiddenRanges.isEmpty)", "true")
+    }
+    // YAML 信息、HTML 里按回车只是换行，空行再回车回到正文；公式块后回车是正文
+    do {
+        let tv = makeView("---\ntitle: Demo\n---\n\n正文\n")
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "title: Demo").location + 11, length: 0))
+        tv.insertNewline(nil)
+        type(tv, "author: Bob")
+        check("YAML 里回车", md(tv), "---\ntitle: Demo\nauthor: Bob\n---\n\n正文\n")
+        let close = (tv.string as NSString).range(of: "---", options: .backwards, range: NSRange(location: 0, length: (tv.string as NSString).range(of: "正文").location))
+        tv.setSelectedRange(NSRange(location: NSMaxRange(close), length: 0))
+        tv.insertNewline(nil)
+        tv.insertNewline(nil)
+        type(tv, "后")
+        check("YAML 结尾空行再回车回到正文", md(tv), "---\ntitle: Demo\nauthor: Bob\n---\n\n后\n\n正文\n")
+        let t2 = makeView("<div>\n<p>a</p>\n</div>\n\n正文\n")
+        t2.setSelectedRange(NSRange(location: (t2.string as NSString).range(of: "<p>a</p>").location + 8, length: 0))
+        t2.insertNewline(nil)
+        type(t2, "<p>b</p>")
+        check("HTML 里回车", md(t2), "<div>\n<p>a</p>\n<p>b</p>\n</div>\n\n正文\n")
+    }
+    // 从网页、Word 粘贴：进表格单元格不拆表；替换整个标题、列表项的文字时样式不变
+    do {
+        @MainActor func paste(_ src: String, sel: String, rtf: String?, html: String?) -> String {
+            let tv = makeView(src)
+            tv.setSelectedRange((tv.string as NSString).range(of: sel))
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDTest7-\(UUID().uuidString)"))
+            board.clearContents()
+            if let rtf {
+                let s = NSAttributedString(string: rtf, attributes: [.font: NSFont.systemFont(ofSize: 14)])
+                board.setData(try! s.data(from: NSRange(location: 0, length: s.length),
+                                          documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]), forType: .rtf)
+                board.setString(rtf, forType: .string)
+            }
+            if let html { board.setString(html, forType: .html) }
+            _ = tv.readSelection(from: board)
+            board.releaseGlobally()
+            return md(tv)
+        }
+        check("网页内容粘进表格单元格", paste("| A | B |\n| --- | --- |\n| 1 | 2 |\n", sel: "1", rtf: "Title\nNext",
+                                         html: "<h1>Title</h1><p>Next</p>"), "| A | B |\n| --- | --- |\n| Title Next | 2 |\n")
+        check("粘贴替换整个标题的文字", paste("# 标题\n", sel: "标题", rtf: "Hello", html: nil), "# Hello\n")
+        check("粘贴替换整个列表项的文字", paste("- 项目一\n- 项目二\n", sel: "项目一", rtf: "Hello", html: nil), "- Hello\n- 项目二\n")
+    }
+    // 显示用的颜色（临时属性，等主线程空下来才上色）
+    do {
+        @MainActor func pump() { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        @MainActor func color(_ tv: RichTextView, _ s: String) -> NSColor? {
+            (tv.layoutManager as! RichLayoutManager).temporaryAttribute(.foregroundColor, atCharacterIndex: (tv.string as NSString).range(of: s).location, effectiveRange: nil) as? NSColor
+        }
+        var tv = makeView("> [!NOTE]\n> 第一行\n> 第二行\n")
+        pump()
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "第一行").location, length: 0))
+        tv.removeCallout(nil)
+        pump()
+        check("提示框变回引用后整段变灰", "\(color(tv, "第一行") == .secondaryLabelColor) \(color(tv, "第二行") == .secondaryLabelColor)", "true true")
+        tv = makeView("<details>\n<summary>折叠</summary>\n\n```swift\n/* multi\nline comment */\n```\n\n</details>\n")
+        pump()
+        tv.setCollapsed(false, summary: (tv.string as NSString).paragraphRange(for: NSRange(location: 0, length: 0)))
+        pump()
+        check("展开折叠块后代码注释上色", "\(color(tv, "line comment") == RichStyle.codeCommentColor)", "true")
+        // 两个代码块之间的空行删掉后，屏幕上也是两块（和保存一致）
+        tv = makeView("```swift\nlet a = 1\n```\n\n```python\nx = 2\n```\n")
+        let gap = (tv.string as NSString).range(of: "\n\n").location + 1
+        tv.setSelectedRange(NSRange(location: gap, length: 1))
+        tv.delete(nil)
+        check("删掉代码块间的空行后仍是两块", (tv.layoutManager as! RichLayoutManager).codeBlock(at: 0).map { (tv.string as NSString).substring(with: $0) } ?? "无", "let a = 1\n")
     }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }

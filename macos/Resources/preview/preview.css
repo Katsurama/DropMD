@@ -65,7 +65,7 @@ th, td { border: 1px solid var(--line); padding: 9px 12px; }
 th { background: var(--code-bg); font-weight: 600; }
 /* 只有待办项不显示圆点：同一个列表里的普通项仍显示圆点 */
 li.task-list-item { list-style: none; }
-li.task-list-item:has(> input:checked) { color: var(--fg2); text-decoration: line-through; text-decoration-color: var(--line); }
+li.task-list-item:has(> input:checked, > p:first-child > input:checked) { color: var(--fg2); text-decoration: line-through; text-decoration-color: var(--line); }
 .task-list-item input { margin: 0 .5em 0 -1.2em; vertical-align: middle; }
 mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 .15em; }
 /* 提示框 > [!NOTE] 等：Apple DocC Aside 全圆角卡片 + 左强调条 + 细边框 */

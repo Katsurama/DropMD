@@ -221,10 +221,10 @@ struct DocumentHeading: Identifiable, Equatable {
 
 /// 从 Markdown 原文提取标题列表：用保存时的同一个解析器，YAML 信息、HTML、代码块里的 # 不算，=== 下划线标题也算
 func extractHeadings(_ markdown: String) -> [DocumentHeading] {
-    headings(in: markdown, firstLine: 0)
+    headings(in: markdown, firstLine: 0, nested: false)
 }
 
-private func headings(in text: String, firstLine: Int) -> [DocumentHeading] {
+private func headings(in text: String, firstLine: Int, nested: Bool) -> [DocumentHeading] {
     let (blocks, groups, lines) = MarkdownCodec.parseWithSource(text)
     var out: [DocumentHeading] = []
     for g in groups {
@@ -234,12 +234,14 @@ private func headings(in text: String, firstLine: Int) -> [DocumentHeading] {
                 guard case .heading(let level) = l.kind else { continue }
                 let title = l.runs.map(\.text).joined().trimmingCharacters(in: .whitespaces)
                 if !title.isEmpty { out.append(DocumentHeading(id: firstLine + g.lines.lowerBound, level: level, title: title)) }
-            case .details:
-                // 折叠块里的标题：从 </summary> 下一行起再找一遍（结尾的 </details> 不是标题）
+            case .details where !nested:
+                // 折叠块里的标题：从 </summary> 下一行起再找一遍（结尾的 </details> 不是标题）。
+                // 只找一层：单页把折叠块里的折叠块显示成原文，里面的标题不是标题。
+                // 前面补一个空行：开头的 --- 是折叠块的内容，不是文件开头的 YAML 信息
                 let body = lines[g.lines]
                 let start = (body.firstIndex { $0.range(of: "</summary>", options: .caseInsensitive) != nil } ?? body.startIndex) + 1
                 if start < body.endIndex {
-                    out += headings(in: body[start...].joined(separator: "\n"), firstLine: firstLine + start)
+                    out += headings(in: "\n" + body[start...].joined(separator: "\n"), firstLine: firstLine + start - 1, nested: true)
                 }
             default:
                 break

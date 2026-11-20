@@ -4,9 +4,10 @@ extension RichTextView {
     // MARK: - 粘贴：只保留 Markdown 能保存的格式
 
     /// 刚粘贴进来的内容：去掉保存不了的格式，链接、列表转成单页的写法
-    func cleanPasted(_ range: NSRange, html: String? = nil, inDetails: Bool = false) {
+    /// kind：粘贴前目标段落的样式（标题、列表等），只贴进一行字时照用，否则从段首替换时这一段会变回正文
+    func cleanPasted(_ range: NSRange, html: String? = nil, inDetails: Bool = false, kind: RichKind? = nil) {
         let lists = pastedLists(range)   // 清理格式前先记下：清理后系统的列表信息就没了
-        normalizePasted(range, inDetails: inDetails)
+        normalizePasted(range, inDetails: inDetails, kind: kind)
         if let html { applyHTMLFormats(html, range) }
         listify(lists)
     }
@@ -177,11 +178,27 @@ extension RichTextView {
         guard type == Self.richType else {
             // 粘贴和拖入都走这里：别的程序来的内容去掉保存不了的格式，链接、列表转成单页的写法
             let sel = selectedRange(), before = textStorage?.length ?? 0
-            let inDetails = paragraphAttributes(paragraphRange(at: sel.location))[DMKey.inDetails] != nil
+            let dest = paragraphAttributes(paragraphRange(at: sel.location))
+            // 贴进表格单元格：只要文字，换行改成空格（一个格子只能有一段，否则整张表被拆开）
+            if RichBridge.tableBlock(of: dest) != nil, let text = pboard.string(forType: .string) {
+                let flat = text.components(separatedBy: .newlines).filter { !$0.isEmpty }.joined(separator: " ")
+                replace(sel, with: fitted(RichBridge.runsString([MDRun(text: flat)], kind: .body, baseURL: baseURL), to: dest))
+                return true
+            }
             guard super.readSelection(from: pboard, type: type) else { return false }
             let inserted = (textStorage?.length ?? 0) - before + sel.length
             if inserted > 0 {
-                cleanPasted(NSRange(location: sel.location, length: inserted), html: pboard.string(forType: .html), inDetails: inDetails)
+                let range = NSRange(location: sel.location, length: inserted)
+                let oneLine = !(string as NSString).substring(with: range).contains { $0.isNewline }
+                cleanPasted(range, html: pboard.string(forType: .html), inDetails: dest[DMKey.inDetails] != nil,
+                            kind: oneLine ? RichBridge.kind(of: dest) : nil)
+                if oneLine {   // 列表层级、代码块编号等段落属性也照目标段落
+                    changeAttributes(in: range) { old in
+                        var a = old
+                        for k in Self.paragraphLevelKeys { a[k] = dest[k] }
+                        return a
+                    }
+                }
             }
             return true
         }
@@ -215,8 +232,8 @@ extension RichTextView {
     }
 
     /// 从网页、Word 等粘贴的文字：去掉颜色、字体、对齐等无法保存的格式，统一为编辑器的样式
-    private func normalizePasted(_ range: NSRange, inDetails: Bool) {
-        let paragraphKind = currentKind
+    private func normalizePasted(_ range: NSRange, inDetails: Bool, kind: RichKind?) {
+        let paragraphKind = kind ?? currentKind
         changeAttributes(in: range) { old in
             // 从本编辑器复制的段落保留原样式
             if old[DMKey.heading] != nil || old[DMKey.list] != nil || old[DMKey.task] != nil

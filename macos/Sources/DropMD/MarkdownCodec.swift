@@ -114,6 +114,12 @@ enum MDBlock: Equatable {
 enum MarkdownCodec {
     // MARK: - 解析（块）
 
+    /// 公式块（$$…$$ 或 \\[…\\]），在段落模型里是原样内容
+    static func isMathBlock(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.count >= 5 && (t.hasPrefix("$$") && t.hasSuffix("$$") || t.hasPrefix("\\[") && t.hasSuffix("\\]"))
+    }
+
     static func parse(_ source: String) -> [MDBlock] {
         parseWithSource(source).blocks
     }
@@ -285,10 +291,17 @@ enum MarkdownCodec {
                 indents = []
                 var body: [String] = []
                 var depth = 0
+                var fence: Fence?   // 代码块里的 <details>、</details> 是代码，不算
                 repeat {
-                    let l = lines[i].lowercased()
-                    depth += l.components(separatedBy: "<details").count - 1
-                    depth -= l.components(separatedBy: "</details>").count - 1
+                    if let f = fence {
+                        if isFenceClosing(lines[i], f) { fence = nil }
+                    } else if let f = fenceOpening(lines[i]) {
+                        fence = f
+                    } else {
+                        let l = lines[i].lowercased()
+                        depth += l.components(separatedBy: "<details").count - 1
+                        depth -= l.components(separatedBy: "</details>").count - 1
+                    }
                     body.append(lines[i])
                     i += 1
                 } while i < lines.count && depth > 0

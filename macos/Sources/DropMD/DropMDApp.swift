@@ -41,10 +41,14 @@ struct DropMDApp: App {
                     }
                     .disabled(converter.running)
                     Button("打开模型文件夹") {
-                        if let dir = converter.engineStatus?.modelsDir {
-                            let url = URL(fileURLWithPath: dir)
-                            try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-                            NSWorkspace.shared.open(url)
+                        Task {
+                            // 还没打开过转换窗口时没有引擎信息：先查一次
+                            if converter.engineStatus == nil { await converter.loadStatus() }
+                            if let dir = converter.engineStatus?.modelsDir {
+                                let url = URL(fileURLWithPath: dir)
+                                try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+                                NSWorkspace.shared.open(url)
+                            }
                         }
                     }
                 }
