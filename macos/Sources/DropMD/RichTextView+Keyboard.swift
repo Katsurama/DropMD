@@ -96,6 +96,7 @@ extension RichTextView {
         let bodyAt = at + insert.length
         insert.append(NSAttributedString(string: "\n", attributes: body))
         guard isEditable else { return true }
+        breakUndoCoalescing()   // 前面连续打的字是另一步撤销，否则一次撤销连打的字一起撤掉、光标位置也对不上
         undoManager?.beginUndoGrouping()
         defer { undoManager?.endUndoGrouping() }
         // 撤销后光标在空行开头、重做后在正文空段落上，都不选中恢复的换行（否则一打字就把换行替换掉）。
