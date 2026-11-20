@@ -15,6 +15,8 @@ extension RichTextView {
             .replacingOccurrences(of: RichStyle.taskDone, with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let math = attrs[DMKey.math] != nil
+        // YAML 信息、HTML 中间的空行再按回车：删掉空行，到整块后面开始正文（原地变正文会把块切开，结尾的 --- 或 </div> 单独成块）
+        if kind == .raw, !math, content.isEmpty, exitRawBlock(from: para, attrs: attrs) { return }
         // 在空的列表项、引用、原样内容（YAML 信息、HTML）中再按回车：结束列表（与 Word 相同）
         if (kind.isList || kind == .quote || (kind == .raw && !math)) && content.isEmpty {
             applyKinds { _ in .body }
@@ -51,6 +53,36 @@ extension RichTextView {
         default:
             break
         }
+    }
+
+    /// 空行后面还有同一块原样内容时，删掉空行、在块后插一个正文空段落并把光标放过去；空行已在块末尾时返回 false
+    private func exitRawBlock(from para: NSRange, attrs: [NSAttributedString.Key: Any]) -> Bool {
+        guard let storage = textStorage else { return false }
+        let ns = string as NSString
+        let inDetails = attrs[DMKey.inDetails] != nil
+        func sameBlock(_ a: [NSAttributedString.Key: Any]) -> Bool {
+            RichBridge.kind(of: a) == .raw && a[DMKey.math] == nil && (a[DMKey.inDetails] != nil) == inDetails
+        }
+        var end = NSMaxRange(para)
+        while end < ns.length, sameBlock(paragraphAttributes(paragraphRange(at: end))) {
+            end = NSMaxRange(paragraphRange(at: end))
+        }
+        guard end > NSMaxRange(para) else { return false }
+        let rest = NSMutableAttributedString(attributedString: storage.attributedSubstring(from: NSRange(location: NSMaxRange(para), length: end - NSMaxRange(para))))
+        var body = RichStyle.typingAttributes(for: .body)
+        if inDetails {
+            body[DMKey.inDetails] = attrs[DMKey.inDetails]
+            body[.paragraphStyle] = RichStyle.paragraphStyle(.body, inDetails: true)
+        }
+        if !rest.string.hasSuffix("\n") { rest.append(NSAttributedString(string: "\n", attributes: rest.length > 0 ? rest.attributes(at: rest.length - 1, effectiveRange: nil) : body)) }
+        let caret = para.location + rest.length
+        // 块在文末时最后的空行就是正文位置，不用再插
+        if end < ns.length {
+            rest.append(NSAttributedString(string: "\n", attributes: body))
+        }
+        replace(NSRange(location: para.location, length: end - para.location), with: rest, caret: caret)
+        typingAttributes = body
+        return true
     }
 
     override func insertTab(_ sender: Any?) {

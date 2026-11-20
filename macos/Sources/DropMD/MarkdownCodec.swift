@@ -81,6 +81,7 @@ struct MDLine: Equatable {
     var kind: MDLineKind
     var runs: [MDRun]
     var start: Int? = nil     // 有序列表不从 1 开始时，第一项的编号（如 5.）
+    var quoteStart = false    // 引用：上面紧挨着另一段引用，中间原文有空行（保存时要空行，否则连成一段）
 }
 
 /// 有序列表的编号：每一层各自计数，遇到列表以外的内容重新开始（解析和保存共用）
@@ -241,11 +242,14 @@ enum MarkdownCodec {
                 if contents.contains(where: { startsBlock($0) || leadingWidth($0) >= 4 }) {
                     blocks.append(.raw(lines[i..<j].joined(separator: "\n")))
                 } else {
+                    // 上一块也是引用：两段之间原文有空行（否则会在上面的循环里连成一段）
+                    var newBlock: Bool = { if case .line(let l)? = blocks.last { return l.kind == .quote }; return false }()
                     for content in contents {
                         // 提示框的标题行原样保存，不能转义成 \[!NOTE\]
                         let runs = MDCallout(header: content) != nil
                             ? [MDRun(text: content.trimmingCharacters(in: .whitespaces), literal: true)] : parseInline(content)
-                        blocks.append(.line(MDLine(kind: .quote, runs: runs)))
+                        blocks.append(.line(MDLine(kind: .quote, runs: runs, quoteStart: newBlock)))
+                        newBlock = false
                     }
                 }
                 i = j

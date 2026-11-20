@@ -190,6 +190,8 @@ extension MarkdownCodec {
         // 提示框的标题行开始一个新的引用块，与上面的引用之间要空行，否则会连成一个
         if case .line(let y) = b, y.kind == .quote, y.runs.count == 1, y.runs[0].literal,
            MDCallout(header: y.runs[0].text) != nil { return "\n\n" }
+        // 空行隔开的另一段引用（如提示框下面的普通引用）
+        if case .line(let y) = b, y.kind == .quote, y.quoteStart { return "\n\n" }
         if case .line(let x) = a, case .line(let y) = b, x.kind.tight, y.kind.tight {
             // 引用与列表之间要空行
             if x.kind.listDepth == nil, y.kind.listDepth != nil { return "\n\n" }

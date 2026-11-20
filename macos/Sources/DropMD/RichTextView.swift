@@ -324,6 +324,7 @@ final class RichTextView: NSTextView {
             var a = RichStyle.typingAttributes(for: RichBridge.kind(of: newValue))
             a[.paragraphStyle] = newValue[.paragraphStyle]
             a[DMKey.inDetails] = newValue[DMKey.inDetails]
+            a[DMKey.quoteBlock] = newValue[DMKey.quoteBlock]   // 提示框标题后回车的新行仍属于这个提示框
             super.typingAttributes = a
         }
     }
