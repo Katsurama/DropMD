@@ -201,9 +201,7 @@
 "修改公式" = "Edit Formula";
 "插入公式块" = "Insert Formula Block";
 "LaTeX 格式" = "LaTeX";
-"无法导出" = "Can't Export";
 "导出 HTML 失败" = "Couldn't Export HTML";
-"预览还在加载，请稍后再试。" = "The preview is still loading. Try again in a moment.";
 "导出为 %@" = "Export as %@";
 "网络图片未加载（隐私保护）" = "Web image not loaded (privacy protection)";
 "：" = ": ";
