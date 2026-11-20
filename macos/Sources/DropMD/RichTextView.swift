@@ -603,8 +603,9 @@ final class RichTextView: NSTextView {
 
     // MARK: - 插入
 
-    /// 在当前段落之后插入整块内容（表格、分隔线）；当前段落为空时插在它的位置
-    private func insertBlock(_ block: NSAttributedString, caretOffset: Int) {
+    /// 在当前段落之后插入整块内容（表格、分隔线）；当前段落为空时插在它的位置。
+    /// 当前段落在折叠块里时，插入的内容也放进折叠块（插入折叠块本身除外：不支持折叠块套折叠块）
+    private func insertBlock(_ block: NSAttributedString, caretOffset: Int, keepInDetails: Bool = true) {
         guard let storage = textStorage else { return }
         let ns = string as NSString
         let para = paragraphRange(at: selectedRange().location)
@@ -616,7 +617,9 @@ final class RichTextView: NSTextView {
             s.append(NSAttributedString(string: "\n", attributes: storage.attributes(at: para.location, effectiveRange: nil)))
         }
         let blockStart = s.length
-        s.append(block)
+        let content = NSMutableAttributedString(attributedString: block)
+        if keepInDetails, paragraphAttributes(para)[DMKey.inDetails] != nil { RichBridge.markInDetails(content) }
+        s.append(content)
         if at >= ns.length {
             s.append(RichBridge.paragraph(NSAttributedString(), kind: .body))   // 让光标能移到块之后
         }
@@ -652,7 +655,7 @@ final class RichTextView: NSTextView {
             NSAttributedString(string: String(localized: "折叠的内容"), attributes: RichStyle.attributes(for: MDRun(), kind: .body)), kind: .body))
         RichBridge.markInDetails(body)
         s.append(body)
-        insertBlock(s, caretOffset: 0)
+        insertBlock(s, caretOffset: 0, keepInDetails: false)
         setSelectedRange(NSRange(location: selectedRange().location, length: (title as NSString).length))
     }
 

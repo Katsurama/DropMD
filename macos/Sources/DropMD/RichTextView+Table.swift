@@ -83,6 +83,7 @@ extension RichTextView {
                 row.append(RichBridge.cellParagraph(table: current.table, row: current.startingRow + 1, column: c,
                                                     runs: [], baseURL: baseURL, width: widths[c] ?? 100 / CGFloat(cols)))
             }
+            if paragraphAttributes(para)[DMKey.inDetails] != nil { RichBridge.markInDetails(row) }   // 折叠块里的表格：新行也在折叠块里
             replace(NSRange(location: next, length: 0), with: row, caret: next)
             refreshTypingAttributes()
         } else if para.location > 0 {
