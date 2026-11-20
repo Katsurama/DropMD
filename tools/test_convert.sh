@@ -69,6 +69,10 @@ with tempfile.TemporaryDirectory() as d:
     ok = images_dir_name(Path(d) / "m n.md") == "m_n_images"
     failed += not ok
     print("ok  " if ok else "FAIL", "名字以 .md 结尾的文件夹")
+    (Path(d) / "报告 1.md").write_text("![Image](%E6%8A%A5%E5%91%8A_1_images/image_000000_ab12.png)")
+    ok = images_dir_name(Path(d) / "报告_1.md") == "报告_1_images_2"
+    failed += not ok
+    print("ok  " if ok else "FAIL", "高精度模式编码过的路径也不共用文件夹")
     src, dst = Path(d) / "e.html", Path(d) / "e.md"
     src.write_text("x")
     dst.write_text("![](e_images/image1.png)")
@@ -95,6 +99,8 @@ for name, src, want in [
     ("行内公式", r"设 \( x+1 \) 和 $\(y\)$ 成立", "设 $x+1$ 和 $y$ 成立"),
     ("独立公式", "\\[\na=b\n\\]", "$$a=b$$"),
     ("代码块不动", "```\n\\(x\\) <fcel>a\n\n<nl>\n```", "```\n\\(x\\) <fcel>a\n\n<nl>\n```"),
+    ("无空行代码块不动", "```\n\\(x\\) <fcel>a<nl>\n```", "```\n\\(x\\) <fcel>a<nl>\n```"),
+    ("页末没闭合的代码块不动", "前文 \\(y\\)\n\n```\n\\(x\\)", "前文 $y$\n\n```\n\\(x\\)"),
     ("普通文字不动", "价格 $5 和 <b> 不变", "价格 $5 和 <b> 不变"),
 ]:
     got = xclean(src)

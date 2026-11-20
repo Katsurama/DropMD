@@ -51,8 +51,6 @@ final class Engine: @unchecked Sendable {
         let info: String?
         let i: Int?
         let n: Int?
-        let title: String?
-        let error: String?
     }
 
     private let lock = NSLock()
