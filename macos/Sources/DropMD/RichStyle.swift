@@ -205,12 +205,12 @@ enum RichKind: Equatable {
 enum RichStyle {
     static let bodySize: CGFloat = 16
     static let codeSize: CGFloat = 14
-    /// 行内代码：比代码块大一号，和正文几乎一样高；参考 Notion 用淡红色字
-    static let inlineCodeSize: CGFloat = 15
+    /// 行内代码：略小于正文，行高与正文自然对齐
+    static let inlineCodeSize: CGFloat = 14.5
     static let inlineCodeColor = NSColor(name: "DropMD.inlineCode") { a in
         isDark(a) ? NSColor(srgbRed: 1, green: 0.47, blue: 0.44, alpha: 1) : NSColor(srgbRed: 0.84, green: 0.25, blue: 0.25, alpha: 1)
     }
-    static let headingSizes: [CGFloat] = [28, 23, 19, 17, 16, 15]
+    static let headingSizes: [CGFloat] = [30, 23, 19, 17, 15.5, 14.5]
     static let indent: CGFloat = 24
     static let taskTodo = "☐"
     static let taskDone = "☑"
@@ -218,14 +218,35 @@ enum RichStyle {
     static let detailsIndent: CGFloat = 22
     static let codePadding: CGFloat = 16   // 代码块左右的内边距
 
-    /// 行内代码、按键的底色：深色时系统灰几乎看不见，单独调亮
+    /// 行内代码底色：轻量半透明填充
     static let codeBackground = NSColor(name: "DropMD.inlineCodeBackground") { a in
-        isDark(a) ? NSColor(white: 1, alpha: 0.10) : NSColor(white: 0, alpha: 0.07)   // 不能在这里再用系统动态颜色，窗口里解析不出来
+        isDark(a) ? NSColor(white: 1, alpha: 0.10) : NSColor(white: 0, alpha: 0.065)
     }
-    /// 代码块的整块底色（参考 Notion：浅灰 / 深灰，不透明，与正文底色区分开）
+    /// 键盘按键 <kbd> 立体键帽底色与边框
+    static let kbdBackground = NSColor(name: "DropMD.kbdBackground") { a in
+        isDark(a) ? NSColor(white: 1, alpha: 0.11) : NSColor(white: 0.97, alpha: 1)
+    }
+    static let kbdBorderColor = NSColor(name: "DropMD.kbdBorder") { a in
+        isDark(a) ? NSColor(white: 1, alpha: 0.24) : NSColor(white: 0, alpha: 0.18)
+    }
+    /// 代码块的整块底色与细边框
     static let codeBlockBackground = NSColor(name: "DropMD.codeBlock") { a in
-        isDark(a) ? NSColor(white: 1, alpha: 0.06) : NSColor(white: 0, alpha: 0.04)
+        isDark(a) ? NSColor(white: 1, alpha: 0.055) : NSColor(srgbRed: 0.965, green: 0.968, blue: 0.975, alpha: 1)
     }
+    static let codeBlockBorderColor = NSColor(name: "DropMD.codeBlockBorder") { a in
+        isDark(a) ? NSColor(white: 1, alpha: 0.11) : NSColor(white: 0, alpha: 0.08)
+    }
+
+    /// 轻量语法高亮（仿 Xcode 浅色 / 深色语义配色，仅用于显示）
+    static let codeKeywordColor = NSColor.systemPink
+    static let codeStringColor = NSColor(name: "DropMD.codeString") { a in
+        isDark(a) ? NSColor(srgbRed: 0.99, green: 0.42, blue: 0.36, alpha: 1) : NSColor(srgbRed: 0.77, green: 0.10, blue: 0.09, alpha: 1)
+    }
+    static let codeCommentColor = NSColor(name: "DropMD.codeComment") { a in
+        isDark(a) ? NSColor(srgbRed: 0.50, green: 0.56, blue: 0.62, alpha: 1) : NSColor(srgbRed: 0.36, green: 0.42, blue: 0.47, alpha: 1)
+    }
+    static let codeNumberColor = NSColor.systemBlue
+    static let codeTypeColor = NSColor.systemTeal
 
     /// 正文字体：苹方。用系统字体时，汉字由系统临时替换成苹方，
     /// 标点有的被压成半宽、有的没有，顿号后面忽宽忽窄；直接用苹方，标点宽度一致。
@@ -241,15 +262,23 @@ enum RichStyle {
     /// 单页的底色（与双页的原文区相同，切换时颜色不跳）
     static var paperColor: NSColor { .textBackgroundColor }
 
-    /// 分隔线、表格边框、面板边框：深色时用白色（系统的灰色分隔线在深色下发闷）
+    /// 分隔线、引用竖线、面板边框：深色时用白色（系统的灰色分隔线在深色下发闷）
     static let lineColor = NSColor(name: "DropMD.line") { a in
         isDark(a) ? NSColor(white: 1, alpha: 0.3) : NSColor(white: 0, alpha: 0.16)
     }
 
+    /// 表格边框：更轻盈的发丝线
+    static let tableBorderColor = NSColor(name: "DropMD.tableBorder") { a in
+        isDark(a) ? NSColor(white: 1, alpha: 0.16) : NSColor(white: 0, alpha: 0.10)
+    }
+
+    /// 链接柔和下划线
+    static var linkUnderlineColor: NSColor { NSColor.linkColor.withAlphaComponent(0.32) }
+
     /// 双页里标出另一边光标所在那一段的颜色。用靛蓝：链接、“注意”提示框、选中文字是蓝色，原文里的行内代码是粉色，避开它们
     static var markColor: NSColor { .systemIndigo }
 
-    /// 提示框的颜色（与 GitHub 相同的含义：蓝 注意、绿 提示、紫 重要、橙 警告、红 小心）
+    /// 提示框的颜色（Apple DocC / GitHub 语义色）
     static func calloutColor(_ c: MDCallout) -> NSColor {
         switch c {
         case .note: return .systemBlue
@@ -260,14 +289,28 @@ enum RichStyle {
         }
     }
 
+    /// 提示框 SF Symbol 图标名
+    static func calloutSymbol(_ c: MDCallout) -> String {
+        switch c {
+        case .note: return "info.circle.fill"
+        case .tip: return "lightbulb.fill"
+        case .important: return "exclamationmark.circle.fill"
+        case .warning: return "exclamationmark.triangle.fill"
+        case .caution: return "xmark.octagon.fill"
+        }
+    }
+
     /// 高亮底色：深色时降低不透明度，避免变成发闷的橄榄绿
     static let highlightBackground = NSColor(name: "DropMD.highlight") { a in
         isDark(a) ? NSColor(srgbRed: 1, green: 0.84, blue: 0.04, alpha: 0.24) : NSColor.systemYellow.withAlphaComponent(0.35)
     }
 
-    /// 正文颜色：比纯黑 / 纯白柔和一些（与系统的标签文字颜色相同的做法），深色下不刺眼
-    static let bodyColor = NSColor(name: "DropMD.body") { a in
-        isDark(a) ? NSColor(white: 1, alpha: 0.86) : NSColor(white: 0, alpha: 0.86)
+    /// 正文颜色：使用系统语义色，兼顾浅色 / 深色及高对比度辅助功能
+    static var bodyColor: NSColor { .labelColor }
+
+    static func textColor(for kind: RichKind) -> NSColor {
+        if case .heading(let l) = kind, l >= 5 { return .secondaryLabelColor }
+        return bodyColor
     }
 
     static func baseFont(for kind: RichKind) -> NSFont {
@@ -300,13 +343,13 @@ enum RichStyle {
 
     static func paragraphStyle(_ kind: RichKind, block: NSTextBlock? = nil, inDetails: Bool = false) -> NSParagraphStyle {
         let p = NSMutableParagraphStyle()
-        p.lineSpacing = 3
+        p.lineSpacing = 6
         p.paragraphSpacing = 8
         switch kind {
         case .heading(let level):
-            // 参考 Notion：大标题前留白更多，层次更清楚
-            p.paragraphSpacingBefore = level <= 2 ? 20 : 14
-            p.paragraphSpacing = 8
+            // 参照 Apple HIG / Pages：大标题前留出足够区隔、后紧跟所管正文
+            p.paragraphSpacingBefore = level == 1 ? 28 : level == 2 ? 24 : level == 3 ? 18 : 14
+            p.paragraphSpacing = level == 1 ? 10 : level == 2 ? 8 : level == 3 ? 6 : 5
         case .bullet(let d), .ordered(let d):
             // 项目符号和编号由 RichLayoutManager 画在缩进区内，不是正文的一部分
             p.firstLineHeadIndent = CGFloat(d + 1) * indent
@@ -317,8 +360,10 @@ enum RichStyle {
             p.headIndent = CGFloat(d + 1) * indent   // 方框和后面的空格正好占一格缩进（RichLayoutManager），折行和第一行文字对齐
             p.paragraphSpacing = 5
         case .quote:
-            p.firstLineHeadIndent = 20
-            p.headIndent = 20
+            p.firstLineHeadIndent = 28
+            p.headIndent = 28
+            p.tailIndent = -16
+            p.paragraphSpacing = 6
         case .code, .raw:
             // 底色块由 RichLayoutManager 画出，左右留出内边距
             p.firstLineHeadIndent = codePadding
@@ -365,7 +410,9 @@ enum RichStyle {
     /// 单段文字的属性
     static func attributes(for r: MDRun, kind: RichKind) -> [NSAttributedString.Key: Any] {
         // 一定要设置颜色：不设置时 NSTextView 用黑色，暗色模式下看不清
-        var a: [NSAttributedString.Key: Any] = [.foregroundColor: RichStyle.bodyColor]
+        var a: [NSAttributedString.Key: Any] = [.foregroundColor: textColor(for: kind)]
+        if case .heading(1) = kind { a[.kern] = -0.4 }
+        else if case .heading(2) = kind { a[.kern] = -0.2 }
         var font = baseFont(for: kind)
         if r.code {
             font = .monospacedSystemFont(ofSize: inlineCodeSize, weight: .regular)
@@ -376,7 +423,7 @@ enum RichStyle {
         if r.kbd {
             font = .monospacedSystemFont(ofSize: codeSize - 1, weight: .medium)
             a[DMKey.kbd] = true
-            a[.backgroundColor] = codeBackground
+            a[.backgroundColor] = kbdBackground
         }
         if r.bold || kind.isHeading { font = setBold(font, true) }
         if r.sup || r.sub {
@@ -412,6 +459,7 @@ enum RichStyle {
             a[DMKey.title] = r.title
             a[.foregroundColor] = NSColor.linkColor
             a[.underlineStyle] = NSUnderlineStyle.single.rawValue
+            a[.underlineColor] = linkUnderlineColor
             if let u = URL(string: url) { a[.link] = u }
         }
         return a

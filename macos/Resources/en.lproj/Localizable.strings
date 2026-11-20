@@ -73,11 +73,7 @@
 "%lld 个" = "%lld";
 "移除所选" = "Remove Selected";
 "清空" = "Clear";
-"尚未添加文件" = "No Files Yet";
 "转换完成后，双击列表中的文件即可用编辑器打开" = "After converting, double-click a file in the list to open it in the editor";
-"名称" = "Name";
-"状态" = "Status";
-"说明" = "Details";
 "用编辑器打开" = "Open in Editor";
 "在访达中显示" = "Show in Finder";
 "从列表中移除" = "Remove from List";
@@ -412,3 +408,7 @@
 "点击链接时" = "When Clicking a Link";
 "直接打开" = "Open Immediately";
 "要打开这个链接吗？" = "Open This Link?";
+"列表" = "Lists";
+"目录" = "Outline";
+"暂无标题" = "No Headings";
+"已选 %lld 字 · %@" = "%lld selected · %@";

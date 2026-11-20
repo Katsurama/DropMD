@@ -40,7 +40,7 @@ enum RichTrait {
             a[DMKey.kbd] = on ? true : nil
             a[.font] = on ? NSFont.monospacedSystemFont(ofSize: RichStyle.codeSize - 1, weight: .medium)
                           : RichStyle.baseFont(for: RichBridge.kind(of: a))
-            a[.backgroundColor] = on ? RichStyle.codeBackground : nil
+            a[.backgroundColor] = on ? RichStyle.kbdBackground : nil
         case .highlight:
             a[DMKey.highlight] = on ? true : nil
             if a[DMKey.inlineCode] == nil {
@@ -252,17 +252,23 @@ final class RichTextView: NSTextView {
 
     /// 将要成为焦点时调用（在接收打字之前）：双页里先把等着做的重排做完，免得在旧内容上打字、冲掉左边刚改的字
     var onFocus: (() -> Void)?
+    /// 获得或失去输入焦点时通知控制器同步工具栏与格式面板
+    var onFocusChange: ((Bool) -> Void)?
 
     // 点进右边编辑时去掉标记，离开时再显示
     override func becomeFirstResponder() -> Bool {
         defer { needsDisplay = true }
         onFocus?()
-        return super.becomeFirstResponder()
+        let ok = super.becomeFirstResponder()
+        if ok { onFocusChange?(true) }
+        return ok
     }
 
     override func resignFirstResponder() -> Bool {
         defer { needsDisplay = true }
-        return super.resignFirstResponder()
+        let ok = super.resignFirstResponder()
+        if ok { onFocusChange?(false) }
+        return ok
     }
 
     /// 光标处的段落样式与文字样式
@@ -299,9 +305,10 @@ final class RichTextView: NSTextView {
                 let at = selectedRange().location
                 if at >= storage.length || storage.attribute(DMKey.literal, at: at, effectiveRange: nil) == nil {
                     newValue[DMKey.literal] = nil
-                    newValue[.foregroundColor] = RichStyle.bodyColor
+                    let kind = RichBridge.kind(of: newValue)
+                    newValue[.foregroundColor] = RichStyle.textColor(for: kind)
                     newValue[.superscript] = nil   // 脚注显示成上标
-                    newValue[.font] = RichStyle.baseFont(for: RichBridge.kind(of: newValue))
+                    newValue[.font] = RichStyle.baseFont(for: kind)
                 }
             }
             if newValue[DMKey.rule] != nil {   // 在分隔线旁输入的文字不是分隔线，否则保存时变成另一条线
@@ -309,8 +316,9 @@ final class RichTextView: NSTextView {
             }
             if newValue[DMKey.image] != nil {   // 在图片旁输入的文字不是图片，否则保存时被吞掉
                 for k in [DMKey.image, DMKey.imageID, DMKey.alt, DMKey.title, DMKey.link, DMKey.linkTitle] { newValue[k] = nil }
-                newValue[.foregroundColor] = RichStyle.bodyColor
-                newValue[.font] = RichStyle.baseFont(for: RichBridge.kind(of: newValue))   // 图片不带字体，否则变成系统默认的小字
+                let kind = RichBridge.kind(of: newValue)
+                newValue[.foregroundColor] = RichStyle.textColor(for: kind)
+                newValue[.font] = RichStyle.baseFont(for: kind)   // 图片不带字体，否则变成系统默认的小字
             }
             guard newValue[DMKey.callout] != nil else { super.typingAttributes = newValue; return }
             var a = RichStyle.typingAttributes(for: RichBridge.kind(of: newValue))
@@ -401,9 +409,10 @@ final class RichTextView: NSTextView {
                 if a[DMKey.link] == nil { a[.foregroundColor] = RichStyle.inlineCodeColor }
             } else {
                 a[DMKey.inlineCode] = nil
-                a[.font] = RichStyle.baseFont(for: RichBridge.kind(of: a))
+                let kind = RichBridge.kind(of: a)
+                a[.font] = RichStyle.baseFont(for: kind)
                 a[.backgroundColor] = nil
-                if a[DMKey.link] == nil { a[.foregroundColor] = RichStyle.bodyColor }
+                if a[DMKey.link] == nil { a[.foregroundColor] = RichStyle.textColor(for: kind) }
             }
             return a
         }
@@ -426,12 +435,14 @@ final class RichTextView: NSTextView {
                 a[.link] = URL(string: url)
                 a[.foregroundColor] = NSColor.linkColor
                 a[.underlineStyle] = NSUnderlineStyle.single.rawValue
+                a[.underlineColor] = RichStyle.linkUnderlineColor
             } else {
                 a[DMKey.link] = nil
                 a[DMKey.title] = nil
                 a[.link] = nil
-                a[.foregroundColor] = a[DMKey.inlineCode] != nil ? RichStyle.inlineCodeColor : RichStyle.bodyColor
+                a[.foregroundColor] = a[DMKey.inlineCode] != nil ? RichStyle.inlineCodeColor : RichStyle.textColor(for: RichBridge.kind(of: a))
                 a[.underlineStyle] = nil
+                a[.underlineColor] = nil
             }
             return a
         }
@@ -583,8 +594,9 @@ final class RichTextView: NSTextView {
             let inline = a[DMKey.inlineCode] != nil || a[DMKey.kbd] != nil
             if !inline { a[.backgroundColor] = a[DMKey.highlight] != nil ? RichStyle.highlightBackground : nil }
             if a[DMKey.link] == nil && a[DMKey.literal] == nil {
-                a[.foregroundColor] = a[DMKey.inlineCode] != nil ? RichStyle.inlineCodeColor : RichStyle.bodyColor
+                a[.foregroundColor] = a[DMKey.inlineCode] != nil ? RichStyle.inlineCodeColor : RichStyle.textColor(for: target)
             }
+            a[.kern] = target == .heading(1) ? -0.4 : target == .heading(2) ? -0.2 : nil
             if a[.attachment] == nil && !inline && a[DMKey.kbd] == nil {
                 var bold = RichStyle.isBold(a[.font] as? NSFont)
                 if target.isHeading {

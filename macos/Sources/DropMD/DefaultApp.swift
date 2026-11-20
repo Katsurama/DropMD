@@ -86,31 +86,27 @@ enum AppLanguage {
     }
 }
 
-/// “DropMD → 设置…”：和苹果自带 App 一样分成几页（顶部的标签），不再是一长条
+/// “DropMD → 设置…”：按当前标签页自适应高度，各页自然贴合
 struct SettingsView: View {
     @AppStorage("settingsTab") private var page = SettingsPage.general   // 苹果的设计规范：再打开时回到上次看的那一页
 
     var body: some View {
-        // 各页同一个大小，切换时窗口不跳；内容靠上，下面留白（高度按最高的“更新”页有新版本时算）
         TabView(selection: $page) {
             GeneralSettings()
-                .frame(maxHeight: .infinity, alignment: .top)
                 .tabItem { Label("通用", systemImage: "gearshape") }
                 .tag(SettingsPage.general)
             UpdateView(updater: UpdateChecker.shared)
-                .frame(maxHeight: .infinity, alignment: .top)
+                .frame(height: 460)
                 .tabItem { Label("更新", systemImage: "arrow.triangle.2.circlepath") }
                 .tag(SettingsPage.updates)
             SponsorSettings()
-                .frame(maxHeight: .infinity, alignment: .top)
                 .tabItem { Label("赞助", systemImage: "heart") }
                 .tag(SettingsPage.sponsor)
             AboutSettings()
-                .frame(maxHeight: .infinity, alignment: .top)
                 .tabItem { Label("关于", systemImage: "info.circle") }
                 .tag(SettingsPage.about)
         }
-        .frame(width: 500, height: 500)
+        .frame(width: 500)
     }
 }
 
@@ -124,7 +120,7 @@ enum SettingsPage: String {
     }
 }
 
-/// 通用：外观、页边距、界面语言、默认打开程序
+/// 通用：外观、页边距与双页标记、链接、语言、默认打开程序
 private struct GeneralSettings: View {
     @State private var isDefault = DefaultApp.isDefault
     @State private var working = false
@@ -138,15 +134,13 @@ private struct GeneralSettings: View {
                 Text("页边距只影响单页。选“自动”时，窗口越大，文字那一栏越宽。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-            Section("链接") {
-                LinkClickPicker()
-            }
-            Section("双页") {
                 SourceMarkMenu()
                 Text("在左边原文里移动光标时，右边标出对应的位置。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+            Section("链接") {
+                LinkClickPicker()
             }
             Section("语言") {
                 Picker("界面语言", selection: $language) {
@@ -178,7 +172,8 @@ private struct GeneralSettings: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)   // 内容比窗口高时可以上下滚动
+        .formStyle(.grouped)
+        .frame(minHeight: 420, idealHeight: 460)
         // 用户可能在访达的“显示简介”里改了默认程序，回到 DropMD 时重新查看
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             isDefault = DefaultApp.isDefault

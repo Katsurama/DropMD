@@ -180,7 +180,8 @@ extension RichTextView {
             for key: NSAttributedString.Key in [.backgroundColor, .superscript, .obliqueness, .strikethroughStyle] { b[key] = nil }
             if b[DMKey.link] == nil {
                 b[.underlineStyle] = nil
-                b[.foregroundColor] = RichStyle.bodyColor
+                b[.underlineColor] = nil
+                b[.foregroundColor] = RichStyle.textColor(for: RichBridge.kind(of: b))
             }
             b[.font] = RichStyle.baseFont(for: RichBridge.kind(of: b))
             return b
