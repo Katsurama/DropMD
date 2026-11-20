@@ -581,7 +581,9 @@ final class EditorController: ObservableObject {
         let nth = old.prefix { $0 != clicked }.filter(same).count
         let heading = new.filter(same).dropFirst(nth).first ?? clicked
         if !isRichMode { scrollSource(toLine: Double(heading.id)) }
-        if let (_, range) = richRange(forLine: heading.id), let rv = richView {
+        // 单页里直接找第几个标题：对照表把整个折叠块当一段，里面的标题会跳到折叠块开头。光标进到收起的折叠块会自动展开
+        let target = new.firstIndex(of: heading).flatMap { richView?.headingParagraph($0) } ?? richRange(forLine: heading.id)?.range
+        if let range = target, let rv = richView {
             rv.setSelectedRange(NSRange(location: range.location, length: 0))
             rv.scrollRangeToVisible(range)
             if isRichMode { rv.window?.makeFirstResponder(rv) }

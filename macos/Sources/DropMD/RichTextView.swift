@@ -791,6 +791,22 @@ final class RichTextView: NSTextView {
 
     // MARK: - 折叠块：收起 / 展开（只改变显示，不改文件）
 
+    /// 第 n 个标题段落（从 0 数，没有文字的标题不算，与目录 extractHeadings 一致）
+    func headingParagraph(_ n: Int) -> NSRange? {
+        guard let storage = textStorage else { return nil }
+        let ns = storage.string as NSString
+        var loc = 0, k = 0
+        while loc < ns.length {
+            let p = ns.paragraphRange(for: NSRange(location: loc, length: 0))
+            loc = NSMaxRange(p)
+            guard case .heading = RichBridge.kind(of: storage.attributes(at: p.location, effectiveRange: nil)),
+                  !ns.substring(with: p).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            if k == n { return p }
+            k += 1
+        }
+        return nil
+    }
+
     /// 收起或展开光标所在（或指定）的折叠块
     func setCollapsed(_ on: Bool, summary para: NSRange) {
         guard let storage = textStorage, para.length > 0 else { return }

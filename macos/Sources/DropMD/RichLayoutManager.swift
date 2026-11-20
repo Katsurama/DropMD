@@ -470,19 +470,21 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         }
     }
 
+    /// 哪一类代码段落：相邻且同类的连成一块（代码连代码，原文即 YAML 信息、HTML 连原文，折叠块里外不连）；不是代码时为 nil
+    private func codeGroup(at location: Int, in storage: NSTextStorage) -> String? {
+        guard isCodeParagraph(at: location, in: storage) else { return nil }
+        let a = storage.attributes(at: location, effectiveRange: nil)
+        return "\(a[DMKey.raw] != nil)\(a[DMKey.inDetails] != nil)"
+    }
+
     /// 包含这个位置的整个代码块（连续的代码段落）；不是代码时为 nil
     func codeBlock(at location: Int) -> NSRange? {
         guard let storage = textStorage, location < storage.length, isCodeParagraph(at: location, in: storage) else { return nil }
         let ns = storage.string as NSString
         var block = ns.paragraphRange(for: NSRange(location: location, length: 0))
         guard !hiddenRanges.contains(where: { NSLocationInRange(block.location, $0) }) else { return nil }
-        // 只连同一类的段落：代码连代码，原文（YAML 信息、HTML）连原文，折叠块里外不连
-        func group(_ at: Int) -> String {
-            let a = storage.attributes(at: at, effectiveRange: nil)
-            return "\(a[DMKey.raw] != nil)\(a[DMKey.inDetails] != nil)"
-        }
-        let mine = group(location)
-        func same(_ at: Int) -> Bool { isCodeParagraph(at: at, in: storage) && group(at) == mine }
+        let mine = codeGroup(at: location, in: storage)
+        func same(_ at: Int) -> Bool { codeGroup(at: at, in: storage) == mine }
         while block.location > 0 {
             let prev = ns.paragraphRange(for: NSRange(location: block.location - 1, length: 0))
             guard same(prev.location) else { break }
@@ -656,7 +658,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         if isCode || kind == .quote {
             let same: Bool
             if isCode {
-                same = isCodeParagraph(at: neighbor, in: storage)
+                same = codeGroup(at: neighbor, in: storage) == codeGroup(at: para.location, in: storage)   // 与 codeBlock 同一规则：分成两块就留空
             } else {
                 // 提示框标题行开始新的一块
                 same = RichBridge.kind(of: other) == .quote && (after ? other[DMKey.callout] == nil : attrs[DMKey.callout] == nil)

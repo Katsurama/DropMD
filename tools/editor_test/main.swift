@@ -1328,6 +1328,14 @@ MainActor.assumeIsolated {
         let doc2 = "---\ntitle: Demo\n# 草稿备注\n---\n\n# 正文标题\n\n<!--\n# 注释里的\n-->\n\n下划线标题\n===\n\n<details>\n<summary>折叠</summary>\n\n## 折叠里的\n\n</details>\n"
         check("大纲：跳过 YAML、HTML 注释，认下划线和折叠块", extractHeadings(doc2).map { "\($0.id):\($0.level):\($0.title)" }.joined(separator: " | "),
               "5:1:正文标题 | 11:1:下划线标题 | 17:2:折叠里的")
+        // 目录跳转：单页里第 n 个标题与目录第 n 条是同一个；跳进收起的折叠块时展开
+        let tv = makeView(doc2)
+        check("单页第 n 个标题", (0..<4).map { tv.headingParagraph($0).map { (tv.string as NSString).substring(with: $0).trimmingCharacters(in: .newlines) } ?? "无" }.joined(separator: " | "),
+              "正文标题 | 下划线标题 | 折叠里的 | 无")
+        let inside = tv.headingParagraph(2)!
+        check("折叠块开始时是收起的", "\((tv.layoutManager as! RichLayoutManager).hiddenRanges.isEmpty)", "false")
+        tv.setSelectedRange(NSRange(location: inside.location, length: 0))
+        check("跳进收起的折叠块时展开", "\((tv.layoutManager as! RichLayoutManager).hiddenRanges.isEmpty)", "true")
     }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
