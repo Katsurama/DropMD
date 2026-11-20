@@ -633,8 +633,9 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         }
     }
 
-    /// 两段引用属于同一段引用（空行隔开的两段编号不同；新打的、没有编号的算同一段）
+    /// 两段引用属于同一段引用（空行隔开的两段编号不同；新打的、没有编号的算同一段；折叠块里外不是同一段）
     static func sameQuote(_ a: [NSAttributedString.Key: Any], _ b: [NSAttributedString.Key: Any]) -> Bool {
+        guard (a[DMKey.inDetails] != nil) == (b[DMKey.inDetails] != nil) else { return false }
         guard let x = a[DMKey.quoteBlock] as? String, let y = b[DMKey.quoteBlock] as? String else { return true }
         return x == y
     }

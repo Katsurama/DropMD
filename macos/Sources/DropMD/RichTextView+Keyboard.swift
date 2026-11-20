@@ -16,9 +16,9 @@ extension RichTextView {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let math = attrs[DMKey.math] != nil
         // YAML 信息、HTML 中间的空行再按回车：删掉空行，到整块后面开始正文（原地变正文会把块切开，结尾的 --- 或 </div> 单独成块）
-        if kind == .raw, !math, content.isEmpty, exitRawBlock(from: para, attrs: attrs) { return }
+        if kind == .raw, !math, content.isEmpty, selectedRange().length == 0, exitRawBlock(from: para, attrs: attrs) { return }
         // 在空的列表项、引用、原样内容（YAML 信息、HTML）中再按回车：结束列表（与 Word 相同）
-        if (kind.isList || kind == .quote || (kind == .raw && !math)) && content.isEmpty {
+        if (kind.isList || kind == .quote || (kind == .raw && !math)) && content.isEmpty && selectedRange().length == 0 {
             applyKinds { _ in .body }
             return
         }
@@ -50,38 +50,77 @@ extension RichTextView {
             applyKinds { _ in .body }
         case .task(let d, _):
             applyKinds { _ in .task(d, false) }
+        case .raw:   // 记下刚开出的空行：这一行上再按回车就离开原样内容
+            let p = paragraphRange(at: selectedRange().location)
+            if (string as NSString).substring(with: p).trimmingCharacters(in: .newlines).isEmpty { rawNewlineAt = p.location }
         default:
             break
         }
     }
 
-    /// 空行后面还有同一块原样内容时，删掉空行、在块后插一个正文空段落并把光标放过去；空行已在块末尾时返回 false
+    /// 空行后面还有同一块原样内容时：刚按回车开出的空行再按回车，删掉空行、在整块后面插一个正文空段落并把光标放过去；
+    /// 原文里本来就有的空行（如原样列表里的空行）只是普通换行。空行已在块末尾时返回 false（交给下面变成正文）
     private func exitRawBlock(from para: NSRange, attrs: [NSAttributedString.Key: Any]) -> Bool {
         guard let storage = textStorage else { return false }
         let ns = string as NSString
         let inDetails = attrs[DMKey.inDetails] != nil
+        let id = attrs[DMKey.codeBlock] as? String
         func sameBlock(_ a: [NSAttributedString.Key: Any]) -> Bool {
-            RichBridge.kind(of: a) == .raw && a[DMKey.math] == nil && (a[DMKey.inDetails] != nil) == inDetails
+            let other = a[DMKey.codeBlock] as? String
+            return RichBridge.kind(of: a) == .raw && a[DMKey.math] == nil && (a[DMKey.inDetails] != nil) == inDetails
+                && (id == nil || other == nil || id == other)
         }
         var end = NSMaxRange(para)
         while end < ns.length, sameBlock(paragraphAttributes(paragraphRange(at: end))) {
             end = NSMaxRange(paragraphRange(at: end))
         }
         guard end > NSMaxRange(para) else { return false }
-        let rest = NSMutableAttributedString(attributedString: storage.attributedSubstring(from: NSRange(location: NSMaxRange(para), length: end - NSMaxRange(para))))
+        guard rawNewlineAt == para.location else {
+            // 原文里本来就有的空行：只是换行；开出的新空行再按回车就离开
+            super.insertNewline(nil)
+            rawNewlineAt = paragraphRange(at: selectedRange().location).location
+            return true
+        }
         var body = RichStyle.typingAttributes(for: .body)
         if inDetails {
             body[DMKey.inDetails] = attrs[DMKey.inDetails]
             body[.paragraphStyle] = RichStyle.paragraphStyle(.body, inDetails: true)
         }
-        if !rest.string.hasSuffix("\n") { rest.append(NSAttributedString(string: "\n", attributes: rest.length > 0 ? rest.attributes(at: rest.length - 1, effectiveRange: nil) : body)) }
-        let caret = para.location + rest.length
-        // 块在文末时最后的空行就是正文位置，不用再插
-        if end < ns.length {
-            rest.append(NSAttributedString(string: "\n", attributes: body))
+        // 两步小改动合成一次撤销：先删空行，再在块后插正文空段落（文末也插，保存时末尾的空段落会去掉）。
+        // 撤销时最后还原的是空行，光标回到空行上；重做时最后一步是插入，光标在正文空段落上
+        let insert = NSMutableAttributedString()
+        if !ns.substring(to: end).hasSuffix("\n") {   // 最后一行没有换行：先补上，属于原样内容
+            insert.append(NSAttributedString(string: "\n", attributes: storage.attributes(at: end - 1, effectiveRange: nil)))
         }
-        replace(NSRange(location: para.location, length: end - para.location), with: rest, caret: caret)
+        let at = end - para.length
+        let bodyAt = at + insert.length
+        insert.append(NSAttributedString(string: "\n", attributes: body))
+        guard isEditable else { return true }
+        undoManager?.beginUndoGrouping()
+        defer { undoManager?.endUndoGrouping() }
+        // 撤销后光标在空行开头、重做后在正文空段落上，都不选中恢复的换行（否则一打字就把换行替换掉）。
+        // 撤销组里的动作倒着执行：最先登记的最后执行，所以前后各登记一个，来回互相登记
+        let caretBack = NSRange(location: para.location, length: 0)
+        let caretOn = NSRange(location: bodyAt, length: 0)
+        func undoTail() { undoManager?.registerUndo(withTarget: self) { tv in tv.setSelectedRange(caretBack); redoHead() } }
+        func undoHead() { undoManager?.registerUndo(withTarget: self) { _ in redoTail() } }
+        func redoHead() { undoManager?.registerUndo(withTarget: self) { _ in undoTail() } }
+        func redoTail() {
+            undoManager?.registerUndo(withTarget: self) { tv in tv.setSelectedRange(caretOn); tv.typingAttributes = body; undoHead() }
+        }
+        undoTail()
+        guard shouldChangeText(in: para, replacementString: "") else { return true }
+        storage.replaceCharacters(in: para, with: "")
+        didChangeText()
+        guard shouldChangeText(in: NSRange(location: at, length: 0), replacementString: insert.string) else { return true }
+        storage.replaceCharacters(in: NSRange(location: at, length: 0), with: insert)
+        didChangeText()
+        undoHead()
+        rawNewlineAt = nil
         typingAttributes = body
+        setSelectedRange(caretOn)
+        typingAttributes = body
+        scrollRangeToVisible(selectedRange())
         return true
     }
 

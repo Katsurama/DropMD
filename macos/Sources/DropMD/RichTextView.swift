@@ -71,6 +71,7 @@ final class RichTextView: NSTextView {
     var selectionBeforeMenu: NSRange?
     var expandingRedraw = false
     var columnDrag: ColumnDrag?
+    var rawNewlineAt: Int?   // YAML 信息、HTML 里刚按回车开出的空行（段落开头）：再按回车就到整块后面
 
     // MARK: - 页面外观：整个编辑区同一底色，文字在居中的版心中
 
@@ -543,6 +544,7 @@ final class RichTextView: NSTextView {
         var t = RichStyle.typingAttributes(for: RichBridge.kind(of: a))
         t[.paragraphStyle] = a[.paragraphStyle]
         if a[DMKey.inDetails] != nil { t[DMKey.inDetails] = true }
+        t[DMKey.quoteBlock] = a[DMKey.quoteBlock]   // 空的引用行里打字，仍属于这一段引用
         typingAttributes = t
     }
 
@@ -700,6 +702,8 @@ final class RichTextView: NSTextView {
         s.append(RichBridge.paragraph(RichBridge.runsString([header], kind: .quote, baseURL: baseURL), kind: .quote))
         let body = String(localized: "内容")
         s.append(RichBridge.paragraph(RichBridge.runsString([MDRun(text: body)], kind: .quote, baseURL: baseURL), kind: .quote))
+        // 新的一段引用：有自己的编号，不和上下隔空行的引用连成一段
+        s.addAttribute(DMKey.quoteBlock, value: UUID().uuidString, range: NSRange(location: 0, length: s.length))
         insertBlock(s, caretOffset: (type.title as NSString).length + 1)
         setSelectedRange(NSRange(location: selectedRange().location, length: (body as NSString).length))
     }
@@ -832,6 +836,7 @@ final class RichTextView: NSTextView {
 
     /// 光标或选区进入收起的内容（方向键、查找、撤销等）时展开，避免在看不见的地方编辑
     override func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting: Bool) {
+        rawNewlineAt = nil   // 光标离开刚开出的空行（或在上面打了字）就不再算“刚开出的”
         super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelecting)
         guard !stillSelecting, let lm = layoutManager as? RichLayoutManager else { return }
         let hidden = lm.hiddenRanges
@@ -894,6 +899,7 @@ final class RichTextView: NSTextView {
 
     override func didChangeText() {
         super.didChangeText()
+        rawNewlineAt = nil
         updateCopyButton(at: nil)   // 打字后代码块的位置可能变了
     }
 

@@ -14,7 +14,8 @@ extension MarkdownCodec {
         let new = parts(blocks)
         let old = parseWithSource(base)
         let oldParts = parts(old.blocks)
-        if new.map(\.text) == oldParts.map(\.text) { return base }
+        // 分隔也要比：两段引用合成一段、一段拆成两段时文字不变，只有中间的空行变了
+        if new.map({ $0.separator + "\u{0}" + $0.text }) == oldParts.map({ $0.separator + "\u{0}" + $0.text }) { return base }
         // 每一块属于哪段原文；一段原文解析出几块时，要整段都没改才能照抄
         var groupOf = [Int](repeating: -1, count: old.blocks.count)
         for (g, group) in old.groups.enumerated() { for b in group.blocks { groupOf[b] = g } }
@@ -25,12 +26,18 @@ extension MarkdownCodec {
             let g = groupOf[oldParts[p].block]
             var q = p
             while q < oldParts.count, groupOf[oldParts[q].block] == g { q += 1 }
-            if g >= 0, let first = match[p], (p..<q).allSatisfy({ match[$0] == first + $0 - p }) {
+            // 整段照抄：每块都对得上，段内各块之间的分隔也没变（一段引用拆成两段时文字一样、中间多了空行）
+            if g >= 0, let first = match[p], (p..<q).allSatisfy({ match[$0] == first + $0 - p }),
+               (p + 1..<q).allSatisfy({ new[first + $0 - p].separator == oldParts[$0].separator }) {
                 startsAt[first] = (g, q - p)
             }
             p = q
         }
         let kept = Set(startsAt.values.map(\.group))
+        var oldSeparator: [Int: String] = [:]   // 每段原文第一块前面按标准写法该有的分隔
+        for part in oldParts where groupOf[part.block] >= 0 && oldSeparator[groupOf[part.block]] == nil {
+            oldSeparator[groupOf[part.block]] = part.separator
+        }
         /// 新内容第 k 块是不是原地修改了第 g 段原文：同一种块，改完前后的间隔还能照旧（标题改成正文时，紧贴的下一段会并进来）
         func replaces(_ k: Int, _ g: Int) -> Bool {
             guard g < old.groups.count, !kept.contains(g), old.groups[g].blocks.count == 1 else { return false }
@@ -44,7 +51,7 @@ extension MarkdownCodec {
             let group: Int? = startsAt[k]?.group ?? ((k == 0 || prevGroup != nil) && replaces(k, next) ? next : nil)
             if let group {
                 let lines = old.groups[group].lines
-                if let prevGroup, prevGroup == group - 1 {
+                if let prevGroup, prevGroup == group - 1, oldSeparator[group] == new[k].separator {
                     let gap = old.lines[old.groups[prevGroup].lines.upperBound..<lines.lowerBound]
                     out += gap.isEmpty ? "\n" : "\n" + gap.joined(separator: "\n") + "\n"
                 } else if k == 0, group == 0, lines.lowerBound > 0 {
@@ -198,8 +205,6 @@ extension MarkdownCodec {
             if x.kind.listDepth != nil, y.kind.listDepth == nil { return "\n\n" }
             return "\n"
         }
-        // 相邻的原样内容只隔一个换行（列表项下面缩进的 HTML 被拆成两段时要接回去）；公式块要隔空行，否则再打开时被并进上面的 HTML
-        if case .raw(let x) = a, case .raw(let y) = b, !isMathBlock(x), !isMathBlock(y) { return "\n" }
         return "\n\n"
     }
 

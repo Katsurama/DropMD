@@ -21,6 +21,17 @@ struct FileItem { let url: URL; let relativePath: String }
     for ch in s { tv.insertText(String(ch), replacementRange: NSRange(location: NSNotFound, length: 0)) }
 }
 @MainActor func md(_ tv: RichTextView) -> String { RichBridge.markdown(from: tv.textStorage!) }
+/// 给编辑区一个撤销管理器（测撤销用；每次操作单独成组，与真实按键相同）
+final class UndoHost: NSObject, NSTextViewDelegate {
+    let um = UndoManager()
+    override init() { super.init(); um.groupsByEvent = false }
+    func undoManager(for view: NSTextView) -> UndoManager? { um }
+}
+@MainActor func step(_ host: UndoHost, _ body: () -> Void) {
+    host.um.beginUndoGrouping()
+    body()
+    host.um.endUndoGrouping()
+}
 var failures = 0
 @MainActor func check(_ name: String, _ got: String, _ want: String) {
     let ok = got == want
@@ -1402,6 +1413,146 @@ MainActor.assumeIsolated {
         r2.setSelectedRange(NSRange(location: NSMaxRange((r2.string as NSString).range(of: "第二段")), length: 0))
         type(r2, "改")
         check("改了上一段原样内容再保存，空行还在", md(r2), "- [x] 已完成\n\n  第二段改\n\n<div>HTML</div>\n")
+        // 退出后撤销：只选回那个空行，打字不会删掉结尾的 ---
+        do {
+            let tv = makeView("---\ntitle: Demo\n---\n\n正文\n")
+            let host = UndoHost(); tv.delegate = host
+            tv.setSelectedRange(NSRange(location: NSMaxRange((tv.string as NSString).range(of: "title: Demo")), length: 0))
+            step(host) { tv.insertNewline(nil) }
+            step(host) { tv.insertNewline(nil) }
+            host.um.undo()
+            check("退出 YAML 后撤销只选回空行", "\(tv.selectedRange().length <= 1)", "true")
+            step(host) { type(tv, "x") }
+            check("退出 YAML 后撤销再打字，--- 还在", md(tv), "---\ntitle: Demo\nx\n---\n\n正文\n")
+        }
+        // 退出后撤销、重做来回几次：每次打字都不吃掉换行
+        do {
+            @MainActor func undoRedo(_ src: String, _ ops: [Bool]) -> String {
+                let tv = makeView(src)
+                let host = UndoHost(); tv.delegate = host
+                tv.setSelectedRange(NSRange(location: NSMaxRange((tv.string as NSString).range(of: "title: Demo")), length: 0))
+                step(host) { tv.insertNewline(nil) }
+                step(host) { tv.insertNewline(nil) }
+                for undo in ops { if undo { host.um.undo() } else { host.um.redo() } }
+                step(host) { type(tv, "x") }
+                return md(tv)
+            }
+            check("退出后撤销再重做，打字落在正文", undoRedo("---\ntitle: Demo\n---\n\n正文\n", [true, false]), "---\ntitle: Demo\n---\n\nx\n\n正文\n")
+            check("退出后撤销、重做、再撤销，--- 还在", undoRedo("---\ntitle: Demo\n---\n\n正文\n", [true, false, true]), "---\ntitle: Demo\nx\n---\n\n正文\n")
+            check("文末没换行的 YAML 退出后撤销再重做", undoRedo("---\ntitle: Demo\n---", [true, false]), "---\ntitle: Demo\n---\n\nx\n")
+        }
+        // 刚开出的空行打了空格、或光标挪走又回来：再回车不算“离开”
+        do {
+            let tv = makeView("---\ntitle: Demo\n---\n")
+            tv.setSelectedRange(NSRange(location: NSMaxRange((tv.string as NSString).range(of: "title: Demo")), length: 0))
+            tv.insertNewline(nil)
+            type(tv, "  ")
+            tv.insertNewline(nil)
+            check("空行打了空格再回车不离开 YAML", md(tv), "---\ntitle: Demo\n  \n\n---\n")
+            let t2 = makeView("- [x] a\n\n  b\n\n正文\n")
+            t2.setSelectedRange(NSRange(location: NSMaxRange((t2.string as NSString).range(of: "- [x] a")), length: 0))
+            t2.insertNewline(nil)
+            t2.deleteBackward(nil)
+            t2.setSelectedRange(NSRange(location: NSMaxRange((t2.string as NSString).range(of: "- [x] a")) + 1, length: 0))
+            t2.insertNewline(nil)
+            let t3 = makeView("- [x] a\n\n  b\n\n正文\n")
+            t3.setSelectedRange(NSRange(location: NSMaxRange((t3.string as NSString).range(of: "- [x] a")) + 1, length: 0))
+            t3.insertNewline(nil)
+            t3.insertNewline(nil)
+            type(t3, "后")
+            check("原有空行回车开出新行，再回车离开", md(t3), "- [x] a\n\n  b\n\n后\n\n正文\n")
+            check("退格后回到原有空行再回车不删空行", md(t2).hasPrefix("- [x] a\n\n\n  b") ? "ok" : md(t2), "ok")
+        }
+        // 选中了文字时按回车：替换成换行，不把原样内容变成正文
+        do {
+            let tv = makeView("---\ntitle: Demo\n  \n---\n")
+            let spaces = (tv.string as NSString).range(of: "  \n")
+            tv.setSelectedRange(NSRange(location: spaces.location, length: 2))
+            tv.insertNewline(nil)
+            check("选中 YAML 里的空格按回车不切开", md(tv).hasSuffix("---\n") && !md(tv).contains("&nbsp;") ? "ok" : md(tv), "ok")
+        }
+        // 文末的 YAML：退出后光标移走再回来，打的字仍是正文
+        do {
+            let tv = makeView("---\ntitle: Demo\n---\n")
+            tv.setSelectedRange(NSRange(location: NSMaxRange((tv.string as NSString).range(of: "title: Demo")), length: 0))
+            tv.insertNewline(nil)
+            tv.insertNewline(nil)
+            let at = tv.selectedRange()
+            tv.setSelectedRange(NSRange(location: 0, length: 0))
+            tv.setSelectedRange(at)
+            type(tv, "后")
+            check("文末 YAML 退出后光标移走再回来仍是正文", md(tv), "---\ntitle: Demo\n---\n\n后\n")
+        }
+        // 原样列表里本来就有的空行：回车只是换行，不删这个空行
+        do {
+            let tv = makeView("- [x] a\n\n  b\n\n正文\n")
+            let blank = NSMaxRange((tv.string as NSString).range(of: "- [x] a")) + 1
+            tv.setSelectedRange(NSRange(location: blank, length: 0))
+            tv.insertNewline(nil)
+            check("原样列表里已有的空行回车不删", md(tv).hasPrefix("- [x] a\n\n\n  b") ? "ok" : md(tv), "ok")
+        }
+        // 粘贴：在 App 里复制的引用、原样内容贴进另一段里，不把那一段切开
+        do {
+            @MainActor func copyPaste(_ src: String, copy: String, before: String) -> String {
+                let tv = makeView(src)
+                let board = NSPasteboard(name: NSPasteboard.Name("DropMDTest8-\(UUID().uuidString)"))
+                board.clearContents()
+                let r = (tv.string as NSString).range(of: copy)
+                tv.setSelectedRange(NSRange(location: r.location, length: r.length + 1))   // 连同换行，按段落粘贴
+                _ = tv.writeSelection(to: board, types: tv.writablePasteboardTypes)
+                tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: before).location, length: 0))
+                _ = tv.readSelection(from: board)
+                board.releaseGlobally()
+                return md(tv)
+            }
+            check("引用行贴进提示框中间不切开", copyPaste("> [!NOTE]\n> 一\n> 二\n\n> 别的\n", copy: "别的", before: "二"),
+                  "> [!NOTE]\n> 一\n> 别的\n> 二\n\n> 别的\n")
+            @MainActor func copyAllPaste(_ src: String, into dst: String, before: String?) -> String {
+                let from = makeView(src), to = makeView(dst)
+                let board = NSPasteboard(name: NSPasteboard.Name("DropMDTest9-\(UUID().uuidString)"))
+                board.clearContents()
+                from.setSelectedRange(NSRange(location: 0, length: (from.string as NSString).length))
+                _ = from.writeSelection(to: board, types: from.writablePasteboardTypes)
+                to.setSelectedRange(NSRange(location: before.map { (to.string as NSString).range(of: $0).location } ?? 0, length: 0))
+                _ = to.readSelection(from: board)
+                board.releaseGlobally()
+                return md(to)
+            }
+            check("复制两段 HTML 粘贴后仍是两段", copyAllPaste("<div>a</div>\n\n<div>b</div>\n", into: "\n", before: nil), "<div>a</div>\n\n<div>b</div>\n")
+            check("复制提示框和普通引用粘贴后仍分开", copyAllPaste("> [!NOTE]\n> 注\n\n> 普通\n", into: "\n", before: nil), "> [!NOTE]\n> 注\n\n> 普通\n")
+            check("普通引用贴在提示框标题前不并进提示框", copyAllPaste("> 普通\n", into: "> [!NOTE]\n> 注\n", before: nil).contains("普通\n\n> [!NOTE]") ? "ok" : "并进去了", "ok")
+            check("带提示框的多段贴在普通引用上面不并进去", copyAllPaste("前言\n\n> [!NOTE]\n> 注\n", into: "> 普通\n", before: "普通").contains("> 注\n\n> 普通") ? "ok" : "并进去了", "ok")
+            check("提示框贴在普通引用上面不并进去", copyAllPaste("> [!NOTE]\n> 注\n", into: "> 普通\n", before: "普通"), "> [!NOTE]\n> 注\n\n> 普通\n")
+            check("原样内容贴进 HTML 中间不切开", copyPaste("---\ntitle: A\n---\n\n<div>\nhello\n</div>\n", copy: "title: A", before: "hello"),
+                  "---\ntitle: A\n---\n\n<div>\ntitle: A\nhello\n</div>\n")
+        }
+        // 改提示框类型、插入提示框：下面隔空行的普通引用仍是另一段
+        do {
+            let tv = makeView("> [!NOTE]\n> 内容\n\n> 普通\n")
+            tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "内容").location, length: 0))
+            let item = NSMenuItem(); item.representedObject = MDCallout.warning.rawValue
+            tv.setCalloutType(item)
+            check("改提示框类型后普通引用仍分开", md(tv), "> [!WARNING]\n> 内容\n\n> 普通\n")
+            let plain = (tv.string as NSString).range(of: "普通").location
+            check("改类型后普通引用不画进提示框", "\((tv.layoutManager as! RichLayoutManager).callout(at: plain, in: tv.textStorage!) == nil)", "true")
+            let t2 = makeView("开头\n\n> 普通\n")
+            t2.setSelectedRange(NSRange(location: 2, length: 0))
+            t2.insertCallout(.note)
+            check("插入提示框不并进下面的普通引用", md(t2).contains("内容\n\n> 普通") ? "ok" : md(t2), "ok")
+        }
+        // 折叠块里的提示框不和外面的引用连成一段
+        do {
+            let tv = makeView("<details open>\n<summary>T</summary>\n\n> [!NOTE]\n> 里面\n\n</details>\n\n外面\n")
+            let outside = (tv.string as NSString).range(of: "外面").location
+            tv.setSelectedRange(NSRange(location: outside, length: 0))
+            tv.setKind(.quote)   // 折叠块外紧挨着的正文改成引用：没有块编号
+            check("折叠块外的引用不算里面的提示框", "\((tv.layoutManager as! RichLayoutManager).callout(at: outside, in: tv.textStorage!) == nil)", "true")
+        }
+        // 单页往返：紧挨着的两段原样内容打开再保存不变
+        for src in ["---\ntitle: Demo\n---\n<div>HTML</div>\n", "- item\n\n  para 2\n<div>HTML</div>\n", "<div>a</div>\n\n\n<div>b</div>\n\n正文\n"] {
+            let tv = makeView(src)
+            check("单页打开再保存原样内容不变 \(src.debugDescription)", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src), src)
+        }
         check("YAML 在文末时中间空行再回车", exitMiddle("---\ntitle: Demo\n---\n", after: "title: Demo", line: "new: 1"),
               "---\ntitle: Demo\nnew: 1\n---\n\n后\n")
     }

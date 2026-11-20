@@ -227,6 +227,27 @@ extension RichTextView {
                 pasted.replaceCharacters(in: r, with: part)
             }
         }
+        // 引用、原样内容的块编号是复制来源那里的：每段换一个新编号（复制来的两段仍是两段，也不和文中别的块重号）；
+        // 只有一段、贴进同一种块的中间时，用目标那一块的编号，不把它切开
+        let all = NSRange(location: 0, length: pasted.length)
+        for (key, isKind) in [(DMKey.quoteBlock, { (a: [NSAttributedString.Key: Any]) in RichBridge.kind(of: a) == .quote }),
+                              (DMKey.codeBlock, { (a: [NSAttributedString.Key: Any]) in a[DMKey.raw] != nil && a[DMKey.math] == nil })] {
+            var ids: [String: String] = [:]
+            pasted.enumerateAttributes(in: all) { a, r, _ in
+                guard isKind(a), let old = a[key] as? String else { return }
+                if ids[old] == nil { ids[old] = UUID().uuidString }
+                pasted.addAttribute(key, value: ids[old]!, range: r)
+            }
+            // 提示框标题行开始的是新的一段：贴的内容里有提示框、或贴在提示框标题行上，都不沿用目标的编号
+            var hasCallout = false
+            pasted.enumerateAttribute(DMKey.callout, in: all) { v, _, stop in if v != nil { hasCallout = true; stop.pointee = true } }
+            let calloutInvolved = key == DMKey.quoteBlock && (hasCallout || dest[DMKey.callout] != nil)
+            if ids.count == 1, isKind(dest), let target = dest[key] as? String, !calloutInvolved {
+                pasted.enumerateAttributes(in: all) { a, r, _ in
+                    if isKind(a), a[key] != nil { pasted.addAttribute(key, value: target, range: r) }
+                }
+            }
+        }
         replace(selectedRange(), with: pasted)
         return true
     }

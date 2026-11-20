@@ -447,6 +447,7 @@ enum RichBridge {
         // 相邻两段引用编号不同：原来是空行隔开的两段，保存时不能连成一段
         var runID: String?   // 这一串相邻引用里最近的编号（新打的行没有编号）
         for k in items.indices {
+            if k > 0, items[k - 1].inDetails != items[k].inDetails { runID = nil }   // 折叠块里外不是同一段引用
             guard case .line(var l) = items[k].item, l.kind == .quote else { runID = nil; continue }
             if let b = items[k].quoteID {
                 if let a = runID, a != b {
@@ -652,10 +653,9 @@ enum RichBridge {
                 var lines: [String] = []
                 var current: String?
                 while let item = next(i) {
-                    guard case .raw(let text, let id) = item else { break }
-                    // 编号不同的两段原样内容（原文空行隔开）之间写回空行；没有编号的（新打的）接着上一段
-                    if let id, let c = current, c != id { lines.append("") }
-                    current = id ?? current
+                    // 编号不同的是另一段原样内容（与代码块相同）；没有编号的（新打的）接着上一段
+                    guard case .raw(let text, let id) = item, id == current || id == nil || current == nil else { break }
+                    current = current ?? id
                     lines.append(text)
                     i += 1
                 }
