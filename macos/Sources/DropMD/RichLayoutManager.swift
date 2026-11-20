@@ -312,7 +312,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
                 if callout(at: para.location, in: storage) == nil {
                     let nextStartsCallout = next[DMKey.callout] != nil
                     drawBar(para, origin: origin, x: shift + pad + 4, color: .separatorColor,
-                            joinsNext: RichBridge.kind(of: next) == .quote && !nextStartsCallout, width: 2.5)
+                            joinsNext: RichBridge.kind(of: next) == .quote && !nextStartsCallout && Self.sameQuote(attrs, next), width: 2.5)
                 } else if let header = attrs[DMKey.callout] as? String, let type = MDCallout(header: header) {
                     drawSymbol(RichStyle.calloutSymbol(type), pointSize: 13, weight: .semibold,
                                color: RichStyle.calloutColor(type), para: para, centerX: shift + pad + 15, origin: origin)
@@ -587,6 +587,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
                 let next = ns.paragraphRange(for: NSRange(location: NSMaxRange(block), length: 0))
                 let a = storage.attributes(at: next.location, effectiveRange: nil)
                 guard RichBridge.kind(of: a) == .quote, a[DMKey.callout] == nil,
+                      Self.sameQuote(storage.attributes(at: para.location, effectiveRange: nil), a),
                       !hidden.contains(where: { NSLocationInRange(next.location, $0) }) else { break }
                 block = NSUnionRange(block, next)
             }
@@ -625,9 +626,17 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             }
             guard para.location > 0 else { return nil }
             let prev = ns.paragraphRange(for: NSRange(location: para.location - 1, length: 0))
-            guard RichBridge.kind(of: storage.attributes(at: prev.location, effectiveRange: nil)) == .quote else { return nil }
+            let a = storage.attributes(at: prev.location, effectiveRange: nil)
+            guard RichBridge.kind(of: a) == .quote,
+                  Self.sameQuote(a, storage.attributes(at: para.location, effectiveRange: nil)) else { return nil }
             para = prev
         }
+    }
+
+    /// 两段引用属于同一段引用（空行隔开的两段编号不同；新打的、没有编号的算同一段）
+    static func sameQuote(_ a: [NSAttributedString.Key: Any], _ b: [NSAttributedString.Key: Any]) -> Bool {
+        guard let x = a[DMKey.quoteBlock] as? String, let y = b[DMKey.quoteBlock] as? String else { return true }
+        return x == y
     }
 
     /// 代码块前后多留一点空（代码块里各行的段间距是 0，否则底色会断开），免得和上下的文字、提示框贴在一起
@@ -677,6 +686,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             } else {
                 // 提示框标题行开始新的一块
                 same = RichBridge.kind(of: other) == .quote && (after ? other[DMKey.callout] == nil : attrs[DMKey.callout] == nil)
+                    && Self.sameQuote(attrs, other)
             }
             if !same {
                 if isCode {

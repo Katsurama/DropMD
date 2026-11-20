@@ -33,7 +33,8 @@ enum DMKey {
     static let callout = NSAttributedString.Key("dm.callout")    // String：提示框标题行的原文（如 [!TIP]），显示为“提示”等
 
     /// 段落类型相关的属性（切换段落样式时先全部清除）
-    static let paragraphKeys = [heading, quote, code, task, list, depth, raw, rule, summary, detailsOpen, collapsed, start, listCode, codeBlock]
+    static let quoteBlock = NSAttributedString.Key("dm.quoteblock") // String：每段引用不同，空行隔开的两段引用（如提示框和下面的普通引用）才分得开
+    static let paragraphKeys = [heading, quote, code, task, list, depth, raw, rule, summary, detailsOpen, collapsed, start, listCode, codeBlock, quoteBlock]
 }
 
 /// 单页的页边距（“显示 → 页边距”、设置）：实际控制的是文字那一栏最宽多少，两边剩下的就是页边距

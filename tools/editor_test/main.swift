@@ -1366,6 +1366,44 @@ MainActor.assumeIsolated {
         t2.insertNewline(nil)
         type(t2, "<p>b</p>")
         check("HTML 里回车", md(t2), "<div>\n<p>a</p>\n<p>b</p>\n</div>\n\n正文\n")
+        // 块中间的空行再回车：不把块切开，到整块后面开始正文
+        @MainActor func exitMiddle(_ src: String, after: String, line: String) -> String {
+            let tv = makeView(src)
+            tv.setSelectedRange(NSRange(location: NSMaxRange((tv.string as NSString).range(of: after)), length: 0))
+            tv.insertNewline(nil)
+            type(tv, line)
+            tv.insertNewline(nil)
+            tv.insertNewline(nil)
+            type(tv, "后")
+            return md(tv)
+        }
+        check("YAML 中间空行再回车到整块后面", exitMiddle("---\ntitle: Demo\ntags: a\n---\n\n正文\n", after: "tags: a", line: "new: 1"),
+              "---\ntitle: Demo\ntags: a\nnew: 1\n---\n\n后\n\n正文\n")
+        check("HTML 中间空行再回车到整块后面", exitMiddle("<div>\nHTML 第一行\n</div>\n\n正文\n", after: "HTML 第一行", line: "第二行"),
+              "<div>\nHTML 第一行\n第二行\n</div>\n\n后\n\n正文\n")
+        // 提示框下面空行隔开的普通引用：显示、保存、导出都是两段
+        let q = makeView("> [!NOTE]\n> 提示内容\n\n> 普通引用\n")
+        let plain = (q.string as NSString).range(of: "普通引用").location
+        check("提示框下面空行隔开的普通引用不算提示框", "\((q.layoutManager as! RichLayoutManager).callout(at: plain, in: q.textStorage!) == nil)", "true")
+        check("提示框和普通引用导出时分开", md(q), "> [!NOTE]\n> 提示内容\n\n> 普通引用\n")
+        q.setSelectedRange(NSRange(location: NSMaxRange((q.string as NSString).range(of: "提示内容")), length: 0))
+        type(q, "改")
+        check("改了提示框再保存，普通引用不并进去", MarkdownCodec.serialize(RichBridge.blocks(from: q.textStorage!), preserving: "> [!NOTE]\n> 提示内容\n\n> 普通引用\n"),
+              "> [!NOTE]\n> 提示内容改\n\n> 普通引用\n")
+        q.insertNewline(nil)
+        type(q, "第二行")
+        check("提示框里回车的新行仍在提示框里", md(q), "> [!NOTE]\n> 提示内容改\n> 第二行\n\n> 普通引用\n")
+        // 空行隔开的两段原样内容（带空行的待办、下面的 HTML）：显示成两张卡片，保存不变
+        let rawSrc = "- [x] 已完成\n\n  第二段\n\n<div>HTML</div>\n"
+        let r2 = makeView(rawSrc)
+        let htmlAt = (r2.string as NSString).range(of: "<div>").location
+        check("两段原样内容显示成两张卡片", "\(NSLocationInRange(htmlAt, (r2.layoutManager as! RichLayoutManager).codeBlock(at: 0) ?? NSRange()))", "false")
+        check("两段原样内容导出不变", md(r2), rawSrc)
+        r2.setSelectedRange(NSRange(location: NSMaxRange((r2.string as NSString).range(of: "第二段")), length: 0))
+        type(r2, "改")
+        check("改了上一段原样内容再保存，空行还在", md(r2), "- [x] 已完成\n\n  第二段改\n\n<div>HTML</div>\n")
+        check("YAML 在文末时中间空行再回车", exitMiddle("---\ntitle: Demo\n---\n", after: "title: Demo", line: "new: 1"),
+              "---\ntitle: Demo\nnew: 1\n---\n\n后\n")
     }
     // 从网页、Word 粘贴：进表格单元格不拆表；替换整个标题、列表项的文字时样式不变
     do {

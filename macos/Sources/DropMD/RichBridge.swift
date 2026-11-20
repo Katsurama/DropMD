@@ -26,12 +26,22 @@ enum RichBridge {
 
         var lastRaw = false
         var listDepth = 0   // 上一个列表项的层级：列表项里的代码块缩进到它的文字下面
+        var quoteID: String?  // 当前这段引用的编号
         for block in blocks {
             blockStart?(out.length)
+            if case .line(let l) = block, l.kind == .quote {
+                if quoteID == nil || l.quoteStart { quoteID = UUID().uuidString }
+            } else {
+                quoteID = nil
+            }
             if case .line(let l) = block, let d = l.kind.listDepth { listDepth = d }
-            // 相邻的两段原样内容之间空一行，否则保存时会连成一段
+            // 相邻的两段原样内容之间显示一个空行（不保存；两段编号不同，保存时自动空行），看得出是两块
             if case .raw(let text) = block, !isMathBlock(text) {
-                if lastRaw { out.append(paragraph(runsString([], kind: .raw, baseURL: baseURL), kind: .raw)) }
+                if lastRaw {
+                    let gap = NSMutableAttributedString(attributedString: paragraph(NSAttributedString(), kind: .body))
+                    gap.addAttribute(DMKey.codeGap, value: true, range: NSRange(location: 0, length: gap.length))
+                    out.append(gap)
+                }
                 lastRaw = true
             } else {
                 lastRaw = false
@@ -48,6 +58,7 @@ enum RichBridge {
                 }
                 let p = NSMutableAttributedString(attributedString: paragraph(content, kind: kind))
                 if let start = line.start { p.addAttribute(DMKey.start, value: start, range: NSRange(location: 0, length: p.length)) }
+                if let quoteID { p.addAttribute(DMKey.quoteBlock, value: quoteID, range: NSRange(location: 0, length: p.length)) }
                 out.append(p)
 
             case .code(let lang, let lines, let listGap):
@@ -93,8 +104,11 @@ enum RichBridge {
                 out.append(mathBlockParagraph(text))
 
             case .raw(let text):
+                let id = UUID().uuidString   // 与代码块相同：相邻的两段原样内容靠编号分开
                 for l in text.components(separatedBy: "\n") {
-                    out.append(paragraph(runsString([MDRun(text: l)], kind: .raw, baseURL: baseURL), kind: .raw))
+                    let p = NSMutableAttributedString(attributedString: paragraph(runsString([MDRun(text: l)], kind: .raw, baseURL: baseURL), kind: .raw))
+                    p.addAttribute(DMKey.codeBlock, value: id, range: NSRange(location: 0, length: p.length))
+                    out.append(p)
                 }
 
             case .details(let summary, let body, let open):
@@ -376,7 +390,7 @@ enum RichBridge {
     private enum Item {
         case line(MDLine)
         case code(String, String, listGap: Bool?, id: String?)
-        case raw(String)
+        case raw(String, id: String?)
         case rule
         case summary(String, open: Bool)
         case math(String)
@@ -384,8 +398,9 @@ enum RichBridge {
     }
 
     private struct Entry {
-        let item: Item
+        var item: Item
         let inDetails: Bool
+        var quoteID: String? = nil
     }
 
     static func blocks(from storage: NSAttributedString) -> [MDBlock] {
@@ -420,13 +435,26 @@ enum RichBridge {
                let h = l.runs.firstIndex(where: { $0.literal && MDCallout(header: $0.text) != nil }) {
                 var rest = l.runs
                 let header = rest.remove(at: h)
-                items.append(Entry(item: .line(MDLine(kind: .quote, runs: [header])), inDetails: inDetails))
+                let id = attrs[DMKey.quoteBlock] as? String
+                items.append(Entry(item: .line(MDLine(kind: .quote, runs: [header])), inDetails: inDetails, quoteID: id))
                 if rest.contains(where: { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty || $0.image != nil }) {
-                    items.append(Entry(item: .line(MDLine(kind: .quote, runs: rest)), inDetails: inDetails))
+                    items.append(Entry(item: .line(MDLine(kind: .quote, runs: rest)), inDetails: inDetails, quoteID: id))
                 }
                 continue
             }
-            items.append(Entry(item: item, inDetails: inDetails))
+            items.append(Entry(item: item, inDetails: inDetails, quoteID: attrs[DMKey.quoteBlock] as? String))
+        }
+        // 相邻两段引用编号不同：原来是空行隔开的两段，保存时不能连成一段
+        var runID: String?   // 这一串相邻引用里最近的编号（新打的行没有编号）
+        for k in items.indices {
+            guard case .line(var l) = items[k].item, l.kind == .quote else { runID = nil; continue }
+            if let b = items[k].quoteID {
+                if let a = runID, a != b {
+                    l.quoteStart = true
+                    items[k].item = .line(l)
+                }
+                runID = b
+            }
         }
         // 末尾的空段落没有意义，不写入文件
         while let last = items.last {
@@ -489,7 +517,7 @@ enum RichBridge {
         case .code(let lang):
             return .code(lang, plainText(ns, content), listGap: attrs[DMKey.listCode] as? Bool, id: attrs[DMKey.codeBlock] as? String)
         case .raw:
-            return .raw(plainText(ns, content))
+            return .raw(plainText(ns, content), id: attrs[DMKey.codeBlock] as? String)
         case .summary:
             return .summary(plainText(ns, content), open: attrs[DMKey.detailsOpen] != nil)
         case .task:
@@ -622,8 +650,12 @@ enum RichBridge {
                 blocks.append(.code(lang: lang, lines: lines, listGap: listGap))
             case .raw:
                 var lines: [String] = []
+                var current: String?
                 while let item = next(i) {
-                    guard case .raw(let text) = item else { break }
+                    guard case .raw(let text, let id) = item else { break }
+                    // 编号不同的两段原样内容（原文空行隔开）之间写回空行；没有编号的（新打的）接着上一段
+                    if let id, let c = current, c != id { lines.append("") }
+                    current = id ?? current
                     lines.append(text)
                     i += 1
                 }

@@ -229,14 +229,19 @@ final class MathAttachmentCell: NSTextAttachmentCell {
             placeholder.draw(at: cellFrame.origin)
             return
         }
-        // 用当前文字颜色填充公式的形状
-        let tinted = NSImage(size: mask.size, flipped: false) { rect in
-            NSColor.labelColor.setFill()
-            rect.fill()
-            mask.draw(in: rect, from: .zero, operation: .destinationIn, fraction: 1)
-            return true
+        guard let ctx = NSGraphicsContext.current,
+              let cgMask = mask.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+        // 用文字颜色按蒙版裁切填充（PDF 不支持 destinationIn 混合模式，会画出黑底白字）
+        let cg = ctx.cgContext
+        cg.saveGState()
+        if ctx.isFlipped {
+            cg.translateBy(x: 0, y: cellFrame.minY + cellFrame.maxY)
+            cg.scaleBy(x: 1, y: -1)
         }
-        tinted.draw(in: cellFrame)
+        cg.clip(to: cellFrame, mask: cgMask)
+        NSColor.labelColor.setFill()
+        cg.fill(cellFrame)
+        cg.restoreGState()
     }
 
     /// 渲染好后重新排版这个公式所在的位置
