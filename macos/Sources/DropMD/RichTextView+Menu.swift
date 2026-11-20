@@ -297,7 +297,9 @@ extension RichTextView {
             if storage.attribute(DMKey.callout, at: para.location, effectiveRange: nil) != nil { return para }
             guard para.location > 0 else { return nil }
             let prev = ns.paragraphRange(for: NSRange(location: para.location - 1, length: 0))
-            guard RichBridge.kind(of: storage.attributes(at: prev.location, effectiveRange: nil)) == .quote else { return nil }
+            let a = storage.attributes(at: prev.location, effectiveRange: nil)
+            guard RichBridge.kind(of: a) == .quote,
+                  RichLayoutManager.sameQuote(a, storage.attributes(at: para.location, effectiveRange: nil)) else { return nil }
             para = prev
         }
     }
@@ -312,6 +314,9 @@ extension RichTextView {
         let old = storage.attributedSubstring(from: header)
         if !old.string.hasSuffix("\n"), p.string.hasSuffix("\n") { p.deleteCharacters(in: NSRange(location: p.length - 1, length: 1)) }
         if old.length > 0, old.attribute(DMKey.inDetails, at: 0, effectiveRange: nil) != nil { RichBridge.markInDetails(p) }
+        if old.length > 0, let id = old.attribute(DMKey.quoteBlock, at: 0, effectiveRange: nil) {   // 还是同一段引用
+            p.addAttribute(DMKey.quoteBlock, value: id, range: NSRange(location: 0, length: p.length))
+        }
         replace(header, with: p, caret: max(caret.location + p.length - header.length, header.location))   // 换成名字更短的类型时不能小于标题行开头
         refreshTypingAttributes()
     }

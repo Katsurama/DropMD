@@ -418,7 +418,33 @@ enum MarkdownCodec {
                 blocks[k] = .line(l)
             }
         }
-        return (blocks, sources, lines)
+        return mergeAdjacentRaw(blocks, sources, lines)
+    }
+
+    /// 中间没有空行、紧挨着的两段原样内容（YAML 信息后的 HTML、列表后的 HTML、多行脚注）合成一段：
+    /// 单页里是一张卡片，保存时按原文写回，不会在中间多出空行
+    private static func mergeAdjacentRaw(_ blocks: [MDBlock], _ sources: [SourceGroup], _ lines: [String])
+        -> (blocks: [MDBlock], groups: [SourceGroup], lines: [String]) {
+        guard sources.reduce(0, { $0 + $1.blocks.count }) == blocks.count else { return (blocks, sources, lines) }
+        var outBlocks: [MDBlock] = []
+        var outGroups: [SourceGroup] = []
+        for g in sources {
+            var groupBlocks = Array(blocks[g.blocks])
+            if let prev = outGroups.last, prev.lines.upperBound == g.lines.lowerBound,
+               case .raw(let a)? = outBlocks.last, case .raw(let b)? = groupBlocks.first,
+               !isMathBlock(a), !isMathBlock(b) {
+                outBlocks[outBlocks.count - 1] = .raw(a + "\n" + b)
+                groupBlocks.removeFirst()
+                outBlocks += groupBlocks
+                outGroups[outGroups.count - 1] = SourceGroup(blocks: prev.blocks.lowerBound..<outBlocks.count,
+                                                              lines: prev.lines.lowerBound..<g.lines.upperBound)
+            } else {
+                let start = outBlocks.count
+                outBlocks += groupBlocks
+                outGroups.append(SourceGroup(blocks: start..<outBlocks.count, lines: g.lines))
+            }
+        }
+        return (outBlocks, outGroups, lines)
     }
 
     /// 列表从 start 开始；里面有单页表示不了的内容（项里空行后的续段、代码块、引用等）时返回列表的结束位置，否则返回 nil

@@ -213,5 +213,33 @@ checkKeep("BOM 文件", "\u{FEFF}a $1\n\nb\n", "\u{FEFF}a $1\n\n新\n") { $0[1] 
 checkKeep("开头的空行和 YAML", "\n---\n\na $1\n\nb\n", "\n---\n\na $1\n\n新\n") { $0[$0.count - 1] = body("新") }
 checkKeep("YAML 不变", "---\nt:  x\n---\n\n\na $1\n\nb\n", "---\nt:  x\n---\n\n\na $1\n\n新\n") { $0[$0.count - 1] = body("新") }
 checkKeep("全部删掉", "a\n\nb\n", "") { $0 = [] }
+// 相邻原样内容：保存时不改原文，紧挨着的两段导出时也不多插空行（RichBridge 往返见 editor_test）
+let tightRawCases: [(String, String)] = [
+    ("YAML + HTML", "---\ntitle: Demo\n---\n<div>HTML</div>\n"),
+    ("复杂引用 + HTML", "> - item\n<div>HTML</div>\n"),
+    ("复杂列表 + HTML", "- item\n\n  para 2\n<div>HTML</div>\n"),
+    ("多行脚注", "[^1]: line 1\n    line 2\n[^2]: line 3\n    line 4\n"),
+]
+for (label, src) in tightRawCases {
+    checkKeep("相邻原样内容不改：\(label)", src, src) { _ in }
+    check("相邻原样内容导出：\(label)", src)
+}
+for (label, src) in [
+    ("两个空行隔开的 HTML", "<div>a</div>\n\n\n<div>b</div>\n"),
+    ("无结尾换行的两个 HTML", "<div>a</div>\n\n<div>b</div>"),
+    ("两个 HTML 后接正文", "<div>a</div>\n\n<div>b</div>\n\n\n正文\n"),
+] {
+    checkKeep("相邻原样内容不改：\(label)", src, src) { _ in }
+}
+// 引用分隔改动：合并或拆分两段引用时，保存要按新的分隔写回
+checkKeep("引用分隔保存：普通引用并入提示框", "> [!NOTE]\n> a\n\n> b\n", "> [!NOTE]\n> a\n> b\n") {
+    $0 = MarkdownCodec.parse("> [!NOTE]\n> a\n> b\n")
+}
+checkKeep("引用分隔保存：两段引用合并并修改", "> a\n\n> b\n", "> a\n> b2\n") {
+    $0 = MarkdownCodec.parse("> a\n> b2\n")
+}
+checkKeep("引用分隔保存：一段引用拆成两段", "> a\n> b\n", "> a\n\n> b\n") {
+    if case .line(var l) = $0[1] { l.quoteStart = true; $0[1] = .line(l) }
+}
 print(failures == 0 ? "ALL PASSED" : "\(failures) FAILED")
 exit(failures == 0 ? 0 : 1)
