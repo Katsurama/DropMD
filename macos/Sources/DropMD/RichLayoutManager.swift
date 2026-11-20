@@ -57,6 +57,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             if c.length > 0 {
                 invalidateGlyphs(forCharacterRange: c, changeInLength: 0, actualCharacterRange: nil)
                 invalidateLayout(forCharacterRange: c, actualCharacterRange: nil)
+                scheduleDisplayStyles(for: c, delta: 0)   // 收起时代码块没上色，展开后补上
             }
         }
     }
@@ -102,6 +103,14 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
            case .code = RichBridge.kind(of: storage.attributes(at: endLoc, effectiveRange: nil)),
            let b = codeBlock(at: endLoc) {
             target = NSUnionRange(target, b)
+        }
+        // 引用：整段连着的引用一起重上色（提示框变回普通引用时，下面几段也要变灰）
+        func isQuote(_ at: Int) -> Bool { RichBridge.kind(of: storage.attributes(at: at, effectiveRange: nil)) == .quote }
+        while target.location > 0, isQuote(target.location), isQuote(target.location - 1) {
+            target = NSUnionRange(target, ns.paragraphRange(for: NSRange(location: target.location - 1, length: 0)))
+        }
+        while NSMaxRange(target) < ns.length, isQuote(NSMaxRange(target) - 1), isQuote(NSMaxRange(target)) {
+            target = NSUnionRange(target, ns.paragraphRange(for: NSRange(location: NSMaxRange(target), length: 0)))
         }
         removeTemporaryAttribute(.foregroundColor, forCharacterRange: target)
         removeTemporaryAttribute(.strikethroughStyle, forCharacterRange: target)
@@ -470,11 +479,14 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         }
     }
 
-    /// 哪一类代码段落：相邻且同类的连成一块（代码连代码，原文即 YAML 信息、HTML 连原文，折叠块里外不连）；不是代码时为 nil
-    private func codeGroup(at location: Int, in storage: NSTextStorage) -> String? {
-        guard isCodeParagraph(at: location, in: storage) else { return nil }
-        let a = storage.attributes(at: location, effectiveRange: nil)
-        return "\(a[DMKey.raw] != nil)\(a[DMKey.inDetails] != nil)"
+    /// 两个代码段落是不是同一块：代码连代码，原文（YAML 信息、HTML）连原文，折叠块里外不连；
+    /// 代码块编号不同的不连（与保存时 RichBridge 分块的规则相同，刚设成代码、还没有编号的算进旁边那块）
+    private func sameCodeBlock(_ a: Int, _ b: Int, in storage: NSTextStorage) -> Bool {
+        guard isCodeParagraph(at: a, in: storage), isCodeParagraph(at: b, in: storage) else { return false }
+        let x = storage.attributes(at: a, effectiveRange: nil), y = storage.attributes(at: b, effectiveRange: nil)
+        guard (x[DMKey.raw] != nil) == (y[DMKey.raw] != nil), (x[DMKey.inDetails] != nil) == (y[DMKey.inDetails] != nil) else { return false }
+        let i = x[DMKey.codeBlock] as? String, j = y[DMKey.codeBlock] as? String
+        return i == nil || j == nil || i == j
     }
 
     /// 包含这个位置的整个代码块（连续的代码段落）；不是代码时为 nil
@@ -483,16 +495,15 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         let ns = storage.string as NSString
         var block = ns.paragraphRange(for: NSRange(location: location, length: 0))
         guard !hiddenRanges.contains(where: { NSLocationInRange(block.location, $0) }) else { return nil }
-        let mine = codeGroup(at: location, in: storage)
-        func same(_ at: Int) -> Bool { codeGroup(at: at, in: storage) == mine }
         while block.location > 0 {
             let prev = ns.paragraphRange(for: NSRange(location: block.location - 1, length: 0))
-            guard same(prev.location) else { break }
+            guard sameCodeBlock(prev.location, block.location, in: storage) else { break }
             block = NSUnionRange(prev, block)
         }
         while NSMaxRange(block) < ns.length {
             let next = ns.paragraphRange(for: NSRange(location: NSMaxRange(block), length: 0))
-            guard same(next.location) else { break }
+            let last = ns.paragraphRange(for: NSRange(location: NSMaxRange(block) - 1, length: 0))
+            guard sameCodeBlock(last.location, next.location, in: storage) else { break }
             block = NSUnionRange(block, next)
         }
         return block
@@ -539,8 +550,12 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             card.stroke()
             if let lang = storage.attribute(DMKey.code, at: block.location, effectiveRange: nil) as? String, !lang.isEmpty {
                 let size = (lang as NSString).size(withAttributes: langAttrs)
-                if rect.width > size.width + 56 {
-                    (lang as NSString).draw(at: NSPoint(x: rect.maxX - size.width - 42, y: rect.minY + 10), withAttributes: langAttrs)
+                let x = rect.maxX - size.width - 42
+                // 第一行代码伸到右上角时不画语言名，否则压在代码上
+                let firstLine = lineFragmentUsedRect(forGlyphAt: glyphRange(forCharacterRange: block, actualCharacterRange: nil).location,
+                                                     effectiveRange: nil)
+                if rect.width > size.width + 56, origin.x + firstLine.maxX + 8 < x {
+                    (lang as NSString).draw(at: NSPoint(x: x, y: rect.minY + 10), withAttributes: langAttrs)
                 }
             }
         }
@@ -658,7 +673,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         if isCode || kind == .quote {
             let same: Bool
             if isCode {
-                same = codeGroup(at: neighbor, in: storage) == codeGroup(at: para.location, in: storage)   // 与 codeBlock 同一规则：分成两块就留空
+                same = sameCodeBlock(neighbor, para.location, in: storage)   // 与 codeBlock 同一规则：分成两块就留空
             } else {
                 // 提示框标题行开始新的一块
                 same = RichBridge.kind(of: other) == .quote && (after ? other[DMKey.callout] == nil : attrs[DMKey.callout] == nil)

@@ -41,10 +41,15 @@ final class MathRenderer: NSObject, WKNavigationDelegate {
 
     private func finishLoading(_ ok: Bool) {
         ready = ok
-        if !ok {   // 下次需要时重新加载
+        if !ok {   // 下次需要时重新加载；排着的公式先显示原文，否则同一个公式以后再也不会重画
             window?.close()
             window = nil
             webView = nil
+            let failed = waiting.values.flatMap { $0 }
+            waiting = [:]
+            queue = []
+            busy = false
+            failed.forEach { $0(nil) }
         }
         let w = loadWaiters
         loadWaiters = []

@@ -14,8 +14,9 @@ extension RichTextView {
             .replacingOccurrences(of: RichStyle.taskTodo, with: "")
             .replacingOccurrences(of: RichStyle.taskDone, with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        // 在空的列表项、引用中再按回车：结束列表（与 Word 相同）
-        if (kind.isList || kind == .quote) && content.isEmpty {
+        let math = attrs[DMKey.math] != nil
+        // 在空的列表项、引用、原样内容（YAML 信息、HTML）中再按回车：结束列表（与 Word 相同）
+        if (kind.isList || kind == .quote || (kind == .raw && !math)) && content.isEmpty {
             applyKinds { _ in .body }
             return
         }
@@ -41,7 +42,9 @@ extension RichTextView {
             // 标题之后是折叠的内容
             applyKinds { _ in .body }
             setInDetails(true)
-        case .heading, .rule, .raw:
+        case .heading, .rule:
+            applyKinds { _ in .body }
+        case .raw where math:   // 公式块后面是正文；YAML 信息、HTML 里回车只是换行
             applyKinds { _ in .body }
         case .task(let d, _):
             applyKinds { _ in .task(d, false) }

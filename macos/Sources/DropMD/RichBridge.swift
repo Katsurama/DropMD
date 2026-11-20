@@ -300,10 +300,7 @@ enum RichBridge {
             || text.count >= 5 && text.hasPrefix("\\(") && text.hasSuffix("\\)")
     }
 
-    static func isMathBlock(_ text: String) -> Bool {
-        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.count >= 5 && (t.hasPrefix("$$") && t.hasSuffix("$$") || t.hasPrefix("\\[") && t.hasSuffix("\\]"))
-    }
+    static func isMathBlock(_ text: String) -> Bool { MarkdownCodec.isMathBlock(text) }
 
     /// 公式显示为一张图片（一个字符），保存时写回原文
     static func mathString(_ source: String, display: Bool, attributes: [NSAttributedString.Key: Any]) -> NSAttributedString {

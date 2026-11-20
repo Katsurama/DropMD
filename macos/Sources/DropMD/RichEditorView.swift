@@ -56,6 +56,10 @@ struct RichTextEditor: NSViewRepresentable {
 
         controller.richView = tv
         controller.flushRichEdits = { [weak coordinator = context.coordinator] in coordinator?.flush() }
+        controller.reloadRichIfPending = { [weak coordinator = context.coordinator, weak tv] in
+            guard let coordinator, let tv else { return }
+            MainActor.assumeIsolated { coordinator.reloadIfPending(tv) }
+        }
         tv.onAction = { [weak controller] action in controller?.perform(action) }
         tv.onOpenLink = { [weak coordinator = context.coordinator] link in coordinator?.openLink(link) }
         tv.onFocus = { [weak coordinator = context.coordinator, weak tv] in

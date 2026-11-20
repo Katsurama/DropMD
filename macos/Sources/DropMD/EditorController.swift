@@ -124,6 +124,8 @@ final class EditorController: ObservableObject {
 
     /// 由单页编辑区设置：把尚未写回的修改立即写回文档
     var flushRichEdits: (() -> Void)?
+    /// 双页左边刚改了字、右边还在等着重排时，马上排好
+    var reloadRichIfPending: (() -> Void)?
 
     func flushPendingEdits() { flushRichEdits?() }
 
@@ -574,6 +576,7 @@ final class EditorController: ObservableObject {
     /// 点击“目录”里的标题时，滚动并定位光标到对应位置
     func jumpToHeading(_ clicked: DocumentHeading) {
         flushPendingEdits()
+        reloadRichIfPending?()
         // 刚改的字写回后行号可能变了：按“第几个同名标题”在新目录里找到它的新行号
         let old = headings
         let new = refreshHeadings()
@@ -582,8 +585,10 @@ final class EditorController: ObservableObject {
         let heading = new.filter(same).dropFirst(nth).first ?? clicked
         if !isRichMode { scrollSource(toLine: Double(heading.id)) }
         // 单页里直接找第几个标题：对照表把整个折叠块当一段，里面的标题会跳到折叠块开头。光标进到收起的折叠块会自动展开
-        let target = new.firstIndex(of: heading).flatMap { richView?.headingParagraph($0) } ?? richRange(forLine: heading.id)?.range
+        let occurrence = new.prefix { $0 != heading }.filter { $0.title == heading.title }.count
+        let target = richView?.headingParagraph(title: heading.title, occurrence: occurrence) ?? richRange(forLine: heading.id)?.range
         if let range = target, let rv = richView {
+            ignoreRichScrollUntil = Date().addingTimeInterval(0.3)   // 双页：右边跟着滚时不要再把左边带走
             rv.setSelectedRange(NSRange(location: range.location, length: 0))
             rv.scrollRangeToVisible(range)
             if isRichMode { rv.window?.makeFirstResponder(rv) }
@@ -815,6 +820,7 @@ final class EditorController: ObservableObject {
 
     /// 打印期间保留离屏排版用的文本（打印以表单方式异步进行）
     private var printStorage: NSTextStorage?
+    private var printCompletion: PrintCompletion?
 
     private static let a4 = NSSize(width: 595.28, height: 841.89)
     private static let printMargin: CGFloat = 48
@@ -863,8 +869,8 @@ final class EditorController: ObservableObject {
     func exportPDF() {
         // 单页、双页都按单页的排版打印（双页的右边就是单页），不管光标在哪边，结果都一样
         guard let r = richView, let storage = r.textStorage, let window = r.window else { return }
-        let view = printableView(of: storage)
         guard let url = savePanel(ext: "pdf", type: .pdf) else { return }
+        let view = printableView(of: storage)   // 确定导出后才复制一份文档，导出完就放掉
         let info = NSPrintInfo(dictionary: [.jobSavingURL: url])
         info.jobDisposition = .save
         info.paperSize = Self.a4
@@ -879,6 +885,18 @@ final class EditorController: ObservableObject {
         let op = NSPrintOperation(view: view, printInfo: info)
         op.showsPrintPanel = false
         op.showsProgressPanel = true
-        op.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
+        let done = PrintCompletion { [weak self] in
+            self?.printStorage = nil
+            self?.printCompletion = nil
+        }
+        printCompletion = done
+        op.runModal(for: window, delegate: done, didRun: #selector(PrintCompletion.printOperationDidRun(_:success:contextInfo:)), contextInfo: nil)
     }
+}
+
+/// 导出 PDF 结束（导出完或取消）时的回调：打印用的是 Objective-C 的回调方式
+private final class PrintCompletion: NSObject {
+    let done: () -> Void
+    init(_ done: @escaping () -> Void) { self.done = done }
+    @objc func printOperationDidRun(_ op: NSPrintOperation, success: Bool, contextInfo: UnsafeMutableRawPointer?) { done() }
 }

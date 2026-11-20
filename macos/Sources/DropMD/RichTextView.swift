@@ -771,13 +771,15 @@ final class RichTextView: NSTextView {
 
     /// 放进一段里的内容：去掉它自己的段落格式，换成这一段的（列表、表格、折叠块、缩进），否则这一段会被拆开。
     /// 放进表格单元格时换行改成空格，一个格子不会拆成几个
+    static let paragraphLevelKeys = DMKey.paragraphKeys + [.paragraphStyle, DMKey.inDetails, DMKey.codeGap]
+
     func fitted(_ s: NSAttributedString, to dest: [NSAttributedString.Key: Any]) -> NSAttributedString {
         let out = NSMutableAttributedString(attributedString: s)
         if RichBridge.tableBlock(of: dest) != nil {
             out.mutableString.replaceOccurrences(of: "\n", with: " ", range: NSRange(location: 0, length: out.length))
         }
         let whole = NSRange(location: 0, length: out.length)
-        for k in DMKey.paragraphKeys + [.paragraphStyle, DMKey.inDetails, DMKey.codeGap] {
+        for k in Self.paragraphLevelKeys {
             out.removeAttribute(k, range: whole)
             if let v = dest[k] { out.addAttribute(k, value: v, range: whole) }
         }
@@ -791,8 +793,9 @@ final class RichTextView: NSTextView {
 
     // MARK: - 折叠块：收起 / 展开（只改变显示，不改文件）
 
-    /// 第 n 个标题段落（从 0 数，没有文字的标题不算，与目录 extractHeadings 一致）
-    func headingParagraph(_ n: Int) -> NSRange? {
+    /// 文字是 title 的第 occurrence 个标题段落（从 0 数）。按文字找，不按第几个标题：
+    /// 只有图片的标题、折叠块里的折叠块等，目录和单页数出来的标题个数可能不一样
+    func headingParagraph(title: String, occurrence: Int) -> NSRange? {
         guard let storage = textStorage else { return nil }
         let ns = storage.string as NSString
         var loc = 0, k = 0
@@ -800,8 +803,8 @@ final class RichTextView: NSTextView {
             let p = ns.paragraphRange(for: NSRange(location: loc, length: 0))
             loc = NSMaxRange(p)
             guard case .heading = RichBridge.kind(of: storage.attributes(at: p.location, effectiveRange: nil)),
-                  !ns.substring(with: p).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
-            if k == n { return p }
+                  ns.substring(with: p).trimmingCharacters(in: .whitespacesAndNewlines) == title else { continue }
+            if k == occurrence { return p }
             k += 1
         }
         return nil

@@ -226,7 +226,7 @@ final class UpdateChecker: ObservableObject {
         guard state != .checking && state != .downloading && state != .installing && state != .readyToRestart else { return }
         state = .checking
         do {
-            var request = URLRequest(url: URL(string: "https://api.github.com/repos/\(repo)/releases?per_page=20")!)
+            var request = URLRequest(url: URL(string: "https://api.github.com/repos/\(repo)/releases?per_page=100")!)
             request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
             authorize(&request)
             request.cachePolicy = .reloadIgnoringLocalCacheData
