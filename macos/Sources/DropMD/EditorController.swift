@@ -8,6 +8,10 @@ import UniformTypeIdentifiers
 @MainActor
 final class SelectionModel: ObservableObject {
     @Published var state = SelectionState()
+    /// 工具栏与格式面板是否作用于单页富文本（单页恒为 true；双页随焦点在左/右切换）
+    @Published var richFocused = true
+    /// 当前编辑区选中的非空白字符数，未选中时为 0
+    @Published var selectedChars = 0
 }
 
 @MainActor
@@ -108,6 +112,7 @@ final class EditorController: ObservableObject {
             richView?.sourceCursorRange = nil
             richView?.sourceCaretLocation = nil
             lastCursorLine = -1
+            updateSelectionState()
         }
     }
 
@@ -123,6 +128,7 @@ final class EditorController: ObservableObject {
     func flushPendingEdits() { flushRichEdits?() }
 
     @Published var stats = ""
+    @Published var headings: [DocumentHeading] = []
     /// 光标处的样式。单独放在一个对象里：光标移动时只刷新“格式”面板，不刷新整个窗口
     let selection = SelectionModel()
 
@@ -135,6 +141,8 @@ final class EditorController: ObservableObject {
     func textChanged(_ text: String) {
         pendingText = text
         updateStats(text)
+        let h = extractHeadings(text)
+        if h != headings { headings = h }
         if language == .auto { updateLanguage() }
         // 单页打的字停一下才交给文档：文件恰好在这之前被删时，监视那一刻还看不出改过，这里补上
         if let url = fileURL, !FileManager.default.fileExists(atPath: url.path) { fileWentAway() }
@@ -190,7 +198,7 @@ final class EditorController: ObservableObject {
     var richMarkdown: String?
 
     private func currentLineMap() -> RichBridge.LineMap {
-        let text = textView?.string ?? pendingText
+        let text = isRichMode ? (richMarkdown ?? pendingText) : (textView?.string ?? pendingText)
         // 只在右边已经显示这份内容时才重算。左边刚改了字时右边 0.3 秒后会重排、送来新对照表（richReloaded），
         // 这期间先用旧表，不为它把整篇再排一遍（1 万行约 0.3 秒，左边每按一次回车就卡一下）
         if text != lineMapText, text == richMarkdown {
@@ -500,11 +508,43 @@ final class EditorController: ObservableObject {
         selectionChanged()
     }
 
-    /// 单页的选区变化时更新“格式”面板
+    /// 选区、模式或焦点变化时更新工具栏与“格式”面板状态、选区字数
     func selectionChanged() {
-        guard let r = rich else { return }
-        let state = r.selectionState
-        if state != selection.state { selection.state = state }
+        updateSelectionState()
+    }
+
+    func updateSelectionState(richFocused override: Bool? = nil) {
+        let activeRich = isRichMode || (override ?? (richView?.window?.firstResponder === richView))
+        if selection.richFocused != activeRich { selection.richFocused = activeRich }
+        if activeRich, let r = richView {
+            let state = r.selectionState
+            if state != selection.state { selection.state = state }
+        }
+        let activeView: NSTextView? = activeRich ? richView : textView
+        let selected = Self.nonWhitespaceCount(in: activeView)
+        if selection.selectedChars != selected { selection.selectedChars = selected }
+    }
+
+    private static func nonWhitespaceCount(in textView: NSTextView?) -> Int {
+        guard let textView else { return 0 }
+        let range = textView.selectedRange()
+        guard range.length > 0 else { return 0 }
+        let ns = textView.string as NSString
+        guard NSMaxRange(range) <= ns.length else { return 0 }
+        var count = 0
+        for c in ns.substring(with: range).unicodeScalars where !c.properties.isWhitespace { count += 1 }
+        return count
+    }
+
+    /// 点击“目录”里的标题时，滚动并定位光标到对应位置
+    func jumpToHeading(_ heading: DocumentHeading) {
+        flushPendingEdits()
+        if !isRichMode { scrollSource(toLine: Double(heading.id)) }
+        if let (_, range) = richRange(forLine: heading.id), let rv = richView {
+            rv.setSelectedRange(NSRange(location: range.location, length: 0))
+            rv.scrollRangeToVisible(range)
+            if isRichMode { rv.window?.makeFirstResponder(rv) }
+        }
     }
 
     func bold() { if let r = rich { r.toggle(.bold) } else { wrap("**", placeholder: String(localized: "粗体文字")) } }
@@ -749,6 +789,7 @@ final class EditorController: ObservableObject {
         tv.textContainerInset = .zero
         tv.isVerticallyResizable = true
         tv.drawsBackground = false
+        layout.refreshAllDisplayStyles()
         layout.ensureLayout(for: container)
         tv.setFrameSize(NSSize(width: width, height: max(100, ceil(layout.usedRect(for: container).height) + 8)))
         printStorage = copy

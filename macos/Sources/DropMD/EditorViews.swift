@@ -107,7 +107,10 @@ struct MarkdownTextView: NSViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
-            MainActor.assumeIsolated { parent.controller.syncCursor() }
+            MainActor.assumeIsolated {
+                parent.controller.syncCursor()
+                parent.controller.selectionChanged()
+            }
         }
     }
 }
@@ -124,7 +127,7 @@ struct EditorView: View {
 
     @StateObject private var editor = EditorController()
     @AppStorage("editorMode") private var mode: EditorMode = .rich
-    @AppStorage("showInspector") private var showInspector = true
+    @AppStorage("showInspector") private var showInspector = false
     /// 双页时左边原文占的比例：每次打开都从正中开始，拖动中间的分隔线调整
     @State private var splitFraction = 0.5
     /// 双页在窗口打开后于后台预先加载，第一次切换也不卡
@@ -134,15 +137,18 @@ struct EditorView: View {
 
     var body: some View {
         // “格式”面板不用系统的 .inspector：它会让工具栏中间的按钮只按编辑区居中，打开面板时偏左
-        HStack(spacing: 0) {
-            editorColumn
-            if showInspector {
-                Rectangle()
-                    .fill(Color(nsColor: RichStyle.lineColor))
-                    .frame(width: 1)
-                FormatInspector(editor: editor, selection: editor.selection, isRich: mode == .rich)
-                    .frame(width: 260)
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                editorColumn
+                if showInspector {
+                    Rectangle()
+                        .fill(Color(nsColor: RichStyle.lineColor))
+                        .frame(width: 1)
+                    FormatInspector(editor: editor, selection: editor.selection)
+                        .frame(width: 260)
+                }
             }
+            statusBar
         }
         // 最小宽度留得小一些：打开“格式”面板时从编辑区分出空间，窗口不变大
         .frame(minWidth: 420, minHeight: 360)
@@ -173,40 +179,35 @@ struct EditorView: View {
     }
 
     private var editorColumn: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                GeometryReader { geo in
-                    HStack(spacing: 0) {
-                        // 双页：左边原文，右边就是单页编辑区（同一个，两边都能改、实时同步）
-                        if sourceLoaded || mode == .source {
-                            MarkdownTextView(text: $document.text, controller: editor, isActive: mode == .source)
-                                .frame(width: mode == .source ? sourceWidth(geo.size.width) : 0)
-                                .frame(maxHeight: .infinity)
-                                .opacity(mode == .source ? 1 : 0)
-                                .allowsHitTesting(mode == .source)
-                            if mode == .source {
-                                Rectangle()
-                                    .fill(Color(nsColor: RichStyle.lineColor))
-                                    .frame(width: 1)
-                                    // 线只有 1 点宽，能拖的范围左右各加宽 4 点
-                                    .overlay(SplitHandle(
-                                        onDrag: { x in
-                                            let left = geo.frame(in: .global).minX
-                                            splitFraction = clampedFraction((x - left) / max(geo.size.width, 1), width: geo.size.width)
-                                        },
-                                        onDoubleClick: { splitFraction = 0.5 }
-                                    ).frame(width: 9))
-                                    .zIndex(1)
-                            }
-                        }
-                        // 单页延伸到工具栏下方（与 Pages 相同），不留一条分隔带
-                        RichTextEditor(text: $document.text, baseURL: fileURL?.deletingLastPathComponent(), controller: editor)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .ignoresSafeArea(.container, edges: .top)
+        GeometryReader { geo in
+            HStack(spacing: 0) {
+                // 双页：左边原文，右边就是单页编辑区（同一个，两边都能改、实时同步）
+                if sourceLoaded || mode == .source {
+                    MarkdownTextView(text: $document.text, controller: editor, isActive: mode == .source)
+                        .frame(width: mode == .source ? sourceWidth(geo.size.width) : 0)
+                        .frame(maxHeight: .infinity)
+                        .opacity(mode == .source ? 1 : 0)
+                        .allowsHitTesting(mode == .source)
+                    if mode == .source {
+                        Rectangle()
+                            .fill(Color(nsColor: RichStyle.lineColor))
+                            .frame(width: 1)
+                            // 线只有 1 点宽，能拖的范围左右各加宽 4 点
+                            .overlay(SplitHandle(
+                                onDrag: { x in
+                                    let left = geo.frame(in: .global).minX
+                                    splitFraction = clampedFraction((x - left) / max(geo.size.width, 1), width: geo.size.width)
+                                },
+                                onDoubleClick: { splitFraction = 0.5 }
+                            ).frame(width: 9))
+                            .zIndex(1)
                     }
                 }
+                // 单页延伸到工具栏下方（与 Pages 相同），不留一条分隔带
+                RichTextEditor(text: $document.text, baseURL: fileURL?.deletingLastPathComponent(), controller: editor)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .ignoresSafeArea(.container, edges: .top)
             }
-            statusBar
         }
     }
 
@@ -239,8 +240,7 @@ struct EditorView: View {
                 .help(fileURL?.path ?? "")
             languageMenu
             Spacer()
-            Text(editor.stats)
-                .monospacedDigit()
+            StatusStatsView(editor: editor, selection: editor.selection)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -280,13 +280,16 @@ struct EditorView: View {
             .fixedSize()
             .help("单页（⌘1） / 双页（⌘2）")
         }
-        // 中间：段落样式 | 文字样式 | 列表 | 插入（参考 Pages，常用命令一眼可见）
-        // 每组是一个单独的工具栏项，Liquid Glass 下各自显示为一个小胶囊
+        // 中间：段落样式 | 文字样式 + 列表 | 插入（3 组，避免过多胶囊挤占工具栏）
         ToolbarItem(placement: .principal) {
-            ParagraphStyleMenu(editor: editor, selection: editor.selection, isRich: mode == .rich)
+            ParagraphStyleMenu(editor: editor, selection: editor.selection)
         }
-        ToolbarItem(placement: .principal) { toolbarGroup([.bold, .italic, .underline]) }
-        ToolbarItem(placement: .principal) { toolbarGroup([.bullet, .numbered, .task]) }
+        ToolbarItem(placement: .principal) {
+            HStack(spacing: 0) {
+                ToolbarFormatGroup(editor: editor, selection: editor.selection)
+                ToolbarListMenu(editor: editor, selection: editor.selection)
+            }
+        }
         ToolbarItem(placement: .principal) {
             HStack(spacing: 0) {
                 toolbarGroup([.table, .image, .link])
@@ -348,6 +351,80 @@ struct EditorView: View {
             Label("插入", systemImage: "plus")
         }
         .help("插入")
+    }
+}
+
+/// 单独观察选区字数，避免光标移动时重绘整个编辑器窗口
+private struct StatusStatsView: View {
+    @ObservedObject var editor: EditorController
+    @ObservedObject var selection: SelectionModel
+
+    var body: some View {
+        Group {
+            if selection.selectedChars > 0 {
+                Text("已选 \(selection.selectedChars) 字 · \(editor.stats)")
+            } else {
+                Text(editor.stats)
+            }
+        }
+        .monospacedDigit()
+    }
+}
+
+/// 工具栏粗体 / 斜体 / 下划线按钮组，随光标状态显示按下高亮
+private struct ToolbarFormatGroup: View {
+    let editor: EditorController
+    @ObservedObject var selection: SelectionModel
+
+    var body: some View {
+        ControlGroup {
+            ForEach([EditorAction.bold, .italic, .underline]) { action in
+                Toggle(isOn: Binding(
+                    get: { selection.richFocused && selection.state.active.contains(action) },
+                    set: { _ in editor.perform(action) }
+                )) {
+                    Label(action.title, systemImage: action.symbol)
+                }
+                .help(action.title + (action.shortcut.map { String(localized: "（\($0.displayText)）") } ?? ""))
+            }
+        }
+        .controlGroupStyle(.navigation)
+    }
+}
+
+/// 工具栏列表菜单（项目符号 / 编号 / 待办），图标随当前段落列表类型切换
+private struct ToolbarListMenu: View {
+    let editor: EditorController
+    @ObservedObject var selection: SelectionModel
+
+    private var currentIcon: String {
+        guard selection.richFocused else { return EditorAction.bullet.symbol }
+        switch selection.state.kind {
+        case .ordered: return EditorAction.numbered.symbol
+        case .task: return EditorAction.task.symbol
+        default: return EditorAction.bullet.symbol
+        }
+    }
+
+    private func isCurrent(_ action: EditorAction) -> Bool {
+        guard selection.richFocused else { return false }
+        switch (action, selection.state.kind) {
+        case (.bullet, .bullet), (.numbered, .ordered), (.task, .task): return true
+        default: return false
+        }
+    }
+
+    var body: some View {
+        Menu {
+            ForEach([EditorAction.bullet, .numbered, .task]) { action in
+                Toggle(isOn: Binding(get: { isCurrent(action) }, set: { _ in editor.perform(action) })) {
+                    Label(action.title, systemImage: action.symbol)
+                }
+            }
+        } label: {
+            Label("列表", systemImage: currentIcon)
+        }
+        .help("列表")
     }
 }
 

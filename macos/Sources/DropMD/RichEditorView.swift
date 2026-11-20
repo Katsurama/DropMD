@@ -62,6 +62,9 @@ struct RichTextEditor: NSViewRepresentable {
             guard let coordinator, let tv else { return }
             MainActor.assumeIsolated { coordinator.reloadIfPending(tv) }
         }
+        tv.onFocusChange = { [weak controller] focused in
+            MainActor.assumeIsolated { controller?.updateSelectionState(richFocused: focused) }
+        }
         // 双页：滚动右边时，左边的原文跟着滚
         scroll.contentView.postsBoundsChangedNotifications = true
         context.coordinator.scrollObserver = NotificationCenter.default.addObserver(

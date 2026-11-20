@@ -1300,6 +1300,31 @@ MainActor.assumeIsolated {
         tv.setCodeLanguage(to: "swift")
         check("第 2 行换语言：整块换", md(tv), "```swift\nline1\nline2\n```\n")
     }
+    // 文档大纲提取：各级标题、闭合 #、行内格式与链接、跳过代码块里的注释
+    do {
+        let doc = """
+        # **总览** [官网](https://example.com)
+
+        ```python
+        # 代码里的注释
+        ```
+
+        ## `API` 接口 ###
+
+        ~~~bash
+        ## 另一个注释
+        ~~~
+
+        ### ~~旧~~ ==高亮== __说明__
+        """
+        let got = extractHeadings(doc)
+        let want = [
+            DocumentHeading(id: 0, level: 1, title: "总览 官网"),
+            DocumentHeading(id: 6, level: 2, title: "API 接口"),
+            DocumentHeading(id: 12, level: 3, title: "旧 高亮 说明"),
+        ]
+        check("大纲提取标题", "\(got)", "\(want)")
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

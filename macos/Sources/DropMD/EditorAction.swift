@@ -211,3 +211,45 @@ func toggledPrefixLines(_ lines: [String], prefix: String, numbered: Bool) -> [S
 /// 代码块可选的语言（用于导出和其他编辑器中的语法高亮）
 let codeLanguages = ["swift", "python", "javascript", "typescript", "java", "c", "cpp", "csharp", "go", "rust",
                      "html", "css", "json", "yaml", "sql", "bash", "markdown", "mermaid"]
+
+/// 文档大纲中的一条标题（行号从 0 开始）
+struct DocumentHeading: Identifiable, Equatable {
+    let id: Int       // 行号
+    let level: Int    // 1…6
+    let title: String
+}
+
+/// 从 Markdown 原文提取标题列表，跳过围栏代码块（``` / ~~~）内的 # 注释行
+func extractHeadings(_ markdown: String) -> [DocumentHeading] {
+    let fenceOpen = try! NSRegularExpression(pattern: #"^ {0,3}(`{3,}|~{3,})(.*)$"#)
+    let headingPat = try! NSRegularExpression(pattern: #"^ {0,3}(#{1,6})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$"#)
+    let linkPat = try! NSRegularExpression(pattern: #"!?\[([^\]]+)\]\([^)]*\)"#)
+    let lines = markdown.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
+    var out: [DocumentHeading] = []
+    var fence: (mark: Character, len: Int)?
+    for (idx, line) in lines.enumerated() {
+        let ns = line as NSString
+        let full = NSRange(location: 0, length: ns.length)
+        if let f = fence {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            if t.count >= f.len && t.allSatisfy({ $0 == f.mark }) { fence = nil }
+            continue
+        }
+        if let m = fenceOpen.firstMatch(in: line, range: full) {
+            let markStr = ns.substring(with: m.range(at: 1))
+            let info = ns.substring(with: m.range(at: 2))
+            if let ch = markStr.first, !(ch == "`" && info.contains("`")) {
+                fence = (ch, markStr.count)
+                continue
+            }
+        }
+        guard let m = headingPat.firstMatch(in: line, range: full) else { continue }
+        let level = m.range(at: 1).length
+        var title = ns.substring(with: m.range(at: 2))
+        title = linkPat.stringByReplacingMatches(in: title, range: NSRange(location: 0, length: (title as NSString).length), withTemplate: "$1")
+        for mark in ["**", "__", "`", "~~", "=="] { title = title.replacingOccurrences(of: mark, with: "") }
+        title = title.trimmingCharacters(in: .whitespaces)
+        if !title.isEmpty { out.append(DocumentHeading(id: idx, level: level, title: title)) }
+    }
+    return out
+}

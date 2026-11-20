@@ -1,8 +1,15 @@
 import AppKit
 
-/// 在列表段落的缩进区画出项目符号和编号（它们不属于正文，不会写入文件）；隐藏收起的折叠块内容
+/// 在列表段落的缩进区画出项目符号和编号（它们不属于正文，不会写入文件）；隐藏收起的折叠块内容；
+/// 提供仅用于显示的样式（代码块轻量语法高亮、已完成待办淡化与删除线、引用降噪）
 final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
-    private static let bullets = ["•", "◦", "▪"]
+    private static let codeTypeRegex = try! NSRegularExpression(pattern: #"(?<![A-Za-z0-9_$])[A-Z][A-Za-z0-9_]*\b"#)
+    private static let codeNumberRegex = try! NSRegularExpression(pattern: #"\b\d+(?:\.\d+)?\b"#)
+    private static let codeKeywordRegex = try! NSRegularExpression(
+        pattern: #"(?<![A-Za-z0-9_$])(?:func|var|let|const|if|else|for|while|return|class|struct|enum|protocol|extension|import|from|def|async|await|try|catch|throw|throws|switch|case|default|guard|defer|break|continue|in|is|as|true|false|nil|null|None|self|Self|super|public|private|internal|static|final|mutating|override|type|interface|package|export|function|new|typeof|void|yield|with|lambda|pass|raise|except|finally|elif|do|match|pub|fn|impl|trait|mod|use|where|mut|ref)(?![A-Za-z0-9_$])"#)
+    private static let codeStringOrCommentRegex = try! NSRegularExpression(
+        pattern: #"(//[^\n]*|/\*[\s\S]*?\*/|(?:^[ \t]*|(?<=[ \t]))#(?=[ \t]|$)[^\n]*)|("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')"#,
+        options: [.anchorsMatchLines])
 
     override init() {
         super.init()
@@ -25,6 +32,9 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
     }
     private var hiddenCache: [NSRange]?
 
+    private var pendingStyleRange: NSRange?
+    private var styleScheduled = false
+
     override func processEditing(for textStorage: NSTextStorage, edited editMask: NSTextStorageEditActions,
                                  range newCharRange: NSRange, changeInLength delta: Int, invalidatedRange invalidatedCharRange: NSRange) {
         let before = hiddenCache ?? []
@@ -36,6 +46,8 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             invalidateLayout(forCharacterRange: table, actualCharacterRange: nil)
             invalidateDisplay(forCharacterRange: table)
         }
+        // 临时属性会触发显示失效和字形生成，必须等本轮 endEditing 完全结束后再应用
+        scheduleDisplayStyles(for: newCharRange, delta: delta)
         let now = hiddenRanges
         guard now != before else { return }
         // 收起、展开，或折叠块被编辑：前后两次隐藏的内容都重新排版
@@ -47,6 +59,124 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
                 invalidateLayout(forCharacterRange: c, actualCharacterRange: nil)
             }
         }
+    }
+
+    private func scheduleDisplayStyles(for range: NSRange, delta: Int) {
+        if let p = pendingStyleRange {
+            let start = min(p.location, range.location)
+            let end = max(NSMaxRange(p) + delta, NSMaxRange(range), start)
+            pendingStyleRange = NSRange(location: start, length: end - start)
+        } else {
+            pendingStyleRange = range
+        }
+        guard !styleScheduled else { return }
+        styleScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.styleScheduled = false
+            guard let range = self.pendingStyleRange else { return }
+            self.pendingStyleRange = nil
+            self.applyDisplayStyles(in: range)
+        }
+    }
+
+    /// 刷新全篇纯显示态临时属性（用于打印视图等刚绑定 storage 的场景）
+    func refreshAllDisplayStyles() {
+        pendingStyleRange = nil
+        guard let storage = textStorage, storage.length > 0 else { return }
+        applyDisplayStyles(in: NSRange(location: 0, length: storage.length))
+    }
+
+    private func applyDisplayStyles(in rawRange: NSRange) {
+        guard let storage = textStorage, storage.length > 0 else { return }
+        let ns = storage.string as NSString
+        let safeLoc = min(max(0, rawRange.location), ns.length - 1)
+        let safeLen = min(max(0, rawRange.length), ns.length - safeLoc)
+        var target = ns.paragraphRange(for: NSRange(location: safeLoc, length: safeLen))
+        if case .code = RichBridge.kind(of: storage.attributes(at: target.location, effectiveRange: nil)),
+           let b = codeBlock(at: target.location) {
+            target = NSUnionRange(target, b)
+        }
+        let endLoc = max(target.location, NSMaxRange(target) - 1)
+        if endLoc != target.location,
+           case .code = RichBridge.kind(of: storage.attributes(at: endLoc, effectiveRange: nil)),
+           let b = codeBlock(at: endLoc) {
+            target = NSUnionRange(target, b)
+        }
+        removeTemporaryAttribute(.foregroundColor, forCharacterRange: target)
+        removeTemporaryAttribute(.strikethroughStyle, forCharacterRange: target)
+        removeTemporaryAttribute(.strikethroughColor, forCharacterRange: target)
+
+        var loc = target.location
+        while loc < NSMaxRange(target) && loc < ns.length {
+            let para = ns.paragraphRange(for: NSRange(location: loc, length: 0))
+            loc = NSMaxRange(para)
+            guard para.length > 0 else { break }
+            let attrs = storage.attributes(at: para.location, effectiveRange: nil)
+            switch RichBridge.kind(of: attrs) {
+            case .task(_, true):
+                var body = para
+                if body.length > 0, ns.character(at: NSMaxRange(body) - 1) == 0x0A { body.length -= 1 }
+                let prefix = isTaskBox(para.location, in: storage) ? 2 : 0
+                if body.length > prefix {
+                    let textRange = NSRange(location: body.location + prefix, length: body.length - prefix)
+                    addTemporaryAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, forCharacterRange: textRange)
+                    addTemporaryAttribute(.strikethroughColor, value: NSColor.tertiaryLabelColor, forCharacterRange: textRange)
+                    storage.enumerateAttributes(in: textRange, options: []) { a, sub, _ in
+                        if a[DMKey.link] == nil && a[DMKey.literal] == nil && a[DMKey.image] == nil {
+                            addTemporaryAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, forCharacterRange: sub)
+                        }
+                    }
+                }
+            case .quote where callout(at: para.location, in: storage) == nil:
+                storage.enumerateAttributes(in: para, options: []) { a, sub, _ in
+                    if a[DMKey.link] == nil && a[DMKey.inlineCode] == nil && a[DMKey.literal] == nil
+                        && a[DMKey.math] == nil && a[DMKey.image] == nil {
+                        addTemporaryAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, forCharacterRange: sub)
+                    }
+                }
+            case .code(let lang) where !lang.isEmpty:
+                let block = codeBlock(at: para.location) ?? para
+                loc = max(loc, NSMaxRange(block))
+                highlightCodeBlock(block, in: ns)
+            default:
+                break
+            }
+        }
+    }
+
+    private func highlightCodeBlock(_ block: NSRange, in ns: NSString) {
+        // shortcut: 超长代码块不做语法着色，避免编辑大文件卡顿
+        guard block.length > 0, block.length <= 200_000 else { return }
+        let text = ns.substring(with: block)
+        let local = NSRange(location: 0, length: (text as NSString).length)
+        func paint(_ re: NSRegularExpression, group: Int = 0, color: NSColor) {
+            re.enumerateMatches(in: text, options: [], range: local) { m, _, _ in
+                guard let m, group < m.numberOfRanges else { return }
+                let r = m.range(at: group)
+                guard r.location != NSNotFound, r.length > 0 else { return }
+                addTemporaryAttribute(.foregroundColor, value: color,
+                                      forCharacterRange: NSRange(location: block.location + r.location, length: r.length))
+            }
+        }
+        paint(Self.codeTypeRegex, color: RichStyle.codeTypeColor)
+        paint(Self.codeNumberRegex, color: RichStyle.codeNumberColor)
+        paint(Self.codeKeywordRegex, color: RichStyle.codeKeywordColor)
+        Self.codeStringOrCommentRegex.enumerateMatches(in: text, options: [], range: local) { m, _, _ in
+            guard let m else { return }
+            let comment = m.range(at: 1)
+            if comment.location != NSNotFound, comment.length > 0 {
+                addTemporaryAttribute(.foregroundColor, value: RichStyle.codeCommentColor,
+                                      forCharacterRange: NSRange(location: block.location + comment.location, length: comment.length))
+                return
+            }
+            let str = m.range(at: 2)
+            if str.location != NSNotFound, str.length > 0 {
+                addTemporaryAttribute(.foregroundColor, value: RichStyle.codeStringColor,
+                                      forCharacterRange: NSRange(location: block.location + str.location, length: str.length))
+            }
+        }
+        invalidateDisplay(forCharacterRange: block)
     }
 
     /// 包含这段文字的整张表格（同一个 NSTextTable 的所有格子）；不在表格里时为 nil
@@ -153,6 +283,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         let ns = storage.string as NSString
         let chars = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
         let hidden = hiddenRanges
+        let pad = textContainers.first?.lineFragmentPadding ?? 5
         var loc = ns.paragraphRange(for: NSRange(location: min(chars.location, ns.length - 1), length: 0)).location
         while loc < NSMaxRange(chars) && loc < ns.length {
             let para = ns.paragraphRange(for: NSRange(location: loc, length: 0))
@@ -162,53 +293,81 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             let attrs = storage.attributes(at: para.location, effectiveRange: nil)
             let inDetails = attrs[DMKey.inDetails] != nil
             let shift = inDetails ? RichStyle.detailsIndent : 0
-            // 下一段也是引用 / 折叠块内容时，竖线延伸到下一段，连成一条
             let nextHidden = hidden.contains(where: { NSLocationInRange(loc, $0) })
             let next = loc < ns.length && !nextHidden ? storage.attributes(at: loc, effectiveRange: nil) : [:]
-            if inDetails { drawBar(para, origin: origin, x: 7, color: RichStyle.lineColor, joinsNext: next[DMKey.inDetails] != nil) }
+            if inDetails {
+                drawBar(para, origin: origin, x: 7, color: .separatorColor, joinsNext: next[DMKey.inDetails] != nil, width: 2)
+            }
             let kind = RichBridge.kind(of: attrs)
             if kind == .quote {
-                // 下一段是提示框的标题行时是新的引用块，不连在一起
-                let nextStartsCallout = next[DMKey.callout] != nil
-                // 提示框的竖线用它的颜色（与双页预览、GitHub 相同），普通引用是灰色
-                let color = callout(at: para.location, in: storage).map(RichStyle.calloutColor) ?? .tertiaryLabelColor
-                drawBar(para, origin: origin, x: shift + 4, color: color,
-                        joinsNext: RichBridge.kind(of: next) == .quote && !nextStartsCallout)
+                if callout(at: para.location, in: storage) == nil {
+                    let nextStartsCallout = next[DMKey.callout] != nil
+                    drawBar(para, origin: origin, x: shift + pad + 4, color: .separatorColor,
+                            joinsNext: RichBridge.kind(of: next) == .quote && !nextStartsCallout, width: 2.5)
+                } else if let header = attrs[DMKey.callout] as? String, let type = MDCallout(header: header) {
+                    drawSymbol(RichStyle.calloutSymbol(type), pointSize: 13, weight: .semibold,
+                               color: RichStyle.calloutColor(type), para: para, centerX: shift + pad + 15, origin: origin)
+                }
             }
             if kind == .rule { drawRule(para, origin: origin, shift: shift) }
-            let marker: String
-            let depth: Int
             switch kind {
             case .summary:
-                marker = attrs[DMKey.collapsed] != nil ? "▸" : "▾"
-                depth = 0
+                let icon = attrs[DMKey.collapsed] != nil ? "chevron.right" : "chevron.down"
+                drawSymbol(icon, pointSize: 11, weight: .semibold, color: .secondaryLabelColor,
+                           para: para, centerX: pad + 10, origin: origin)
             case .bullet(let d):
-                marker = Self.bullets[d % Self.bullets.count]
-                depth = d
+                let glyph = glyphIndexForCharacter(at: para.location)
+                guard glyph < numberOfGlyphs else { continue }
+                let line = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+                let font = (attrs[.font] as? NSFont) ?? RichStyle.baseFont(for: .body)
+                let right = origin.x + line.minX + shift + CGFloat(d + 1) * RichStyle.indent - 6
+                let midY = origin.y + line.minY + location(forGlyphAt: glyph).y - font.capHeight / 2
+                let cx = right - 4.5
+                NSColor.secondaryLabelColor.setFill()
+                NSColor.secondaryLabelColor.setStroke()
+                switch d % 3 {
+                case 0:
+                    NSBezierPath(ovalIn: NSRect(x: cx - 2.5, y: midY - 2.5, width: 5, height: 5)).fill()
+                case 1:
+                    let ring = NSBezierPath(ovalIn: NSRect(x: cx - 2.5, y: midY - 2.5, width: 5, height: 5))
+                    ring.lineWidth = 1.2
+                    ring.stroke()
+                default:
+                    NSBezierPath(roundedRect: NSRect(x: cx - 2.25, y: midY - 2.25, width: 4.5, height: 4.5), xRadius: 1, yRadius: 1).fill()
+                }
             case .ordered(let d):
-                marker = "\(number(at: para.location, depth: d, in: storage))."
-                depth = d
+                let glyph = glyphIndexForCharacter(at: para.location)
+                guard glyph < numberOfGlyphs else { continue }
+                let line = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+                let baseline = location(forGlyphAt: glyph).y
+                let font = (attrs[.font] as? NSFont) ?? RichStyle.baseFont(for: .body)
+                let numFont = NSFont.monospacedDigitSystemFont(ofSize: font.pointSize * 0.94, weight: .regular)
+                let marker = "\(number(at: para.location, depth: d, in: storage))."
+                let markerAttrs: [NSAttributedString.Key: Any] = [.font: numFont, .foregroundColor: NSColor.secondaryLabelColor]
+                let size = (marker as NSString).size(withAttributes: markerAttrs)
+                let right = origin.x + line.minX + shift + CGFloat(d + 1) * RichStyle.indent - 6
+                (marker as NSString).draw(at: NSPoint(x: right - size.width, y: origin.y + line.minY + baseline - numFont.ascender), withAttributes: markerAttrs)
             case .task(let d, _):
                 if isTaskBox(para.location, in: storage) { drawTaskBox(at: para.location, depth: d, shift: shift, origin: origin) }
-                continue
             default:
                 continue
             }
-            let glyph = glyphIndexForCharacter(at: para.location)
-            guard glyph < numberOfGlyphs else { continue }
-            let line = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
-            let baseline = location(forGlyphAt: glyph).y
-            let font = (attrs[.font] as? NSFont) ?? RichStyle.baseFont(for: .body)
-            let markerAttrs: [NSAttributedString.Key: Any] = [
-                .font: font.isFixedPitch ? NSFont.systemFont(ofSize: font.pointSize) : RichStyle.setBold(font, false),
-                .foregroundColor: NSColor.labelColor,
-            ]
-            let size = (marker as NSString).size(withAttributes: markerAttrs)
-            let markerWidth = kind == .summary ? RichStyle.detailsIndent : RichStyle.indent
-            let right = origin.x + line.minX + shift + CGFloat(depth) * RichStyle.indent + markerWidth - 6
-            let point = NSPoint(x: right - size.width, y: origin.y + line.minY + baseline - font.ascender)
-            (marker as NSString).draw(at: point, withAttributes: markerAttrs)
         }
+    }
+
+    private func drawSymbol(_ name: String, pointSize: CGFloat, weight: NSFont.Weight, color: NSColor,
+                            para: NSRange, centerX: CGFloat, origin: NSPoint) {
+        let glyph = glyphIndexForCharacter(at: para.location)
+        guard glyph < numberOfGlyphs else { return }
+        let line = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        let font = (textStorage?.attribute(.font, at: para.location, effectiveRange: nil) as? NSFont) ?? RichStyle.baseFont(for: .body)
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: weight)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
+        guard let img = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(config) else { return }
+        let midY = origin.y + line.minY + location(forGlyphAt: glyph).y - font.capHeight / 2
+        let size = img.size
+        let rect = NSRect(x: origin.x + line.minX + centerX - size.width / 2, y: midY - size.height / 2, width: size.width, height: size.height)
+        img.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
     }
 
     /// 待办方框：和文字差不多高的圆角方框，完成时蓝底白勾（参考 Notion），位置和圆点列表的圆点对齐
@@ -258,8 +417,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         }
     }
 
-    /// 行内代码、按键、高亮：底色只包住文字，画成圆角（系统默认填满整行高度，显得很笨重）。
-    /// 选中文字的底色等其他背景仍按系统方式绘制。
+    /// 行内代码、键盘按键、高亮：按各自类型画圆角胶囊或立体键帽，选中文字等其他背景照旧。
     override func fillBackgroundRectArray(_ rectArray: UnsafePointer<NSRect>, count rectCount: Int,
                                           forCharacterRange charRange: NSRange, color: NSColor) {
         guard let storage = textStorage, charRange.location < storage.length,
@@ -268,18 +426,38 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
               own == color else {
             return super.fillBackgroundRectArray(rectArray, count: rectCount, forCharacterRange: charRange, color: color)
         }
-        let font = (storage.attribute(.font, at: charRange.location, effectiveRange: nil) as? NSFont)
-            ?? RichStyle.baseFont(for: .body)
+        let attrs = storage.attributes(at: charRange.location, effectiveRange: nil)
+        let font = (attrs[.font] as? NSFont) ?? RichStyle.baseFont(for: .body)
         let origin = container.textView?.textContainerOrigin ?? .zero
-        color.setFill()
+        let isKbd = attrs[DMKey.kbd] != nil
+        let isInlineCode = attrs[DMKey.inlineCode] != nil
+        let padX: CGFloat = isKbd ? 3 : isInlineCode ? 2.5 : 1.5
+        let padY: CGFloat = (isKbd || isInlineCode) ? 2 : 1.5
+        let radius: CGFloat = (isKbd || isInlineCode) ? 5 : 4
         for i in 0..<rectCount {
             let r = rectArray[i]
             let glyph = glyphIndex(for: NSPoint(x: r.midX - origin.x, y: r.midY - origin.y), in: container)
             let line = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
             let baseline = origin.y + line.minY + location(forGlyphAt: glyph).y
-            let box = NSRect(x: r.minX - 1, y: baseline - font.ascender - 2,
-                             width: r.width + 2, height: font.ascender - font.descender + 4)
-            NSBezierPath(roundedRect: box, xRadius: 4, yRadius: 4).fill()
+            let box = NSRect(x: r.minX - padX, y: baseline - font.ascender - padY,
+                             width: r.width + padX * 2, height: font.ascender - font.descender + padY * 2)
+            let path = NSBezierPath(roundedRect: box, xRadius: radius, yRadius: radius)
+            color.setFill()
+            path.fill()
+            if isKbd {
+                RichStyle.kbdBorderColor.setStroke()
+                path.lineWidth = 0.75
+                path.stroke()
+                let lip = NSBezierPath()
+                lip.move(to: NSPoint(x: box.minX + 3.5, y: box.maxY - 0.5))
+                lip.line(to: NSPoint(x: box.maxX - 3.5, y: box.maxY - 0.5))
+                lip.lineWidth = 1.2
+                lip.stroke()
+            } else if isInlineCode {
+                RichStyle.codeBlockBorderColor.setStroke()
+                path.lineWidth = 0.5
+                path.stroke()
+            }
         }
     }
 
@@ -331,14 +509,18 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         // 折叠块里、列表项里的代码块整体右移：按段落缩进算（代码块本身的内边距是 RichStyle.codePadding）
         let style = storage.attribute(.paragraphStyle, at: block.location, effectiveRange: nil) as? NSParagraphStyle
         let shift = max(0, (style?.headIndent ?? RichStyle.codePadding) - RichStyle.codePadding)
-        return NSRect(x: first.minX + pad + shift, y: top - 10, width: first.width - pad * 2 - shift, height: last.maxY - top + 20)
+        return NSRect(x: first.minX + pad + shift, y: top - 12, width: first.width - pad * 2 - shift, height: last.maxY - top + 24)
     }
 
-    /// 代码块：连续的代码段落画成一整块圆角底色（不按行画，避免一条条的横条）
+    /// 代码块：连续的代码段落画成一整块圆角卡片，有语言名时在右上角标出
     private func drawCodeBlocks(_ glyphsToShow: NSRange, origin: NSPoint) {
         guard let storage = textStorage, storage.length > 0 else { return }
         let ns = storage.string as NSString
         let chars = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
+        let langAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .medium),
+            .foregroundColor: NSColor.tertiaryLabelColor,
+        ]
         var loc = ns.paragraphRange(for: NSRange(location: min(chars.location, ns.length - 1), length: 0)).location
         while loc < NSMaxRange(chars) && loc < ns.length {
             guard let block = codeBlock(at: loc) else {
@@ -347,12 +529,22 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             }
             loc = NSMaxRange(block)
             guard let rect = codeBlockRect(block)?.offsetBy(dx: origin.x, dy: origin.y) else { continue }
+            let card = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
             RichStyle.codeBlockBackground.setFill()
-            NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6).fill()
+            card.fill()
+            RichStyle.codeBlockBorderColor.setStroke()
+            card.lineWidth = 0.75
+            card.stroke()
+            if let lang = storage.attribute(DMKey.code, at: block.location, effectiveRange: nil) as? String, !lang.isEmpty {
+                let size = (lang as NSString).size(withAttributes: langAttrs)
+                if rect.width > size.width + 56 {
+                    (lang as NSString).draw(at: NSPoint(x: rect.maxX - size.width - 42, y: rect.minY + 10), withAttributes: langAttrs)
+                }
+            }
         }
     }
 
-    /// 提示框：整块画一层淡淡的底色（与双页预览相同），右边是圆角
+    /// 提示框：Apple DocC Aside 风格全圆角卡片 + 左强调条 + 细边框
     private func drawCallouts(_ glyphsToShow: NSRange, origin: NSPoint) {
         guard let storage = textStorage, storage.length > 0 else { return }
         let ns = storage.string as NSString
@@ -388,20 +580,21 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             let top = lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil).minY
             let bottom = lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil).maxY
             let shift = storage.attribute(DMKey.inDetails, at: para.location, effectiveRange: nil) != nil ? RichStyle.detailsIndent : 0
-            let x = origin.x + first.minX + shift + 4
-            let rect = NSRect(x: x, y: origin.y + top - 4, width: origin.x + first.maxX - container.lineFragmentPadding - x,
-                              height: bottom - top + 8)
-            RichStyle.calloutColor(type).withAlphaComponent(0.08).setFill()
-            let path = NSBezierPath()
-            let r: CGFloat = 6
-            path.move(to: NSPoint(x: rect.minX, y: rect.minY))
-            path.line(to: NSPoint(x: rect.maxX - r, y: rect.minY))
-            path.curve(to: NSPoint(x: rect.maxX, y: rect.minY + r), controlPoint1: NSPoint(x: rect.maxX, y: rect.minY), controlPoint2: NSPoint(x: rect.maxX, y: rect.minY))
-            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - r))
-            path.curve(to: NSPoint(x: rect.maxX - r, y: rect.maxY), controlPoint1: NSPoint(x: rect.maxX, y: rect.maxY), controlPoint2: NSPoint(x: rect.maxX, y: rect.maxY))
-            path.line(to: NSPoint(x: rect.minX, y: rect.maxY))
-            path.close()
-            path.fill()
+            let pad = container.lineFragmentPadding
+            let rect = NSRect(x: origin.x + first.minX + shift + pad, y: origin.y + top - 10,
+                              width: first.width - pad * 2 - shift, height: bottom - top + 20)
+            let accent = RichStyle.calloutColor(type)
+            let card = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
+            accent.withAlphaComponent(0.07).setFill()
+            card.fill()
+            NSGraphicsContext.saveGraphicsState()
+            card.addClip()
+            accent.withAlphaComponent(0.85).setFill()
+            NSRect(x: rect.minX, y: rect.minY, width: 3.5, height: rect.height).fill()
+            NSGraphicsContext.restoreGraphicsState()
+            accent.withAlphaComponent(0.22).setStroke()
+            card.lineWidth = 0.75
+            card.stroke()
         }
     }
 
@@ -468,13 +661,21 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
                 // 提示框标题行开始新的一块
                 same = RichBridge.kind(of: other) == .quote && (after ? other[DMKey.callout] == nil : attrs[DMKey.callout] == nil)
             }
-            if !same { extra = max(extra, isCode ? (after ? 18 : 14) : 6) }
+            if !same {
+                if isCode {
+                    extra = max(extra, after ? 18 : 16)
+                } else if callout(at: para.location, in: storage) != nil {
+                    extra = max(extra, after ? 14 : 12)
+                } else {
+                    extra = max(extra, 8)
+                }
+            }
         }
         return base + extra
     }
 
     /// 段落左侧的竖线（引用、折叠块内容）
-    private func drawBar(_ para: NSRange, origin: NSPoint, x: CGFloat, color: NSColor, joinsNext: Bool = false) {
+    private func drawBar(_ para: NSRange, origin: NSPoint, x: CGFloat, color: NSColor, joinsNext: Bool = false, width: CGFloat = 2.5) {
         guard let container = textContainers.first else { return }
         let glyphs = glyphRange(forCharacterRange: para, actualCharacterRange: nil)
         guard glyphs.length > 0 else { return }
@@ -490,7 +691,8 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             bottom = rect.maxY
         }
         color.setFill()
-        NSRect(x: origin.x + line.minX + x, y: origin.y + rect.minY, width: 3, height: bottom - rect.minY).fill()
+        NSBezierPath(roundedRect: NSRect(x: origin.x + line.minX + x, y: origin.y + rect.minY, width: width, height: bottom - rect.minY),
+                     xRadius: width / 2, yRadius: width / 2).fill()
     }
 
     /// 分隔线：横跨整个正文宽度
@@ -501,9 +703,10 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         let line = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
         let pad = container.lineFragmentPadding
         let x = origin.x + line.minX + pad + shift
-        RichStyle.lineColor.setFill()
-        NSRect(x: x, y: (origin.y + line.midY).rounded() - 0.5,
-               width: max(0, origin.x + line.maxX - pad - x), height: 1).fill()
+        NSColor.separatorColor.setFill()
+        NSBezierPath(roundedRect: NSRect(x: x, y: (origin.y + line.midY).rounded() - 0.5,
+                                         width: max(0, origin.x + line.maxX - pad - x), height: 1),
+                     xRadius: 0.5, yRadius: 0.5).fill()
     }
 
     /// 有序列表项的编号：向前数同一层级、连续的有序列表项

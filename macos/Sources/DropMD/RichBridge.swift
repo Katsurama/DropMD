@@ -233,11 +233,11 @@ enum RichBridge {
         block.setValue(width, type: .percentageValueType, for: .width)
         // 每格四边都画（表格合并相邻边框，不成双线）：只重画一格时也是完整的框，不靠邻格补线
         block.setWidth(1, type: .absoluteValueType, for: .border)
-        block.setBorderColor(RichStyle.lineColor)
-        block.setWidth(10, type: .absoluteValueType, for: .padding, edge: .minX)
-        block.setWidth(10, type: .absoluteValueType, for: .padding, edge: .maxX)
-        block.setWidth(7, type: .absoluteValueType, for: .padding, edge: .minY)
-        block.setWidth(7, type: .absoluteValueType, for: .padding, edge: .maxY)
+        block.setBorderColor(RichStyle.tableBorderColor)
+        block.setWidth(12, type: .absoluteValueType, for: .padding, edge: .minX)
+        block.setWidth(12, type: .absoluteValueType, for: .padding, edge: .maxX)
+        block.setWidth(9, type: .absoluteValueType, for: .padding, edge: .minY)
+        block.setWidth(9, type: .absoluteValueType, for: .padding, edge: .maxY)
         // 第一行是表头：加粗、浅色底
         var cellRuns = runs
         if row == 0 {

@@ -240,9 +240,10 @@ extension RichTextView {
                     a[.underlineStyle] = NSUnderlineStyle.single.rawValue
                 }
             }
+            if a[DMKey.link] != nil { a[.underlineColor] = RichStyle.linkUnderlineColor }
             a[.foregroundColor] = a[DMKey.link] != nil ? NSColor.linkColor
                 : a[DMKey.literal] != nil ? NSColor.systemPurple
-                : a[DMKey.inlineCode] != nil ? RichStyle.inlineCodeColor : RichStyle.bodyColor
+                : a[DMKey.inlineCode] != nil ? RichStyle.inlineCodeColor : RichStyle.textColor(for: paragraphKind)
             if a[DMKey.highlight] != nil { a[.backgroundColor] = RichStyle.highlightBackground }
             if a[DMKey.inlineCode] != nil { a[.backgroundColor] = RichStyle.codeBackground }
             if inDetails { a[DMKey.inDetails] = true }

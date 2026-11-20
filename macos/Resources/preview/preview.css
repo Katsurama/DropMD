@@ -1,13 +1,17 @@
-/* DropMD 预览样式：简洁的阅读排版，跟随系统浅色/深色模式 */
+/* DropMD 预览样式：遵循 Apple HIG 阅读节奏，跟随系统浅色/深色模式 */
 :root {
   color-scheme: light dark;
-  --fg: #1d1d1f; --fg2: #6e6e73; --bg: #ffffff; --line: #d2d2d7;
-  --code-bg: #f5f5f7; --accent: #0a84ff; --quote: #6e6e73; --mark: #fff3b0;
+  --fg: #1d1d1f; --fg2: #6e6e73; --bg: #ffffff; --line: rgba(0, 0, 0, .12);
+  --code-bg: #f6f7f9; --code-border: rgba(0, 0, 0, .08);
+  --kbd-bg: #f7f7f7; --kbd-border: rgba(0, 0, 0, .18);
+  --accent: #0a84ff; --quote: #6e6e73; --mark: #fff3b0;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --fg: rgba(255, 255, 255, .86); --fg2: #a1a1a6; --bg: #1e1e1e; --line: rgba(255, 255, 255, .3);
-    --code-bg: rgba(255, 255, 255, .06); --accent: #4aa3ff; --quote: #c7c7cc; --mark: rgba(255, 214, 10, .24);
+    --fg: rgba(255, 255, 255, .88); --fg2: #a1a1a6; --bg: #1e1e1e; --line: rgba(255, 255, 255, .18);
+    --code-bg: rgba(255, 255, 255, .055); --code-border: rgba(255, 255, 255, .11);
+    --kbd-bg: rgba(255, 255, 255, .11); --kbd-border: rgba(255, 255, 255, .24);
+    --accent: #4aa3ff; --quote: #a1a1a6; --mark: rgba(255, 214, 10, .24);
   }
 }
 /* 随 App 提供的 MiSans（在 App 包的 fonts 文件夹中；没有时退回苹方） */
@@ -18,7 +22,7 @@
 html { background: var(--bg); }
 body {
   margin: 0; color: var(--fg); background: var(--bg);
-  font: 15px/1.75 "MiSans", -apple-system, "PingFang SC", "Hiragino Sans", "Helvetica Neue", sans-serif;
+  font: 15.5px/1.7 "MiSans", -apple-system, "PingFang SC", "Hiragino Sans", "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 /* 文档语言决定汉字字形（同一个汉字在中、日、韩的写法不同） */
@@ -26,32 +30,53 @@ html:lang(ja) body { font-family: -apple-system, "Hiragino Sans", sans-serif; }
 html:lang(ko) body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; }
 html:lang(zh-TW) body { font-family: "MiSans TC", -apple-system, "PingFang TC", sans-serif; }
 html:lang(zh-HK) body { font-family: "MiSans TC", -apple-system, "PingFang HK", sans-serif; }
-.markdown-body { max-width: 760px; margin: 0 auto; padding: 32px 40px 120px; word-wrap: break-word; }
+.markdown-body { max-width: 760px; margin: 0 auto; padding: 36px 40px 120px; word-wrap: break-word; }
 .markdown-body > :first-child { margin-top: 0; }
-h1, h2, h3, h4, h5, h6 { line-height: 1.3; margin: 1.6em 0 0.6em; font-weight: 650; }
-/* 参考 Notion：标题下面不画横线，靠字号和留白分层次（与单页一致） */
-h1 { font-size: 1.875em; } h2 { font-size: 1.5em; }
-h3 { font-size: 1.25em; } h4 { font-size: 1.05em; } h5, h6 { font-size: .95em; color: var(--fg2); }
+h1, h2, h3, h4, h5, h6 { line-height: 1.28; margin: 1.65em 0 0.55em; font-weight: 650; }
+/* 参照 Apple Pages / DocC：标题靠字号、字重与段前留白区分层次 */
+h1 { font-size: 1.9em; letter-spacing: -0.02em; }
+h2 { font-size: 1.45em; letter-spacing: -0.01em; margin-top: 1.8em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; } h5, h6 { font-size: .95em; color: var(--fg2); }
 p, ul, ol, blockquote, table, pre, .math-block { margin: 0 0 1em; }
-a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
-img { max-width: 100%; border-radius: 6px; }
+a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  text-underline-offset: 3px;
+}
+a:hover { text-decoration-color: var(--accent); }
+img { max-width: 100%; border-radius: 8px; }
 /* 预览里网络图片被内容安全策略拦截，隐藏破图标记（导出的 HTML 没有 #content，网络图片照常显示） */
 #content img[src^="http:"], #content img[src^="https:"], #content img[src^="//"] { display: none; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
-blockquote { margin-left: 0; padding: .2em 1em; color: var(--quote); border-left: 3px solid var(--line); }
-code { font: .9em/1.5 "SF Mono", Menlo, monospace; background: var(--code-bg); padding: .15em .35em; border-radius: 5px; }
-pre { background: var(--code-bg); padding: 14px 16px; border-radius: 10px; overflow-x: auto; }
-pre code { background: none; padding: 0; font-size: .88em; }
+blockquote { margin-left: 0; padding: .25em 1.1em; color: var(--quote); border-left: 2.5px solid var(--line); }
+code {
+  font: .88em/1.5 "SF Mono", Menlo, monospace;
+  background: var(--code-bg); border: .5px solid var(--code-border);
+  padding: .12em .4em; border-radius: 5px;
+}
+pre {
+  background: var(--code-bg); border: 1px solid var(--code-border);
+  padding: 14px 18px; border-radius: 10px; overflow-x: auto;
+}
+pre code { background: none; border: 0; padding: 0; font-size: .88em; }
 table { border-collapse: collapse; display: block; overflow-x: auto; max-width: 100%; }
-th, td { border: 1px solid var(--line); padding: 6px 12px; }
+th, td { border: 1px solid var(--line); padding: 9px 12px; }
 th { background: var(--code-bg); font-weight: 600; }
 /* 只有待办项不显示圆点：同一个列表里的普通项仍显示圆点 */
 li.task-list-item { list-style: none; }
+li.task-list-item:has(> input:checked) { color: var(--fg2); text-decoration: line-through; text-decoration-color: var(--line); }
 .task-list-item input { margin: 0 .5em 0 -1.2em; vertical-align: middle; }
-mark { background: var(--mark); color: inherit; }
-/* 提示框 > [!NOTE] 等：左边线和标题用对应颜色 */
-blockquote.callout { color: var(--fg); border-left-color: var(--c); background: color-mix(in srgb, var(--c) 8%, transparent); border-radius: 0 8px 8px 0; padding: .6em 1em; }
-.callout-title { display: block; font-weight: 600; color: var(--c); }
+mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 .15em; }
+/* 提示框 > [!NOTE] 等：Apple DocC Aside 全圆角卡片 + 左强调条 + 细边框 */
+blockquote.callout {
+  color: var(--fg);
+  border: 1px solid color-mix(in srgb, var(--c) 22%, transparent);
+  border-left: 3.5px solid color-mix(in srgb, var(--c) 85%, transparent);
+  background: color-mix(in srgb, var(--c) 7%, transparent);
+  border-radius: 10px; padding: 12px 16px;
+}
+.callout-title { display: block; font-weight: 600; color: var(--c); margin-bottom: 2px; }
 .callout-note { --c: #0969da; } .callout-tip { --c: #1a7f37; } .callout-important { --c: #8250df; }
 .callout-warning { --c: #9a6700; } .callout-caution { --c: #cf222e; }
 @media (prefers-color-scheme: dark) {
@@ -68,5 +93,9 @@ blockquote.callout { color: var(--fg); border-left-color: var(--c); background: 
   pre, table, blockquote, img, .math-block { break-inside: avoid; }
   h1, h2, h3 { break-after: avoid; }
 }
-kbd { font: .85em "SF Mono", Menlo, monospace; padding: .1em .4em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; }
+kbd {
+  font: .84em "SF Mono", Menlo, monospace;
+  background: var(--kbd-bg); border: 1px solid var(--kbd-border);
+  padding: .1em .45em; border-bottom-width: 2px; border-radius: 5px;
+}
 blockquote > :last-child, li > :last-child { margin-bottom: 0; }
