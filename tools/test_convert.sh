@@ -25,18 +25,41 @@ import tempfile
 from pathlib import Path
 from dropmd.converters import _save_images
 with tempfile.TemporaryDirectory() as d:
-    dst = Path(d) / "a b.md"
-    # 上次导出的多余图片会被删掉；用户自己放的文件不动
+    import dropmd.converters as conv
+    from dropmd.converters import convert_markitdown
+    dst, src = Path(d) / "a b.md", Path(d) / "a b.html"
+    src.write_text("x")
+    # 重新转换：新 .md 写好后删掉上次的图片；用户自己放的文件不动
     (Path(d) / "a_b_images").mkdir()
     (Path(d) / "a_b_images/image7.png").write_bytes(b"old")
     (Path(d) / "a_b_images/mine.png").write_bytes(b"keep")
-    dst.write_text("上次转换的结果")
-    got = _save_images("前![图](data:image/png;base64,aGk=)后![](data:image/jpeg;base64,!!)", dst)
-    want = "前![图](a_b_images/image1.png)后<!-- 图片无法读取 -->"
-    ok = (got == want and (Path(d) / "a_b_images/image1.png").read_bytes() == b"hi"
-          and not (Path(d) / "a_b_images/image7.png").exists() and (Path(d) / "a_b_images/mine.png").exists())
+    dst.write_text("![](a_b_images/image7.png)")
+    class _Doc:
+        markdown = "前![图](data:image/png;base64,aGk=)后![](data:image/jpeg;base64,!!)"
+    saved_md = conv._markitdown
+    conv._markitdown = lambda: type("M", (), {"convert_local": lambda self, *a, **k: _Doc()})()
+    saved_write = conv._write_text
+    def _fail(*a):
+        raise OSError("disk full")
+    conv._write_text = _fail
+    try:
+        convert_markitdown(src, dst)
+    except OSError:
+        pass
+    conv._write_text = lambda p, t: p.write_text(t, encoding="utf-8")   # 系统自带的旧版 Python 没有 newline 参数
+    ok = (Path(d) / "a_b_images/image7.png").exists() and dst.read_text() == "![](a_b_images/image7.png)"
     failed += not ok
-    print("ok  " if ok else "FAIL", "导出图片", "" if ok else f"\n     got:  {got!r}")
+    print("ok  " if ok else "FAIL", "写 .md 失败时上次的图片还在")
+    convert_markitdown(src, dst)
+    conv._markitdown, conv._write_text = saved_md, saved_write
+    got = dst.read_text()
+    new = sorted(p.name for p in (Path(d) / "a_b_images").iterdir())
+    used = got[len("前![图](a_b_images/"):got.find(")后")]
+    # 只剩新 .md 引用的图片和用户的文件：上次的图片、写失败那次留下的图片都删掉了
+    ok = (got == f"前![图](a_b_images/{used})后<!-- 图片无法读取 -->\n"
+          and new == sorted([used, "mine.png"]) and (Path(d) / "a_b_images" / used).read_bytes() == b"hi")
+    failed += not ok
+    print("ok  " if ok else "FAIL", "导出图片", "" if ok else f"\n     got:  {got!r} {new!r}")
     # .md 还不存在：同名文件夹里用户自己的 image1.png 不删、不覆盖
     dst2 = Path(d) / "c.md"
     (Path(d) / "c_images").mkdir()
@@ -55,8 +78,8 @@ with tempfile.TemporaryDirectory() as d:
     keep_a = (Path(d) / "s_t_images/image1.png").exists()
     a2 = _save_images(img, a)
     b2 = _save_images(img, b)
-    ok = (keep_a and a.read_text() == "![](s_t_images/image1.png)" == a2
-          and b.read_text() == "![](s_t_images_2/image1.png)" == b2
+    ok = (keep_a and a.read_text() == "![](s_t_images/image1.png)" and a2.startswith("![](s_t_images/")
+          and b.read_text() == "![](s_t_images_2/image1.png)" and b2.startswith("![](s_t_images_2/")
           and (Path(d) / "s_t_images/image1.png").exists() and (Path(d) / "s_t_images_2/image1.png").exists())
     failed += not ok
     print("ok  " if ok else "FAIL", "清理后同名的文档不共用文件夹", "" if ok else f"\n     got:  {a.read_text()!r} {b.read_text()!r}")
