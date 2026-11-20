@@ -66,7 +66,7 @@ def images_dir_name(dst: Path) -> str:
     for p in dst.parent.glob("*.md"):
         if p.stem != dst.stem and _UNSAFE_IN_LINK.sub("_", p.stem) == stem:
             try:
-                others.append(p.read_text(encoding="utf-8", errors="ignore"))
+                others.append(unquote(p.read_text(encoding="utf-8", errors="ignore")))   # 高精度模式写的路径里中文会被编码
             except OSError:  # 名字以 .md 结尾的文件夹、读不了的文件：不影响转换
                 pass
     name, n = f"{stem}_images", 2

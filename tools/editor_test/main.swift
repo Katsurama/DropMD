@@ -671,6 +671,10 @@ MainActor.assumeIsolated {
         let html = #"<p><img src="%E5%9B%BE%20%E7%89%87/a.png" alt="a"><img src="https://example.com/b.png" alt=""><img src="no.png" alt=""><img width="200" src="%E5%9B%BE%20%E7%89%87/a.png"></p>"#
         check("导出 HTML 嵌入图片", HTMLExport.embedLocalImages(html, base: dir),
               #"<p><img src="data:image/png;base64,aGk=" alt="a"><img src="https://example.com/b.png" alt=""><img src="no.png" alt=""><img width="200" src="data:image/png;base64,aGk="></p>"#)
+        // 未保存的文档：插入的图片是绝对路径（网页里会被编码）
+        let abs = URL(fileURLWithPath: dir.appendingPathComponent("图 片/a.png").path).absoluteString.dropFirst("file://".count)
+        check("未保存文档导出 HTML 嵌入本机图片", HTMLExport.embedLocalImages("<img src=\"\(abs)\">", base: nil),
+              "<img src=\"data:image/png;base64,aGk=\">")
         // 快速查看：图片换成扩展提供的地址，大图缩小，小图不变；导出时大图保持原图
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 2400, pixelsHigh: 1200, bitsPerSample: 8, samplesPerPixel: 3,
                                    hasAlpha: false, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 7200, bitsPerPixel: 24)!

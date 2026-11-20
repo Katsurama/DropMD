@@ -69,11 +69,9 @@ def _table(block: str) -> str:
 def clean(text: str) -> str:
     """模型输出转成普通 Markdown：表格转换，公式统一用 $。代码块里的内容不动。"""
     out = []
-    fence = False
-    for block in re.split(r"(\n\s*\n)", text):
-        if block.count("```") % 2:
-            fence = not fence
-        elif not fence:
+    # 完整的代码块（或页末没闭合的）整块切出来，其余按空行分段
+    for block in re.split(r"(```[\s\S]*?```|```[\s\S]*$|\n\s*\n)", text):
+        if not block.startswith("```"):
             if _TAG.search(block):
                 block = _table(block)
             for pattern, repl in _MATH:

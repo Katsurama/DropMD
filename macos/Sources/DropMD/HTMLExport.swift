@@ -11,6 +11,7 @@ enum HTMLExport {
         let lower = src.lowercased()
         if lower.hasPrefix("http:") || lower.hasPrefix("https:") || lower.hasPrefix("//") || lower.hasPrefix("data:") { return nil }
         let base = base.map { URL(fileURLWithPath: $0.path, isDirectory: true) }   // 文件夹地址要以 / 结尾，相对路径才对
+            ?? (src.hasPrefix("/") ? URL(fileURLWithPath: "/", isDirectory: true) : nil)   // 未保存的文档：插入的图片是绝对路径
         guard let url = URL(string: src, relativeTo: base), url.isFileURL,
               let mime = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType, mime.hasPrefix("image/") else { return nil }
         return (url, mime)
