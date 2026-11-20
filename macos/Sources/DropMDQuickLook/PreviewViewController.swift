@@ -7,7 +7,10 @@ import WebKit
 @objc(PreviewViewController)
 final class PreviewViewController: NSViewController, QLPreviewingController, WKNavigationDelegate {
     private var webView: WKWebView!
-    private var loaded: CheckedContinuation<Void, Never>?
+    /// 预览页面只加载一次，之后换文件只换内容；正在加载时来的文件排队等
+    private var ready = false
+    private var loading = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
     private let images = LocalImageHandler()
 
     /// 预览页面和字体复制在扩展自己的包里：沙盒中的扩展读不到 App 本体的文件
@@ -26,14 +29,19 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
     func preparePreviewOfFile(at url: URL) async throws {
         // 和 App 打开文件时一样识别编码（UTF-8 / UTF-16 / GB18030 / Shift-JIS 等）
         let text = MarkdownDocument.decode(try Data(contentsOf: url))
-        await withCheckedContinuation { c in
-            loaded = c
-            webView.loadFileURL(Self.previewURL, allowingReadAccessTo: Self.resources)
+        if !ready {
+            await withCheckedContinuation { c in
+                waiters.append(c)
+                if !loading {
+                    loading = true
+                    webView.loadFileURL(Self.previewURL, allowingReadAccessTo: Self.resources)
+                }
+            }
         }
         let lang = DocLanguage.detect(text)
         let titles = Dictionary(uniqueKeysWithValues: MDCallout.allCases.map { ($0.rawValue, $0.title) })
         let dir = url.deletingLastPathComponent().absoluteString
-        _ = try await webView.callAsyncJavaScript("DropMD.render(t, b, l, u)",
+        _ = try await webView.callAsyncJavaScript("DropMD.render(t, b, l, u); window.scrollTo(0, 0)",
                                                   arguments: ["t": text, "b": dir, "l": lang.tag, "u": titles],
                                                   contentWorld: .page)
         // 网页读不到文档旁边的图片：由扩展读出来交给页面（扩展能只读个人文件夹和外接硬盘，见 QuickLook.entitlements）
@@ -48,24 +56,29 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        loaded?.resume()
-        loaded = nil
+        finishLoading(ready: true)
+    }
+
+    /// 结束等待；加载失败或网页进程被结束时 ready 为 false，下一个文件重新加载页面
+    private func finishLoading(ready: Bool) {
+        self.ready = ready
+        loading = false
+        let w = waiters
+        waiters = []
+        w.forEach { $0.resume() }
     }
 
     // 加载失败时也要结束等待，否则访达里的预览一直转圈
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        loaded?.resume()
-        loaded = nil
+        finishLoading(ready: false)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        loaded?.resume()
-        loaded = nil
+        finishLoading(ready: false)
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        loaded?.resume()
-        loaded = nil
+        finishLoading(ready: false)
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
