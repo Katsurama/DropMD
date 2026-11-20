@@ -22,6 +22,35 @@ final class MathRenderer: NSObject, WKNavigationDelegate {
     private var waiting: [String: [(Result?) -> Void]] = [:]
     private var cache: [String: Result] = [:]
     private var busy = false
+    /// 等页面加载好的导出
+    private var loadWaiters: [CheckedContinuation<Void, Never>] = []
+
+    /// 导出 HTML 的正文：用这个后台页面（与预览同一份）排版。页面加载失败时报错，不会一直等
+    func exportBody(_ markdown: String, ui: [String: String]) async throws -> String {
+        guard let url = pageURL, FileManager.default.fileExists(atPath: url.path) else { throw CocoaError(.fileNoSuchFile) }
+        if !ready {
+            await withCheckedContinuation { c in
+                loadWaiters.append(c)
+                if webView == nil { load(url) }
+            }
+        }
+        guard ready, let webView else { throw CocoaError(.fileReadUnknown) }
+        return try await webView.callAsyncJavaScript("return DropMD.exportBody(t, u)", arguments: ["t": markdown, "u": ui],
+                                                     in: nil, contentWorld: .page) as? String ?? ""
+    }
+
+    private func finishLoading(_ ok: Bool) {
+        ready = ok
+        if !ok {   // 下次需要时重新加载
+            window?.close()
+            window = nil
+            webView = nil
+        }
+        let w = loadWaiters
+        loadWaiters = []
+        w.forEach { $0.resume() }
+        next()
+    }
 
     func render(_ latex: String, display: Bool, size: CGFloat, completion: @escaping (Result?) -> Void) {
         let key = "\(display ? "D" : "I")\(size)|\(latex)"
@@ -53,8 +82,15 @@ final class MathRenderer: NSObject, WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        ready = true
-        next()
+        finishLoading(true)
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        if !ready { finishLoading(false) }   // 加载好之后被拦下的跳转不算
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        if !ready { finishLoading(false) }   // 加载好之后被拦下的跳转不算
     }
 
     /// 系统结束了后台网页（如内存紧张）：重新加载，加载完接着画排队的公式

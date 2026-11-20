@@ -238,8 +238,9 @@
       return true;
     },
 
-    /** 导出为独立 HTML 文件的正文 */
-    exportBody: function (text) {
+    /** 导出为独立 HTML 文件的正文；uiText 同 render（提示框标题等） */
+    exportBody: function (text, uiText) {
+      if (uiText) Object.assign(ui, uiText);
       return exportMD.render(frontMatter(text || ""));
     }
   };

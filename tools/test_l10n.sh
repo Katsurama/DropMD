@@ -1,5 +1,5 @@
 #!/bin/bash
-# 英文、日文、繁体中文界面测试：源码中要翻译的文字（String(localized:) 和 SwiftUI 中的文字）都要在 en.lproj、ja.lproj、zh-Hant.lproj 中有译文，
+# 英文、日文、繁体中文界面测试：App 和快速查看扩展源码中要翻译的文字（String(localized:) 和 SwiftUI 中的文字）都要在 en.lproj、ja.lproj、zh-Hant.lproj 中有译文，
 # 译文的占位符（%@ / %lld）与原文一致，也没有源码中已不用的旧条目。需要 macOS。用法：tools/test_l10n.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -8,6 +8,9 @@ trap 'rm -rf "$OUT"' EXIT
 # 编译器提取要翻译的文字（与 Xcode 生成翻译表时用的是同一个功能）
 swiftc -c -wmo -parse-as-library -module-name DropMD -target arm64-apple-macos14 macos/Sources/DropMD/*.swift \
   -o "$OUT/DropMD.o" -emit-localized-strings -emit-localized-strings-path "$OUT" 2>/dev/null
+# 快速查看扩展用同一份译文（build_app.sh 复制进扩展）
+swiftc -c -wmo -parse-as-library -module-name DropMDQuickLook -target arm64-apple-macos14 macos/Sources/DropMDQuickLook/*.swift \
+  -o "$OUT/DropMDQuickLook.o" -emit-localized-strings -emit-localized-strings-path "$OUT" 2>/dev/null
 for l in en ja zh-Hant; do plutil -convert json -o "$OUT/$l.json" macos/Resources/$l.lproj/Localizable.strings; done
 python3 - "$OUT" <<'PY'
 import glob, json, re, sys

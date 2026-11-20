@@ -4,6 +4,11 @@ import WebKit
 
 let page = URL(fileURLWithPath: CommandLine.arguments[1])
 let calls = [
+    // 导出 HTML 不先排版预览：提示框标题直接用 App 传入的文字（放在最前面，之前没调用过 render）
+    """
+    if (!DropMD.exportBody('> [!TIP]\\n> x', {TIP: 'Hint'}).includes('>Hint<')) throw new Error('导出时提示框标题没用传入的文字');
+    return true
+    """,
     "return DropMD.render('# 日本語\\n\\n今日は **晴れ** $x^2$', '', 'ja')",
     // 公式块后面同一行还有文字时，文字不能丢
     """

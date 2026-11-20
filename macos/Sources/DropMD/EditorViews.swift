@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import WebKit
 
 // MARK: - 双页：原文编辑区
 
@@ -113,65 +112,6 @@ struct MarkdownTextView: NSViewRepresentable {
     }
 }
 
-// MARK: - 预览区
-
-/// WKWebView 预览：加载 App 内置的 preview.html（markdown-it + KaTeX），
-/// 页面的内容安全策略禁止任何网络请求。
-struct PreviewView: NSViewRepresentable {
-    let controller: EditorController
-
-    func makeCoordinator() -> Coordinator { Coordinator(controller) }
-
-    func makeNSView(context: Context) -> WKWebView {
-        let config = WKWebViewConfiguration()
-        config.websiteDataStore = .nonPersistent() // 不保存 Cookie、缓存等任何网页数据
-        let webView = WKWebView(frame: .zero, configuration: config)
-        webView.navigationDelegate = context.coordinator
-        webView.setValue(false, forKey: "drawsBackground")
-        controller.attachWebView(webView)
-        if let url = EditorController.previewURL {
-            // 允许读取本机文件，以便显示文档中以相对路径引用的本地图片
-            webView.loadFileURL(url, allowingReadAccessTo: URL(fileURLWithPath: "/"))
-        }
-        return webView
-    }
-
-    func updateNSView(_ webView: WKWebView, context: Context) {}
-
-    final class Coordinator: NSObject, WKNavigationDelegate {
-        let controller: EditorController
-
-        init(_ controller: EditorController) { self.controller = controller }
-
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            MainActor.assumeIsolated { controller.previewDidLoad() }
-        }
-
-        func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
-                     decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
-            guard let url = action.request.url else { return decisionHandler(.cancel) }
-            // 只允许加载预览页面本身（包括脚注等页内锚点跳转）
-            if url.isFileURL, url.path == EditorController.previewURL?.path {
-                return decisionHandler(.allow)
-            }
-            if action.navigationType == .linkActivated {
-                if url.isFileURL {
-                    let ext = url.pathExtension.lowercased()
-                    if ["md", "markdown", "mdown"].contains(ext) {
-                        NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in }
-                    } else {
-                        NSWorkspace.shared.activateFileViewerSelecting([url])
-                    }
-                } else if ["http", "https", "mailto"].contains(url.scheme?.lowercased() ?? "") {
-                    // 用户点击链接时，用默认浏览器打开（预览本身不联网）
-                    NSWorkspace.shared.open(url)
-                }
-            }
-            decisionHandler(.cancel)
-        }
-    }
-}
-
 // MARK: - 编辑器窗口
 
 enum EditorMode: String {
@@ -218,7 +158,6 @@ struct EditorView: View {
         .onChange(of: document.text) { _, newValue in editor.textChanged(newValue) }
         .onChange(of: fileURL) { _, newValue in
             editor.fileURL = newValue
-            editor.renderPreview()
         }
         .onChange(of: mode) { _, newValue in
             editor.isRichMode = newValue == .rich
@@ -236,12 +175,6 @@ struct EditorView: View {
     private var editorColumn: some View {
         VStack(spacing: 0) {
             ZStack {
-                // 网页预览不显示：只在后台用来导出 HTML / PDF
-                if sourceLoaded || mode == .source {
-                    PreviewView(controller: editor)
-                        .opacity(0)
-                        .allowsHitTesting(false)
-                }
                 GeometryReader { geo in
                     HStack(spacing: 0) {
                         // 双页：左边原文，右边就是单页编辑区（同一个，两边都能改、实时同步）

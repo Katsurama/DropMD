@@ -1,10 +1,9 @@
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
-import WebKit
 
 /// 一个编辑器窗口的控制器：连接单页编辑区（RichTextView）、双页的原文编辑区（NSTextView）
-/// 与预览区（WKWebView），并提供格式化、同步滚动和导出功能。
+/// （双页时两边一起滚），并提供格式化和导出功能。
 /// 光标处的段落样式与文字样式
 @MainActor
 final class SelectionModel: ObservableObject {
@@ -26,7 +25,6 @@ final class EditorController: ObservableObject {
             }
         }
     }
-    weak var webView: WKWebView?
     var fileURL: URL? {
         didSet {
             guard fileURL != oldValue, let path = fileURL?.path else { return }
@@ -101,7 +99,6 @@ final class EditorController: ObservableObject {
             fonts.apply(to: storage)
             storage.endEditing()
         }
-        renderPreview()
     }
     /// 当前是单页（true）还是双页（false）。切到单页时清掉双页的位置标记，
     /// 否则单页失去焦点时（如弹出分享面板）会画出双页留下的框
@@ -129,14 +126,9 @@ final class EditorController: ObservableObject {
     /// 光标处的样式。单独放在一个对象里：光标移动时只刷新“格式”面板，不刷新整个窗口
     let selection = SelectionModel()
 
-    private var previewReady = false
     private var pendingText = ""
     private var highlightWork: DispatchWorkItem?
     private var lastScrollLine = -1
-
-    static var previewURL: URL? {
-        Bundle.main.resourceURL?.appendingPathComponent("preview/preview.html")
-    }
 
     // MARK: - 文本变化
 
@@ -146,7 +138,6 @@ final class EditorController: ObservableObject {
         if language == .auto { updateLanguage() }
         // 单页打的字停一下才交给文档：文件恰好在这之前被删时，监视那一刻还看不出改过，这里补上
         if let url = fileURL, !FileManager.default.fileExists(atPath: url.path) { fileWentAway() }
-        // 网页预览不显示，导出 HTML 时直接把当时的全文交给它，改字时不用渲染
     }
 
     func scheduleHighlight() {
@@ -172,38 +163,6 @@ final class EditorController: ObservableObject {
             }
         }
         stats = String(localized: "\(chars) 字 · \(lines) 行")
-    }
-
-    // MARK: - 预览
-
-    func attachWebView(_ webView: WKWebView) {
-        self.webView = webView
-        previewReady = false
-    }
-
-    func previewDidLoad() {
-        previewReady = true
-        renderPreview()
-    }
-
-    private var baseHref: String {
-        guard let dir = fileURL?.deletingLastPathComponent() else { return "" }
-        let s = dir.absoluteString
-        return s.hasSuffix("/") ? s : s + "/"
-    }
-
-    /// 预览页面中的界面文字（提示框标题等），随界面语言
-    private static let previewText: [String: String] = Dictionary(uniqueKeysWithValues: MDCallout.allCases.map { ($0.rawValue, $0.title) })
-        .merging(["blockedImage": String(localized: "网络图片未加载（隐私保护）"), "colon": String(localized: "：")]) { a, _ in a }
-
-    func renderPreview() {
-        guard previewReady, let webView else { return }
-        webView.callAsyncJavaScript("DropMD.render(t, b, l, u)",
-                                    arguments: ["t": pendingText, "b": baseHref, "l": fonts.language.tag, "u": Self.previewText],
-                                    in: nil, in: .page) { [weak self] _ in
-            // 网页预览不显示，只用来导出；渲染完不用做别的
-            _ = self
-        }
     }
 
     // MARK: - 双页：左边原文 ↔ 右边单页（两边一起滚、光标标记）
@@ -728,23 +687,21 @@ final class EditorController: ObservableObject {
             .replacingOccurrences(of: "\"", with: "&quot;")
     }
 
-    /// 单页、双页都用预览页面生成 HTML（单页时预览也在后台加载），样式与预览一致
+    /// 导出 HTML 时提示框标题用界面语言
+    private static let calloutTitles = Dictionary(uniqueKeysWithValues: MDCallout.allCases.map { ($0.rawValue, $0.title) })
+
+    /// 用后台的预览页面（与公式共用）生成 HTML，样式与预览一致
     func exportHTML() {
-        guard previewReady, let webView else {
-            alert(String(localized: "无法导出"), String(localized: "预览还在加载，请稍后再试。"))
-            return
-        }
         // 单页的修改停顿片刻才写回文档，这里直接取编辑区当前的内容
         let text = rich?.textStorage.map(RichBridge.markdown(from:)) ?? pendingText
         guard let url = savePanel(ext: "html", type: .html) else { return }
         let title = url.deletingPathExtension().lastPathComponent
         Task { @MainActor in
             do {
-                let rendered = try await webView.callAsyncJavaScript("return DropMD.exportBody(t)", arguments: ["t": text],
-                                                                     in: nil, contentWorld: .page) as? String ?? ""
+                let rendered = try await MathRenderer.shared.exportBody(text, ui: Self.calloutTitles)
                 let body = HTMLExport.embedLocalImages(rendered, base: self.fileURL?.deletingLastPathComponent())
                 // 样式表直接从 App 里读：网页脚本不能读取本机样式表的内容（WebKit 的安全限制）
-                let css = Self.previewURL.flatMap {
+                let css = MathRenderer.shared.pageURL.flatMap {
                     try? String(contentsOf: $0.deletingLastPathComponent().appendingPathComponent("preview.css"), encoding: .utf8)
                 } ?? ""
                 let html = """
