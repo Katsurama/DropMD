@@ -11,6 +11,8 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
     private var ready = false
     private var loading = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
+    /// 第几次预览：等待中又来了新文件时，旧的那次不再往下做
+    private var revision = 0
     private let images = LocalImageHandler()
 
     /// 预览页面和字体复制在扩展自己的包里：沙盒中的扩展读不到 App 本体的文件
@@ -27,6 +29,8 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
     }
 
     func preparePreviewOfFile(at url: URL) async throws {
+        revision += 1
+        let rev = revision
         // 和 App 打开文件时一样识别编码（UTF-8 / UTF-16 / GB18030 / Shift-JIS 等）
         let text = MarkdownDocument.decode(try Data(contentsOf: url))
         if !ready {
@@ -38,17 +42,23 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
                 }
             }
         }
+        guard rev == revision else { return }
+        guard ready else { throw CocoaError(.fileReadUnknown) }   // 页面没加载成功：交给访达显示它自己的预览
         let lang = DocLanguage.detect(text)
         let titles = Dictionary(uniqueKeysWithValues: MDCallout.allCases.map { ($0.rawValue, $0.title) })
         let dir = url.deletingLastPathComponent().absoluteString
         _ = try await webView.callAsyncJavaScript("DropMD.render(t, b, l, u); window.scrollTo(0, 0)",
                                                   arguments: ["t": text, "b": dir, "l": lang.tag, "u": titles],
                                                   contentWorld: .page)
+        guard rev == revision else { return }
         // 网页读不到文档旁边的图片：由扩展读出来交给页面（扩展能只读个人文件夹和外接硬盘，见 QuickLook.entitlements）
         let content = "document.getElementById('content')"
         if let html = try await webView.callAsyncJavaScript("return \(content).innerHTML", arguments: [:], contentWorld: .page) as? String {
-            let linked = HTMLExport.linkLocalImages(html, base: url.deletingLastPathComponent(), scheme: LocalImageHandler.scheme)
+            guard rev == revision else { return }
+            let linked = HTMLExport.linkLocalImages(html, base: url.deletingLastPathComponent(),
+                                                    scheme: LocalImageHandler.scheme, version: rev)
             images.images = linked.images
+            images.revision = rev
             if !linked.images.isEmpty {
                 _ = try await webView.callAsyncJavaScript("\(content).innerHTML = h", arguments: ["h": linked.html], contentWorld: .page)
             }
@@ -89,14 +99,17 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
     }
 }
 
-/// 网页滚到图片附近时才来要图片：dropmd-image:/第几张。只给文档里写到的图片，大图缩小后再给
+/// 网页滚到图片附近时才来要图片：dropmd-image:/第几次预览/第几张。只给文档里写到的图片，大图缩小后再给
 final class LocalImageHandler: NSObject, WKURLSchemeHandler {
     static let scheme = "dropmd-image"
     var images: [URL] = []
+    var revision = 0
     private var stopped: Set<ObjectIdentifier> = []
 
     func webView(_ webView: WKWebView, start task: any WKURLSchemeTask) {
-        guard let requested = task.request.url, let index = Int(requested.lastPathComponent), images.indices.contains(index) else {
+        // dropmd-image:/第几次预览/第几张：上一篇文档迟到的请求不给
+        guard let requested = task.request.url, requested.pathComponents.count == 3, requested.pathComponents[1] == "\(revision)",
+              let index = Int(requested.lastPathComponent), images.indices.contains(index) else {
             task.didFailWithError(URLError(.fileDoesNotExist))
             return
         }

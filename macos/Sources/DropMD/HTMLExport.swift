@@ -30,14 +30,15 @@ enum HTMLExport {
     }
 
     /// 快速查看：图片不嵌进页面（几十张大图转成文字会占用很多内存），换成 scheme:/第几张，网页滚到附近时才来要。
-    /// 返回新的 HTML 和这些图片的位置：只有文档里写到的图片才会被读取
-    static func linkLocalImages(_ html: String, base: URL?, scheme: String) -> (html: String, images: [URL]) {
+    /// 返回新的 HTML 和这些图片的位置：只有文档里写到的图片才会被读取。
+    /// version：页面接着显示别的文档时地址带上它（scheme:/版本/第几张），不会拿到上一篇缓存的图片
+    static func linkLocalImages(_ html: String, base: URL?, scheme: String, version: Int? = nil) -> (html: String, images: [URL]) {
         var out = html
         var images: [URL] = []
         let matches = imagePattern.matches(in: html, range: NSRange(html.startIndex..., in: html))
         for m in matches.reversed() {
             guard let r = Range(m.range(at: 1), in: out), let image = localImage(out[r], base: base) else { continue }
-            out.replaceSubrange(r, with: "\(scheme):/\(images.count)")
+            out.replaceSubrange(r, with: "\(scheme):/" + (version.map { "\($0)/" } ?? "") + "\(images.count)")
             images.append(image.url)
         }
         return (out.replacingOccurrences(of: "<img ", with: "<img loading=\"lazy\" decoding=\"async\" "), images)
