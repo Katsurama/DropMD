@@ -185,9 +185,10 @@ final class RichTextView: NSTextView {
     private func updateBlink() {
         let need = sourceCaretLocation != nil && SourceMarkStyle.isOn && SourceMarkStyle.current == .caret
         if need, blinkTimer == nil {
-            blinkTimer = Timer.scheduledTimer(withTimeInterval: 0.53, repeats: true) { [weak self] _ in
+            blinkTimer = Timer.scheduledTimer(withTimeInterval: 0.53, repeats: true) { [weak self] timer in
                 MainActor.assumeIsolated {
-                    guard let self, let r = self.markCaretRect() else { return }
+                    guard let self else { timer.invalidate(); return }   // 窗口关了：定时器也停掉
+                    guard let r = self.markCaretRect() else { return }
                     self.caretBlinkOn.toggle()
                     self.setNeedsDisplay(r.insetBy(dx: -2, dy: -2))
                 }
@@ -680,9 +681,10 @@ final class RichTextView: NSTextView {
         header.literal = true
         let s = NSMutableAttributedString()
         s.append(RichBridge.paragraph(RichBridge.runsString([header], kind: .quote, baseURL: baseURL), kind: .quote))
-        s.append(RichBridge.paragraph(RichBridge.runsString([MDRun(text: String(localized: "内容"))], kind: .quote, baseURL: baseURL), kind: .quote))
+        let body = String(localized: "内容")
+        s.append(RichBridge.paragraph(RichBridge.runsString([MDRun(text: body)], kind: .quote, baseURL: baseURL), kind: .quote))
         insertBlock(s, caretOffset: (type.title as NSString).length + 1)
-        setSelectedRange(NSRange(location: selectedRange().location, length: 2))
+        setSelectedRange(NSRange(location: selectedRange().location, length: (body as NSString).length))
     }
 
     /// 公式块：$$ 公式 $$，显示为居中的公式，保存时写回原文

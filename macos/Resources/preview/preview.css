@@ -35,8 +35,8 @@ h3 { font-size: 1.25em; } h4 { font-size: 1.05em; } h5, h6 { font-size: .95em; c
 p, ul, ol, blockquote, table, pre, .math-block { margin: 0 0 1em; }
 a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
 img { max-width: 100%; border-radius: 6px; }
-/* 网络图片被内容安全策略拦截，隐藏破图标记 */
-img[src^="http:"], img[src^="https:"], img[src^="//"] { display: none; }
+/* 预览里网络图片被内容安全策略拦截，隐藏破图标记（导出的 HTML 没有 #content，网络图片照常显示） */
+#content img[src^="http:"], #content img[src^="https:"], #content img[src^="//"] { display: none; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
 blockquote { margin-left: 0; padding: .2em 1em; color: var(--quote); border-left: 3px solid var(--line); }
 code { font: .9em/1.5 "SF Mono", Menlo, monospace; background: var(--code-bg); padding: .15em .35em; border-radius: 5px; }

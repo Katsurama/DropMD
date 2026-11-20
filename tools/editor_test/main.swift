@@ -690,6 +690,9 @@ MainActor.assumeIsolated {
         check("快速查看的图片地址", linked.html,
               #"<p><img loading="lazy" decoding="async" src="dropmd-image:/2" alt="a"><img loading="lazy" decoding="async" src="https://example.com/b.png" alt=""><img loading="lazy" decoding="async" src="dropmd-image:/1" alt=""><img loading="lazy" decoding="async" width="200" src="dropmd-image:/0"></p>"#)
         check("快速查看只读文档写到的图片", linked.images.map(\.lastPathComponent).joined(separator: " "), "a.png no.png a.png")
+        check("快速查看图片地址带版本", HTMLExport.linkLocalImages("<img src=\"no.png\">", base: dir, scheme: "dropmd-image", version: 3).html,
+              #"<img loading="lazy" decoding="async" src="dropmd-image:/3/0">"#)
+        check("带版本的地址能读出版本和第几张", URL(string: "dropmd-image:/3/0")!.pathComponents.joined(separator: " "), "/ 3 0")
         check("地址有编码的本机图片能显示", RichBridge.imageString(path: "big%2Epng", alt: "", baseURL: URL(fileURLWithPath: dir.path, isDirectory: true)).attribute(.attachment, at: 0, effectiveRange: nil) != nil ? "有" : "没有", "有")
         check("导出保持原图", HTMLExport.embedLocalImages(tag, base: dir) == "<img src=\"data:image/png;base64,\(big.base64EncodedString())\">" ? "原图" : "变了", "原图")
         try? FileManager.default.removeItem(at: dir)
@@ -1158,6 +1161,20 @@ MainActor.assumeIsolated {
         check("右键：图片上的操作", "\(titles(tv, hit: 0).hasPrefix("编辑替代文本…|在访达中显示|删除图片"))", "true")
         tv.setImageAlt("新说明", in: img)
         check("右键：修改图片说明", md(tv), "![新说明](a.png)\n")
+        // 正常显示的图片（一个附件字符）也有图片菜单
+        let png = FileManager.default.temporaryDirectory.appendingPathComponent("dropmd-menu-\(ProcessInfo.processInfo.processIdentifier).png")
+        try? Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!.write(to: png)
+        tv = makeView("![图](\(png.path))\n")
+        check("右键：显示出来的图片也有图片菜单", "\(titles(tv, hit: 0).hasPrefix("编辑替代文本…|在访达中显示|删除图片"))", "true")
+        try? FileManager.default.removeItem(at: png)
+        // 列表项开头、表格里的图片改说明：列表、表格还在
+        for (src, want) in [("- ![旧](a.png) 后\n", "- ![新](a.png) 后\n"),
+                            ("| ![旧](a.png) | b |\n| --- | --- |\n", "| ![新](a.png) | b |\n| --- | --- |\n")] {
+            tv = makeView(src)
+            let at = (tv.string as NSString).range(of: "旧").location
+            if let r = tv.objectRange(at: at) { tv.setImageAlt("新", in: r) }
+            check("右键：改说明不破坏 \(src.prefix(2))", md(tv), want)
+        }
         tv = at("```swift\nlet a = 1\nlet b = 2\n```\n", "b")
         check("右键：代码块里的操作", "\(titles(tv).hasPrefix("复制代码|语言"))", "true")
         tv.setCodeLanguage(obj("python"))

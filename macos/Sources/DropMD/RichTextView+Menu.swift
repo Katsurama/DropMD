@@ -99,7 +99,8 @@ extension RichTextView {
         }
         if hit < storage.length {
             let a = storage.attributes(at: hit, effectiveRange: nil)
-            if a[DMKey.image] != nil, let r = objectRange(at: hit) {
+            if a[DMKey.image] != nil {
+                let r = objectRange(at: hit) ?? NSRange(location: hit, length: 1)   // 显示出来的图片是一个附件字符
                 let path = a[DMKey.image] as? String ?? ""
                 let file = imageFile(path)
                 groups.append([menuItem(String(localized: "编辑替代文本…"), #selector(editImageAlt(_:)), NSValue(range: r)),
@@ -254,7 +255,12 @@ extension RichTextView {
         let image = NSMutableAttributedString(attributedString: RichBridge.imageString(
             path: path, alt: alt, title: a[DMKey.title] as? String, link: a[DMKey.link] as? String,
             linkTitle: a[DMKey.linkTitle] as? String, baseURL: baseURL))
-        if a[DMKey.inDetails] != nil { RichBridge.markInDetails(image) }
+        // 段落的属性（列表、表格、折叠块、缩进）照原样补上，否则这一段会变回正文
+        var rest = a
+        rest[.attachment] = nil
+        for (k, v) in rest where image.attribute(k, at: 0, effectiveRange: nil) == nil {
+            image.addAttribute(k, value: v, range: NSRange(location: 0, length: image.length))
+        }
         replace(range, with: image, caret: range.location + image.length)
     }
 
