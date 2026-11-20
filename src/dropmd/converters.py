@@ -110,13 +110,6 @@ def _save_images(text: str, dst: Path) -> str:
     """把内嵌在 Markdown 中的 data URI 图片存到“文件名_images”文件夹，改为相对路径引用。"""
     folder = images_dir_name(dst)
     count = 0
-    # 重新转换时先删掉上次导出的图片（只删本程序命名的 imageN.xxx），图片变少时不留多余文件。
-    # .md 还不存在时，同名文件夹不是本程序建的，里面的文件一个都不动
-    old = dst.parent / folder
-    if old.is_dir() and dst.exists():
-        for p in old.iterdir():
-            if p.is_file() and _OUR_IMAGE.fullmatch(p.name):
-                p.unlink()
 
     def save(m: re.Match) -> str:
         nonlocal count
@@ -127,7 +120,7 @@ def _save_images(text: str, dst: Path) -> str:
             return tr(f"<!-- 图片{('：' + alt) if alt else ''}无法读取 -->", f"<!-- Image{(': ' + alt) if alt else ''} can't be read -->", f"<!-- 圖片{('：' + alt) if alt else ''}無法讀取 -->")
         ext = {"jpeg": "jpg", "svg+xml": "svg"}.get(kind.lower(), kind.lower())
         count += 1
-        while (dst.parent / folder / f"image{count}.{ext}").exists():  # 不覆盖用户自己的同名文件
+        while (dst.parent / folder / f"image{count}.{ext}").exists():  # 不覆盖已有的文件：上次的图片要等新 .md 写好才删
             count += 1
         name = f"image{count}.{ext}"
         (dst.parent / folder).mkdir(parents=True, exist_ok=True)
@@ -155,14 +148,17 @@ def drop_unused_images(dst: Path, folder: str, text: str, ours: re.Pattern) -> N
 def convert_markitdown(src: Path, dst: Path) -> str:
     result = _markitdown().convert_local(str(src), keep_data_uris=True)
     text = (result.markdown or "").strip()
-    if not text:  # 要在存图片之前判断：存图片时会删掉上次的图片，失败时旧的 .md 还要用
+    if not text:
         if src.suffix.lower() == ".pdf":
             raise ConversionError(tr("未能提取到文字，可能是扫描版（图片）PDF。请改用“高精度模式”。", "No text could be extracted; this may be a scanned (image) PDF. Use High Accuracy mode instead.", "未能擷取到文字，可能是掃描版（圖片）PDF。請改用「高精度模式」。"))
         raise ConversionError(tr("文件中没有可提取的内容。", "There is no content to extract in this file.", "檔案中沒有可擷取的內容。"))
+    existed = dst.exists()   # .md 还不存在时，同名文件夹不是本程序建的，里面的文件一个都不动
     text = fill_empty_table_headers(_save_images(text, dst))
     if src.suffix.lower() == ".pdf":
         text = text.replace("\t", " ")
     _write_text(dst, text + "\n")
+    if existed:   # 新 .md 写好后才删上次的图片：中途失败或停止时，旧 .md 的图片还在
+        drop_unused_images(dst, images_dir_name(dst), text, _OUR_IMAGE)
     return tr("快速模式", "Fast mode", "快速模式")
 
 
