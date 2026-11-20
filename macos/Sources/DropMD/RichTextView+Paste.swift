@@ -4,19 +4,22 @@ extension RichTextView {
     // MARK: - 粘贴：只保留 Markdown 能保存的格式
 
     /// 刚粘贴进来的内容：去掉保存不了的格式，链接、列表转成单页的写法
-    func cleanPasted(_ range: NSRange, html: String? = nil) {
+    func cleanPasted(_ range: NSRange, html: String? = nil, inDetails: Bool = false) {
         let lists = pastedLists(range)   // 清理格式前先记下：清理后系统的列表信息就没了
-        normalizePasted(range)
+        normalizePasted(range, inDetails: inDetails)
         if let html { applyHTMLFormats(html, range) }
         listify(lists)
     }
 
+    private static let htmlToken = try! NSRegularExpression(pattern: #"<!--.*?-->|<(/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*)>|[^<]+"#, options: .dotMatchesLineSeparators)
+    private static let htmlItalic = try! NSRegularExpression(pattern: #"(^|[;\s"'])font-style\s*:\s*italic"#, options: .caseInsensitive)   // 不算 Word 的 mso-bidi-font-style
+    private static let htmlBold = try! NSRegularExpression(pattern: #"(^|[;\s"'])font-weight\s*:\s*(bold|[6-9]00)"#, options: .caseInsensitive)
+    private static let htmlNotBold = try! NSRegularExpression(pattern: #"(^|[;\s"'])font-weight\s*:\s*(normal|[1-4]00)"#, options: .caseInsensitive)   // Google 文档整篇包在 <b style="font-weight:normal"> 里
+    private static let htmlEntity = try! NSRegularExpression(pattern: #"&(#[0-9]+|#[xX][0-9a-fA-F]+|[a-z]+);"#)
+
     /// HTML 里的一段文字：是否粗体、斜体，属于几级标题（0 = 不是标题）
     static func htmlChunks(_ html: String) -> [(text: String, bold: Bool, italic: Bool, heading: Int)] {
-        let token = try! NSRegularExpression(pattern: #"<!--.*?-->|<(/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*)>|[^<]+"#, options: .dotMatchesLineSeparators)
-        let italicStyle = try! NSRegularExpression(pattern: #"(^|[;\s"'])font-style\s*:\s*italic"#, options: .caseInsensitive)   // 不算 Word 的 mso-bidi-font-style
-        let boldStyle = try! NSRegularExpression(pattern: #"(^|[;\s"'])font-weight\s*:\s*(bold|[6-9]00)"#, options: .caseInsensitive)
-        let notBold = try! NSRegularExpression(pattern: #"(^|[;\s"'])font-weight\s*:\s*(normal|[1-4]00)"#, options: .caseInsensitive)   // Google 文档整篇包在 <b style="font-weight:normal"> 里
+        let token = htmlToken, italicStyle = htmlItalic, boldStyle = htmlBold, notBold = htmlNotBold
         let voidTags: Set<String> = ["br", "img", "meta", "link", "hr", "input", "col", "base", "wbr"]
         let hidden: Set<String> = ["head", "style", "script", "title"]
         let ns = html as NSString
@@ -47,7 +50,7 @@ extension RichTextView {
     private static func decodeEntities(_ s: String) -> String {
         guard s.contains("&") else { return s }
         let names = ["amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": " "]
-        let entity = try! NSRegularExpression(pattern: #"&(#[0-9]+|#[xX][0-9a-fA-F]+|[a-z]+);"#)
+        let entity = htmlEntity
         var out = s
         for m in entity.matches(in: s, range: NSRange(s.startIndex..., in: s)).reversed() {
             guard let whole = Range(m.range, in: out), let body = Range(m.range(at: 1), in: out) else { continue }
@@ -174,9 +177,12 @@ extension RichTextView {
         guard type == Self.richType else {
             // 粘贴和拖入都走这里：别的程序来的内容去掉保存不了的格式，链接、列表转成单页的写法
             let sel = selectedRange(), before = textStorage?.length ?? 0
+            let inDetails = paragraphAttributes(paragraphRange(at: sel.location))[DMKey.inDetails] != nil
             guard super.readSelection(from: pboard, type: type) else { return false }
             let inserted = (textStorage?.length ?? 0) - before + sel.length
-            if inserted > 0 { cleanPasted(NSRange(location: sel.location, length: inserted), html: pboard.string(forType: .html)) }
+            if inserted > 0 {
+                cleanPasted(NSRange(location: sel.location, length: inserted), html: pboard.string(forType: .html), inDetails: inDetails)
+            }
             return true
         }
         // 只接受文字、字体、颜色、段落样式等固定的类型（剪贴板内容可能来自别的程序）
@@ -185,12 +191,31 @@ extension RichTextView {
                                    NSTextTable.self, NSTextTableBlock.self]
         guard let data = pboard.data(forType: type),
               let s = try? NSKeyedUnarchiver.unarchivedObject(ofClasses: classes, from: data) as? NSAttributedString else { return false }
-        replace(selectedRange(), with: RichBridge.restoringAttachments(s, baseURL: baseURL))
+        let pasted = NSMutableAttributedString(attributedString: RichBridge.restoringAttachments(s, baseURL: baseURL))
+        let dest = paragraphAttributes(paragraphRange(at: selectedRange().location))
+        if !pasted.string.contains("\n") || RichBridge.tableBlock(of: dest) != nil {
+            // 一行里的字、或贴进表格单元格：用目标这一段的格式，不把这一段（或整张表）拆开
+            replace(selectedRange(), with: fitted(pasted, to: dest))
+            return true
+        }
+        if dest[DMKey.inDetails] != nil {
+            // 多段贴进折叠块：没有折叠块标记的段落补上，否则保存时折叠块在这里提前结束
+            var outside: [NSRange] = []
+            pasted.enumerateAttribute(DMKey.inDetails, in: NSRange(location: 0, length: pasted.length)) { v, r, _ in
+                if v == nil { outside.append(r) }
+            }
+            for r in outside {
+                let part = NSMutableAttributedString(attributedString: pasted.attributedSubstring(from: r))
+                RichBridge.markInDetails(part)
+                pasted.replaceCharacters(in: r, with: part)
+            }
+        }
+        replace(selectedRange(), with: pasted)
         return true
     }
 
     /// 从网页、Word 等粘贴的文字：去掉颜色、字体、对齐等无法保存的格式，统一为编辑器的样式
-    private func normalizePasted(_ range: NSRange) {
+    private func normalizePasted(_ range: NSRange, inDetails: Bool) {
         let paragraphKind = currentKind
         changeAttributes(in: range) { old in
             // 从本编辑器复制的段落保留原样式
@@ -220,8 +245,9 @@ extension RichTextView {
                 : a[DMKey.inlineCode] != nil ? RichStyle.inlineCodeColor : RichStyle.bodyColor
             if a[DMKey.highlight] != nil { a[.backgroundColor] = RichStyle.highlightBackground }
             if a[DMKey.inlineCode] != nil { a[.backgroundColor] = RichStyle.codeBackground }
+            if inDetails { a[DMKey.inDetails] = true }
             if a[.paragraphStyle] == nil {
-                a[.paragraphStyle] = RichStyle.paragraphStyle(paragraphKind)
+                a[.paragraphStyle] = RichStyle.paragraphStyle(paragraphKind, inDetails: inDetails)
                 for (k, v) in RichStyle.marks(for: paragraphKind) { a[k] = v }
             }
             return a

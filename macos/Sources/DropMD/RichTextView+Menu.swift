@@ -273,8 +273,11 @@ extension RichTextView {
 
     /// 整个代码块换成另一种语言（"" 是纯文本），光标不动
     @objc func setCodeLanguage(_ sender: Any?) {
-        guard let lang = (sender as? NSMenuItem)?.representedObject as? String,
-              let block = (layoutManager as? RichLayoutManager)?.codeBlock(at: selectedRange().location) else { return }
+        if let lang = (sender as? NSMenuItem)?.representedObject as? String { setCodeLanguage(to: lang) }
+    }
+
+    func setCodeLanguage(to lang: String) {
+        guard let block = (layoutManager as? RichLayoutManager)?.codeBlock(at: selectedRange().location) else { return }
         // 只换语言：列表、折叠块等属性和缩进都不动
         changeAttributes(in: block) { old in
             guard old[DMKey.code] != nil else { return old }

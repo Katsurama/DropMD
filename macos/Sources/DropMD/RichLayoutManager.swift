@@ -298,14 +298,21 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         let ns = storage.string as NSString
         var block = ns.paragraphRange(for: NSRange(location: location, length: 0))
         guard !hiddenRanges.contains(where: { NSLocationInRange(block.location, $0) }) else { return nil }
+        // 只连同一类的段落：代码连代码，原文（YAML 信息、HTML）连原文，折叠块里外不连
+        func group(_ at: Int) -> String {
+            let a = storage.attributes(at: at, effectiveRange: nil)
+            return "\(a[DMKey.raw] != nil)\(a[DMKey.inDetails] != nil)"
+        }
+        let mine = group(location)
+        func same(_ at: Int) -> Bool { isCodeParagraph(at: at, in: storage) && group(at) == mine }
         while block.location > 0 {
             let prev = ns.paragraphRange(for: NSRange(location: block.location - 1, length: 0))
-            guard isCodeParagraph(at: prev.location, in: storage) else { break }
+            guard same(prev.location) else { break }
             block = NSUnionRange(prev, block)
         }
         while NSMaxRange(block) < ns.length {
             let next = ns.paragraphRange(for: NSRange(location: NSMaxRange(block), length: 0))
-            guard isCodeParagraph(at: next.location, in: storage) else { break }
+            guard same(next.location) else { break }
             block = NSUnionRange(block, next)
         }
         return block

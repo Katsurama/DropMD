@@ -91,6 +91,11 @@ final class AppModel: ObservableObject {
     private var stopRequested = false
     private var activeDownloader: ModelDownloader?
 
+    /// 等主线程上已排队的界面更新（转换结果、下载进度）都做完再收尾
+    private static func drainMainQueue() async {
+        await withCheckedContinuation { c in DispatchQueue.main.async { c.resume() } }
+    }
+
     init() {
         mode = ConvertMode(rawValue: defaults.string(forKey: "mode") ?? "") ?? .fast
         wordEngine = WordEngine(rawValue: defaults.string(forKey: "wordEngine") ?? "") ?? .markitdown
@@ -264,6 +269,7 @@ final class AppModel: ObservableObject {
             try await downloader.download(st.missing, modelsDir: modelsDir) { done, total, label in
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
+                        guard self.activeDownloader === downloader else { return }   // 下载已结束：迟到的进度不再改状态
                         if total > 0 {
                             self.progressTotal = Double(total)
                             self.progress = Double(done)
@@ -275,11 +281,11 @@ final class AppModel: ObservableObject {
                     }
                 }
             }
-            await Task.yield()
+            await Self.drainMainQueue()
             statusText = String(localized: "模型下载完成")
             return true
         } catch {
-            await Task.yield()
+            await Self.drainMainQueue()
             let msg = ModelDownloader.describe(error)
             statusText = String(localized: "模型下载未完成")
             if !(error is CancellationError) && (error as? URLError)?.code != .cancelled {
@@ -403,7 +409,7 @@ final class AppModel: ObservableObject {
         } catch {
             alert(String(localized: "转换引擎出错"), error.localizedDescription, style: .warning)
         }
-        await Task.yield()
+        await Self.drainMainQueue()
         for i in selected where items[i].status == .waiting || items[i].status == .running {
             items[i].status = .skipped
             items[i].info = stopRequested ? String(localized: "已停止") : String(localized: "引擎意外退出")
