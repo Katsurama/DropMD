@@ -1190,6 +1190,23 @@ MainActor.assumeIsolated {
         tv = at("> [!NOTE]\n> 内容\n", "内容")
         tv.removeCallout(nil)
         check("右键：改回普通引用", md(tv), "> 内容\n")
+        // 折叠块里的表格：最后一格按 Tab 加的行还在折叠块里
+        tv = at("<details>\n<summary>折叠</summary>\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n</details>\n", "2 |")
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "2").location + 1, length: 0))
+        tv.insertTab(nil); type(tv, "3")
+        check("折叠块里的表格加行", md(tv), "<details>\n<summary>折叠</summary>\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 |  |\n\n</details>\n")
+        // 折叠块里插入分隔线：折叠块不被截断
+        tv = at("<details>\n<summary>折叠</summary>\n\n第一段\n\n第二段\n\n</details>\n", "第一段")
+        tv.insertRule()
+        check("折叠块里插入分隔线", md(tv), "<details>\n<summary>折叠</summary>\n\n第一段\n\n---\n\n第二段\n\n</details>\n")
+        // 列表项里的代码块改语言：还在列表里
+        let listCode = "1. 安装：\n\n   ```bash\n   npm i\n   ```\n\n2. 运行\n"
+        tv = at(listCode, "npm")
+        tv.setCodeLanguage(obj("sh"))
+        check("列表里的代码块改语言", md(tv), listCode.replacingOccurrences(of: "bash", with: "sh"))
+        // 原样保存的 HTML：没有“语言”菜单
+        tv = at("<div>\nhello\n</div>\n", "hello")
+        check("HTML 块没有语言菜单", "\(titles(tv).contains("语言"))", "false")
         // 在链接上点右键：只有 DropMD 自己的链接项，系统的那几项去掉；没选字时不出现格式项
         do {
             let v = at("前 [链接](https://a.com) 后\n", "后")

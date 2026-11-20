@@ -119,8 +119,7 @@ extension RichTextView {
         let lm = layoutManager as? RichLayoutManager
         if cell(at: at) != nil, let ctx = tableContext() {
             groups += tableItems(ctx)
-        } else if lm?.codeBlock(at: min(at, max(storage.length - 1, 0))) != nil, at < storage.length {
-            let lang: String = { if case .code(let l) = currentKind { return l } else { return "" } }()
+        } else if case .code(let lang) = currentKind, at < storage.length {   // 原样保存的段落（YAML、HTML）不算代码块
             groups.append([menuItem(String(localized: "复制代码"), #selector(copyCode(_:))),
                            submenu(String(localized: "语言"), ([""] + codeLanguages).map {
                                menuItem($0.isEmpty ? String(localized: "纯文本") : $0, #selector(setCodeLanguage(_:)), $0, on: $0 == lang)
@@ -276,10 +275,13 @@ extension RichTextView {
     @objc func setCodeLanguage(_ sender: Any?) {
         guard let lang = (sender as? NSMenuItem)?.representedObject as? String,
               let block = (layoutManager as? RichLayoutManager)?.codeBlock(at: selectedRange().location) else { return }
-        let caret = selectedRange()
-        setSelectedRange(NSRange(location: block.location, length: max(block.length - 1, 0)))
-        setKind(.code(lang))
-        setSelectedRange(caret)
+        // 只换语言：列表、折叠块等属性和缩进都不动
+        changeAttributes(in: block) { old in
+            guard old[DMKey.code] != nil else { return old }
+            var a = old
+            a[DMKey.code] = lang
+            return a
+        }
     }
 
     /// 光标所在提示框的标题行（[!NOTE] 那一段）
@@ -306,7 +308,7 @@ extension RichTextView {
         let old = storage.attributedSubstring(from: header)
         if !old.string.hasSuffix("\n"), p.string.hasSuffix("\n") { p.deleteCharacters(in: NSRange(location: p.length - 1, length: 1)) }
         if old.length > 0, old.attribute(DMKey.inDetails, at: 0, effectiveRange: nil) != nil { RichBridge.markInDetails(p) }
-        replace(header, with: p, caret: caret.location + p.length - header.length)
+        replace(header, with: p, caret: max(caret.location + p.length - header.length, header.location))   // 换成名字更短的类型时不能小于标题行开头
         refreshTypingAttributes()
     }
 
