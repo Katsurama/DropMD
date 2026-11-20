@@ -1324,6 +1324,10 @@ MainActor.assumeIsolated {
             DocumentHeading(id: 12, level: 3, title: "旧 高亮 说明"),
         ]
         check("大纲提取标题", "\(got)", "\(want)")
+        // YAML 信息、HTML 注释里的 # 不算；=== 下划线标题、折叠块里的标题算，行号对得上
+        let doc2 = "---\ntitle: Demo\n# 草稿备注\n---\n\n# 正文标题\n\n<!--\n# 注释里的\n-->\n\n下划线标题\n===\n\n<details>\n<summary>折叠</summary>\n\n## 折叠里的\n\n</details>\n"
+        check("大纲：跳过 YAML、HTML 注释，认下划线和折叠块", extractHeadings(doc2).map { "\($0.id):\($0.level):\($0.title)" }.joined(separator: " | "),
+              "5:1:正文标题 | 11:1:下划线标题 | 17:2:折叠里的")
     }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
