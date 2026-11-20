@@ -29,7 +29,9 @@ struct FormatInspector: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
-                OutlineListView(editor: editor)
+                OutlineListView(editor: editor)   // 显示着才找标题
+                    .onAppear { editor.outlineVisible = true }
+                    .onDisappear { editor.outlineVisible = false }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

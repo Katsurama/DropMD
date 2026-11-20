@@ -129,6 +129,12 @@ final class EditorController: ObservableObject {
 
     @Published var stats = ""
     @Published var headings: [DocumentHeading] = []
+    /// “目录”正显示着：只有这时才找标题，改字停顿片刻后在后台找（1 万行约 0.08 秒，不能每按一个键都在主线程扫全文）
+    var outlineVisible = false {
+        didSet { if outlineVisible, !oldValue { refreshHeadings() } }
+    }
+    private var headingsWork: DispatchWorkItem?
+    private var headingsGeneration = 0   // 后台找完时文字又变了：旧结果不用
     /// 光标处的样式。单独放在一个对象里：光标移动时只刷新“格式”面板，不刷新整个窗口
     let selection = SelectionModel()
 
@@ -141,8 +147,12 @@ final class EditorController: ObservableObject {
     func textChanged(_ text: String) {
         pendingText = text
         updateStats(text)
-        let h = extractHeadings(text)
-        if h != headings { headings = h }
+        if outlineVisible {
+            headingsWork?.cancel()
+            let work = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.refreshHeadingsInBackground() } }
+            headingsWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+        }
         if language == .auto { updateLanguage() }
         // 单页打的字停一下才交给文档：文件恰好在这之前被删时，监视那一刻还看不出改过，这里补上
         if let url = fileURL, !FileManager.default.fileExists(atPath: url.path) { fileWentAway() }
@@ -536,9 +546,40 @@ final class EditorController: ObservableObject {
         return count
     }
 
+    /// 找标题用的文字：与双页对照表同一份，行号对得上
+    private var outlineText: String { isRichMode ? (richMarkdown ?? pendingText) : (textView?.string ?? pendingText) }
+
+    @discardableResult
+    private func refreshHeadings() -> [DocumentHeading] {
+        headingsWork?.cancel()
+        headingsWork = nil
+        headingsGeneration += 1
+        let h = extractHeadings(outlineText)
+        if h != headings { headings = h }
+        return h
+    }
+
+    private func refreshHeadingsInBackground() {
+        headingsGeneration += 1
+        let generation = headingsGeneration, text = outlineText
+        Task.detached(priority: .utility) {
+            let h = extractHeadings(text)
+            await MainActor.run { [weak self] in
+                guard let self, generation == self.headingsGeneration, h != self.headings else { return }
+                self.headings = h
+            }
+        }
+    }
+
     /// 点击“目录”里的标题时，滚动并定位光标到对应位置
-    func jumpToHeading(_ heading: DocumentHeading) {
+    func jumpToHeading(_ clicked: DocumentHeading) {
         flushPendingEdits()
+        // 刚改的字写回后行号可能变了：按“第几个同名标题”在新目录里找到它的新行号
+        let old = headings
+        let new = refreshHeadings()
+        let same = { (h: DocumentHeading) in h.level == clicked.level && h.title == clicked.title }
+        let nth = old.prefix { $0 != clicked }.filter(same).count
+        let heading = new.filter(same).dropFirst(nth).first ?? clicked
         if !isRichMode { scrollSource(toLine: Double(heading.id)) }
         if let (_, range) = richRange(forLine: heading.id), let rv = richView {
             rv.setSelectedRange(NSRange(location: range.location, length: 0))

@@ -219,37 +219,32 @@ struct DocumentHeading: Identifiable, Equatable {
     let title: String
 }
 
-/// 从 Markdown 原文提取标题列表，跳过围栏代码块（``` / ~~~）内的 # 注释行
+/// 从 Markdown 原文提取标题列表：用保存时的同一个解析器，YAML 信息、HTML、代码块里的 # 不算，=== 下划线标题也算
 func extractHeadings(_ markdown: String) -> [DocumentHeading] {
-    let fenceOpen = try! NSRegularExpression(pattern: #"^ {0,3}(`{3,}|~{3,})(.*)$"#)
-    let headingPat = try! NSRegularExpression(pattern: #"^ {0,3}(#{1,6})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$"#)
-    let linkPat = try! NSRegularExpression(pattern: #"!?\[([^\]]+)\]\([^)]*\)"#)
-    let lines = markdown.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
+    headings(in: markdown, firstLine: 0)
+}
+
+private func headings(in text: String, firstLine: Int) -> [DocumentHeading] {
+    let (blocks, groups, lines) = MarkdownCodec.parseWithSource(text)
     var out: [DocumentHeading] = []
-    var fence: (mark: Character, len: Int)?
-    for (idx, line) in lines.enumerated() {
-        let ns = line as NSString
-        let full = NSRange(location: 0, length: ns.length)
-        if let f = fence {
-            let t = line.trimmingCharacters(in: .whitespaces)
-            if t.count >= f.len && t.allSatisfy({ $0 == f.mark }) { fence = nil }
-            continue
-        }
-        if let m = fenceOpen.firstMatch(in: line, range: full) {
-            let markStr = ns.substring(with: m.range(at: 1))
-            let info = ns.substring(with: m.range(at: 2))
-            if let ch = markStr.first, !(ch == "`" && info.contains("`")) {
-                fence = (ch, markStr.count)
-                continue
+    for g in groups {
+        for block in blocks[g.blocks] {
+            switch block {
+            case .line(let l):
+                guard case .heading(let level) = l.kind else { continue }
+                let title = l.runs.map(\.text).joined().trimmingCharacters(in: .whitespaces)
+                if !title.isEmpty { out.append(DocumentHeading(id: firstLine + g.lines.lowerBound, level: level, title: title)) }
+            case .details:
+                // 折叠块里的标题：从 </summary> 下一行起再找一遍（结尾的 </details> 不是标题）
+                let body = lines[g.lines]
+                let start = (body.firstIndex { $0.range(of: "</summary>", options: .caseInsensitive) != nil } ?? body.startIndex) + 1
+                if start < body.endIndex {
+                    out += headings(in: body[start...].joined(separator: "\n"), firstLine: firstLine + start)
+                }
+            default:
+                break
             }
         }
-        guard let m = headingPat.firstMatch(in: line, range: full) else { continue }
-        let level = m.range(at: 1).length
-        var title = ns.substring(with: m.range(at: 2))
-        title = linkPat.stringByReplacingMatches(in: title, range: NSRange(location: 0, length: (title as NSString).length), withTemplate: "$1")
-        for mark in ["**", "__", "`", "~~", "=="] { title = title.replacingOccurrences(of: mark, with: "") }
-        title = title.trimmingCharacters(in: .whitespaces)
-        if !title.isEmpty { out.append(DocumentHeading(id: idx, level: level, title: title)) }
     }
     return out
 }
