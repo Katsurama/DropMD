@@ -307,7 +307,7 @@ private struct SponsorLabel: View {
     var body: some View {
         Text(verbatim: name)
             .font(.callout.weight(.semibold))
-            .frame(minWidth: 80)
+            .frame(minWidth: 60)   // 中文界面有 4 个按钮（含微信），一行要放得下
             .padding(.vertical, 7)
             .padding(.horizontal, 12)
             .foregroundStyle(.white)

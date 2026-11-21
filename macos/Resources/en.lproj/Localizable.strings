@@ -418,3 +418,4 @@
 "保存在原文件旁边，同名的 .md 文件" = "Saved next to the original file as a .md file with the same name";
 "不影响导出与保存。" = "Export and saving are not affected.";
 "仅用于右侧预览。左侧原文以整行底色标示。" = "Applies to the preview on the right only. In the source on the left, the whole line is highlighted.";
+"在 GitHub 赞助…" = "Sponsor on GitHub…";
