@@ -20,7 +20,7 @@ Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換す�
 
 <br>
 
-<img src="docs/images/demo.en.gif" alt="デモ：ページ表示で入力しながら書式設定、分割表示でソースとプレビューを並べて表示、Word ファイルをドラッグして変換" width="100%">
+<img src="docs/images/demo.ja.gif" alt="デモ：ページ表示で入力しながら書式設定、分割表示でソースとプレビューを並べて表示、Word ファイルをドラッグして変換" width="100%">
 
 </div>
 
@@ -34,7 +34,7 @@ Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換す�
 
 ## ✨ 機能
 
-<p align="center"><img src="docs/images/editor-light.en.jpg" alt="ライトモードの ページ表示とフォーマットパネル" width="49%"> <img src="docs/images/editor-dark.en.jpg" alt="ダークモードの 分割表示：Markdown ソースとプレビュー" width="49%"></p>
+<p align="center"><img src="docs/images/editor-light.ja.jpg" alt="ライトモードの ページ表示とフォーマットパネル" width="49%"> <img src="docs/images/editor-dark.ja.jpg" alt="ダークモードの 分割表示：Markdown ソースとプレビュー" width="49%"></p>
 
 - **ページ表示**：Pages や Word のように、書式が付いた状態のまま直接編集できます。Markdown を知らなくても使え、ファイルは標準の Markdown で保存されます
 - **分割表示**：左に Markdown ソース、右にページ表示。どちらでも直接編集でき、すぐに反映されます。スクロールも連動し、右側には左のカーソルがある段落が表示されます
