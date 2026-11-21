@@ -1806,6 +1806,71 @@ MainActor.assumeIsolated {
         check("单页内多行代码贴进别的语言的代码块", md(tv), "```python\nx = 1\nlet a = 1\nlet b = 2\ny = 2\n```\n")
         pb.releaseGlobally()
     }
+    // 代码块或提示框下方的正文，改成不同语言的代码块或普通引用时不吸进上一块
+    do {
+        let tv1 = makeView("```python\nx = 1\n```\n\nlet a = 2\n")
+        tv1.setSelectedRange(NSRange(location: (tv1.string as NSString).range(of: "let a = 2").location, length: 0))
+        tv1.setKind(.code("swift"))
+        check("代码块下方正文设为不同语言代码块不合并", md(tv1), "```python\nx = 1\n```\n\n```swift\nlet a = 2\n```\n")
+        let tv2 = makeView("> [!NOTE]\n> 提示内容\n\n普通文字\n")
+        tv2.setSelectedRange(NSRange(location: (tv2.string as NSString).range(of: "普通文字").location, length: 0))
+        tv2.setKind(.quote)
+        check("提示框下方正文设为普通引用不并入提示框", md(tv2), "> [!NOTE]\n> 提示内容\n\n> 普通文字\n")
+    }
+    // 回归测试：纯 HTML 贴进表格不拆表、外部贴进表头保留粗体、多段贴进折叠块标题行压成单行、空正文段贴单行网页 h1 保留标题
+    do {
+        // a. 纯 HTML（无 .rtf / .string）贴进表格单元格不拆表
+        do {
+            let tv = makeView("| A | B |\n| --- | --- |\n| 1 | 2 |\n")
+            tv.setSelectedRange((tv.string as NSString).range(of: "1"))
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDFix6A-\(UUID().uuidString)"))
+            board.clearContents()
+            board.setString("<h1>Title</h1><p>Next</p>", forType: .html)
+            _ = tv.readSelection(from: board)
+            board.releaseGlobally()
+            check("纯 HTML 粘进表格单元格不拆表", md(tv), "| A | B |\n| --- | --- |\n| Title Next | 2 |\n")
+        }
+        // b. 外部文本粘进表头单元格保留粗体
+        do {
+            let tv = makeView("| A | B |\n| --- | --- |\n| 1 | 2 |\n")
+            tv.setSelectedRange((tv.string as NSString).range(of: "A"))
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDFix6B-\(UUID().uuidString)"))
+            board.clearContents()
+            board.setString("HeaderNew", forType: .string)
+            _ = tv.readSelection(from: board)
+            board.releaseGlobally()
+            let r = (tv.string as NSString).range(of: "HeaderNew")
+            let font = tv.textStorage!.attribute(.font, at: r.location, effectiveRange: nil) as? NSFont
+            check("外部粘贴进表头单元格：Markdown 与粗体", "\(md(tv))|\(RichStyle.isBold(font))", "| HeaderNew | B |\n| --- | --- |\n| 1 | 2 |\n|true")
+        }
+        // c. 多段内容粘进 <details> 折叠块标题行（<summary>）压成单行不拆折叠块
+        do {
+            let src = makeView("第一段\n\n第二段\n")
+            src.setSelectedRange(NSRange(location: 0, length: (src.string as NSString).length))
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDFix6C-\(UUID().uuidString)"))
+            board.clearContents()
+            _ = src.writeSelection(to: board, types: src.writablePasteboardTypes)
+            let tv = makeView("<details>\n<summary>折叠标题</summary>\n\n折叠内容\n\n</details>\n")
+            tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "标题").location, length: 0))
+            _ = tv.readSelection(from: board)
+            board.releaseGlobally()
+            check("多段粘进折叠块标题行不拆折叠块", md(tv), "<details>\n<summary>折叠第一段 第二段标题</summary>\n\n折叠内容\n\n</details>\n")
+        }
+        // d. 单行网页 <h1> 粘进空正文段落保留标题样式
+        do {
+            let tv = makeView("\n")
+            tv.setSelectedRange(NSRange(location: 0, length: 0))
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDFix6D-\(UUID().uuidString)"))
+            board.clearContents()
+            let s = NSAttributedString(string: "网页大标题", attributes: [.font: NSFont.boldSystemFont(ofSize: 24)])
+            board.setData(try! s.data(from: NSRange(location: 0, length: s.length),
+                                      documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]), forType: .rtf)
+            board.setString("<html><body><h1>网页大标题</h1></body></html>", forType: .html)
+            _ = tv.readSelection(from: board)
+            board.releaseGlobally()
+            check("单行网页 h1 粘进空正文段落保留标题", md(tv), "# 网页大标题\n")
+        }
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

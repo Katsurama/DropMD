@@ -103,9 +103,10 @@ extension RichTextView {
         func compact(_ s: String) -> String { s.filter { !$0.isWhitespace } }
         for (start, h) in headings {
             let para = paragraphRange(at: start)
-            let kind = RichBridge.kind(of: paragraphAttributes(para))
-            // 整段都是标题才改：粘贴到一行中间时不动这一行
-            if kind == .body, compact(ns.substring(with: para)) == compact(h.text) {
+            let attrs = paragraphAttributes(para)
+            let kind = RichBridge.kind(of: attrs)
+            // 整段都是标题才改：粘贴到一行中间或表格单元格里时不动这一行
+            if kind == .body, RichBridge.tableBlock(of: attrs) == nil, compact(ns.substring(with: para)) == compact(h.text) {
                 restyle(para, to: .heading(h.level), from: kind)
             }
         }
@@ -178,11 +179,14 @@ extension RichTextView {
         guard type == Self.richType else {
             // 粘贴和拖入都走这里：别的程序来的内容去掉保存不了的格式，链接、列表转成单页的写法
             let sel = selectedRange(), before = textStorage?.length ?? 0
-            let dest = paragraphAttributes(paragraphRange(at: sel.location))
-            // 贴进表格单元格：只要文字，换行改成空格（一个格子只能有一段，否则整张表被拆开）
-            if RichBridge.tableBlock(of: dest) != nil, let text = pboard.string(forType: .string) {
+            let destPara = paragraphRange(at: sel.location)
+            let dest = paragraphAttributes(destPara)
+            let emptyDest = (string as NSString).substring(with: destPara).trimmingCharacters(in: .newlines).isEmpty
+            // 贴进表格单元格或折叠块标题行：只要文字，换行改成空格（只能有一段，否则整张表或折叠块被拆开）
+            if RichBridge.tableBlock(of: dest) != nil || dest[DMKey.summary] != nil,
+               let text = pboard.string(forType: .string) ?? pboard.string(forType: .html).map({ Self.htmlChunks($0).map(\.text).joined(separator: " ") }) {
                 let flat = text.components(separatedBy: .newlines).filter { !$0.isEmpty }.joined(separator: " ")
-                replace(sel, with: fitted(RichBridge.runsString([MDRun(text: flat)], kind: .body, baseURL: baseURL), to: dest))
+                replace(sel, with: fitInline(RichBridge.runsString([MDRun(text: flat)], kind: .body, baseURL: baseURL), to: dest))
                 return true
             }
             // 多行贴进代码块：只要纯文字，每行都用这一块的格式（语言、块编号），否则网页的富文本把代码块拆成正文段落
@@ -200,7 +204,9 @@ extension RichTextView {
                             kind: oneLine ? RichBridge.kind(of: dest) : nil)
                 // cleanPasted 可能删字（如列表符号“•\t”），范围按长度变化缩短，否则越界或改到下一段
                 let cleaned = NSRange(location: sel.location, length: max(0, inserted + (textStorage?.length ?? 0) - beforeClean))
-                if oneLine, cleaned.length > 0 {   // 列表层级、代码块编号等段落属性也照目标段落
+                let keepHeading = emptyDest && RichBridge.kind(of: dest) == .body
+                    && RichBridge.kind(of: paragraphAttributes(paragraphRange(at: sel.location))).isHeading
+                if oneLine, cleaned.length > 0, !keepHeading {   // 列表层级、代码块编号等段落属性也照目标段落
                     changeAttributes(in: cleaned) { old in
                         var a = old
                         for k in Self.paragraphLevelKeys { a[k] = dest[k] }
@@ -218,8 +224,8 @@ extension RichTextView {
               let s = try? NSKeyedUnarchiver.unarchivedObject(ofClasses: classes, from: data) as? NSAttributedString else { return false }
         let pasted = NSMutableAttributedString(attributedString: RichBridge.restoringAttachments(s, baseURL: baseURL))
         let dest = paragraphAttributes(paragraphRange(at: selectedRange().location))
-        if !pasted.string.contains("\n") || RichBridge.tableBlock(of: dest) != nil {
-            // 一行里的字、或贴进表格单元格：用目标这一段的格式和字号，不把这一段（或整张表）拆开
+        if !pasted.string.contains("\n") || RichBridge.tableBlock(of: dest) != nil || dest[DMKey.summary] != nil {
+            // 一行里的字、或贴进表格单元格、折叠块标题行：用目标这一段的格式和字号，不把这一段（或整张表、折叠块）拆开
             replace(selectedRange(), with: fitInline(pasted, to: dest))
             return true
         }
@@ -325,9 +331,17 @@ extension RichTextView {
         s.removeAttribute(DMKey.inDetails, range: range)
     }
 
+    private static let newlineRuns = try! NSRegularExpression(pattern: #"[\r\n]+"#)
+
     /// 行内粘贴：改用目标段落的字体、字号与字距，保留粗体、斜体、行内代码、链接等行内格式
     private func fitInline(_ s: NSAttributedString, to dest: [NSAttributedString.Key: Any]) -> NSAttributedString {
         let out = NSMutableAttributedString(attributedString: s)
+        if RichBridge.tableBlock(of: dest) != nil || dest[DMKey.summary] != nil {
+            for m in Self.newlineRuns.matches(in: out.string, range: NSRange(location: 0, length: out.length)).reversed() {
+                let edge = m.range.location == 0 || NSMaxRange(m.range) == out.length
+                out.replaceCharacters(in: m.range, with: edge ? "" : " ")
+            }
+        }
         guard out.length > 0 else { return out }
         let destKind = RichBridge.kind(of: dest)
         let destImplicitBold = destKind.isHeading || destKind == .summary || RichBridge.tableBlock(of: dest)?.startingRow == 0
