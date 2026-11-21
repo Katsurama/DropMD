@@ -845,8 +845,21 @@ final class RichTextView: NSTextView {
         while loc < ns.length {
             let p = ns.paragraphRange(for: NSRange(location: loc, length: 0))
             loc = NSMaxRange(p)
-            guard case .heading = RichBridge.kind(of: storage.attributes(at: p.location, effectiveRange: nil)),
-                  ns.substring(with: p).trimmingCharacters(in: .whitespacesAndNewlines) == title else { continue }
+            guard case .heading = RichBridge.kind(of: storage.attributes(at: p.location, effectiveRange: nil)) else { continue }
+            // 行内公式和图片在富文本里是附件/占位符，还原成大纲提取时用到的模型文字再比较
+            var text = ""
+            var seenImages: Set<String> = []
+            storage.enumerateAttributes(in: p, options: []) { a, sub, _ in
+                if let source = a[DMKey.math] as? String {
+                    text += String(repeating: source, count: sub.length)
+                } else if a[DMKey.image] != nil {
+                    if let id = a[DMKey.imageID] as? String, !seenImages.insert(id).inserted { return }
+                    text += (a[DMKey.alt] as? String) ?? ""
+                } else {
+                    text += ns.substring(with: sub)
+                }
+            }
+            guard text.trimmingCharacters(in: .whitespacesAndNewlines) == title else { continue }
             if k == occurrence { return p }
             k += 1
         }
