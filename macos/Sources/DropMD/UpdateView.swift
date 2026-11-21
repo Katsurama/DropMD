@@ -32,7 +32,7 @@ struct UpdateView: View {
             Toggle("启动时自动检查更新", isOn: $updater.autoCheck)
             Toggle("包括测试版（beta）", isOn: $updater.includeBeta)
 
-            Text("检查更新只向 GitHub 查询版本信息，不发送任何文件或个人信息。")
+            Text("仅向 GitHub 查询版本信息，不发送文件或个人信息。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

@@ -297,8 +297,9 @@ final class EditorController: ObservableObject {
         tv.scroll(NSPoint(x: 0, y: max(0, rect.minY + tv.textContainerInset.height - clip.contentInsets.top)))
     }
 
-    /// 双页：在右边编辑时，左边原文里对应的那几行加上淡淡的底色；不在屏幕里时左边自动滚过去
+    /// 双页：在右边编辑时，左边原文里对应的那几行加上淡淡的底色（设置里可关掉）；不在屏幕里时左边自动滚过去
     func syncSourceMark() {
+        guard SourceMarkStyle.isOn else { return clearSourceMark() }
         guard !isRichMode, !richTextEdited, let rich = richView, rich.window?.firstResponder === rich,
               let tv = textView, let lm = tv.layoutManager, let tc = tv.textContainer else { return }
         let map = currentLineMap()

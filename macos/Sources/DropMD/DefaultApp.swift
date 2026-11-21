@@ -130,18 +130,9 @@ private struct GeneralSettings: View {
         Form {
             Section("显示") {
                 AppearanceMenu()
-                PageMarginMenu()
-                Text("页边距只影响单页。选“自动”时，窗口越大，文字那一栏越宽。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextScaleMenu()
-                Text("选“自动”时，笔记本等屏幕点更密的显示器上字更大。只改显示，不影响导出和保存。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                SourceMarkMenu()
-                Text("在左边原文里移动光标时，右边标出对应的位置。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                PageMarginMenu(note: "不影响导出与保存。")
+                TextScaleMenu(note: "选择“自动”时，按屏幕分辨率调整。不影响导出与保存。")
+                SourceMarkMenu(note: "在双页中，于另一侧标示光标的对应位置。")
             }
             Section("链接") {
                 LinkClickPicker()
@@ -155,7 +146,7 @@ private struct GeneralSettings: View {
                 .onChange(of: language) { _, newValue in AppLanguage.set(newValue) }
             }
             Section("Markdown 文件") {
-                LabeledContent("默认打开程序") {
+                LabeledContent {
                     if isDefault {
                         Label("DropMD 是默认打开程序", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.secondary)
@@ -170,10 +161,10 @@ private struct GeneralSettings: View {
                         }
                         .disabled(working)
                     }
+                } label: {
+                    Text("默认打开程序")
+                    Text("在访达中双击 .md 文件时使用的应用。")
                 }
-                Text("在访达中双击 .md 文件时，用默认打开程序打开。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

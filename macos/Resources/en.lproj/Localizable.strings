@@ -73,7 +73,6 @@
 "%lld 个" = "%lld";
 "移除所选" = "Remove Selected";
 "清空" = "Clear";
-"转换完成后，双击列表中的文件即可用编辑器打开" = "After converting, double-click a file in the list to open it in the editor";
 "用编辑器打开" = "Open in Editor";
 "在访达中显示" = "Show in Finder";
 "从列表中移除" = "Remove from List";
@@ -82,8 +81,6 @@
 "速度快，适合大多数文件。" = "Quick, and good for most files.";
 "中日文混合时请用 RapidOCR。" = "Use RapidOCR for mixed Chinese and Japanese.";
 "中日英混合识别，无需下载。" = "Reads mixed Chinese, Japanese and English. No download needed.";
-"输出到指定文件夹（拖入文件夹时保留子目录结构）" = "Saved to the chosen folder (subfolders are kept when you drag in a folder)";
-"保存在原文件旁边，文件名相同，扩展名为 .md" = "Saved next to the original file, with the same name and a .md extension";
 "模式" = "Mode";
 "Word 引擎" = "Word";
 "OCR 引擎" = "OCR";
@@ -284,7 +281,7 @@
 "无法启动更新：%@" = "Can't start the update: %@";
 
 /* UpdateView.swift */
-"检查更新只向 GitHub 查询版本信息，不发送任何文件或个人信息。" = "Checking for updates only asks GitHub for version information and never sends any files or personal information.";
+"仅向 GitHub 查询版本信息，不发送文件或个人信息。" = "Only version information is requested from GitHub. No files or personal information are sent.";
 "启动时自动检查更新" = "Check for updates when DropMD starts";
 "立即检查" = "Check Now";
 "上次检查：%@" = "Last checked: %@";
@@ -312,7 +309,6 @@
 "Markdown 文件" = "Markdown Files";
 "DropMD 是默认打开程序" = "DropMD is the default app";
 "将 DropMD 设为默认" = "Make DropMD the Default";
-"在访达中双击 .md 文件时，用默认打开程序打开。" = "Double-clicking a .md file in Finder opens it in the default app.";
 "界面语言" = "Language";
 "重新启动 DropMD 后，界面语言才会改变。" = "The new language will be used after DropMD restarts.";
 "立即重新启动" = "Restart Now";
@@ -328,7 +324,6 @@
 "标准" = "Standard";
 "窄" = "Narrow";
 "最窄" = "Narrowest";
-"页边距只影响单页。选“自动”时，窗口越大，文字那一栏越宽。" = "Page margins apply to Page view only. With Automatic, the text column gets wider as the window grows.";
 "默认打开程序" = "Default App";
 "显示" = "Display";
 "反馈问题…" = "Report an Issue…";
@@ -392,8 +387,7 @@
 "转换为引用" = "Convert to Quote";
 "侧边线" = "Side Bar";
 "光标" = "Cursor";
-"在左边原文里移动光标时，右边标出对应的位置。" = "When you move the cursor in the source on the left, the matching position is marked on the right.";
-"显示对应位置标记" = "Show Matching Position";
+"显示对应位置标记" = "Show Position Marker";
 "标记样式" = "Marker Style";
 "边框" = "Border";
 "不支持打开这种链接" = "This Type of Link Can’t Be Opened";
@@ -416,4 +410,10 @@
 "大" = "Large";
 "中" = "Medium";
 "小" = "Small";
-"选“自动”时，笔记本等屏幕点更密的显示器上字更大。只改显示，不影响导出和保存。" = "With Automatic, text is larger on denser displays such as laptops. Only changes the display; exports and saved files are not affected.";
+"选择“自动”时，按屏幕分辨率调整。不影响导出与保存。" = "With Automatic, text is scaled to the screen resolution. Export and saving are not affected.";
+"在双页中，于另一侧标示光标的对应位置。" = "In Split view, shows the position matching the cursor on the other side.";
+"在访达中双击 .md 文件时使用的应用。" = "The app used when you double-click a .md file in Finder.";
+"双击列表中的文件，可在编辑器中打开" = "Double-click a file in the list to open it in the editor";
+"拖入文件夹时，保留里面的子文件夹结构" = "When you drag in a folder, its subfolder structure is kept";
+"保存在原文件旁边，同名的 .md 文件" = "Saved next to the original file as a .md file with the same name";
+"不影响导出与保存。" = "Export and saving are not affected.";
