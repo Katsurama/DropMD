@@ -131,10 +131,14 @@ struct AppearanceMenu: View {
 /// 菜单“显示 → 页边距”（单页）
 struct PageMarginMenu: View {
     @AppStorage("pageMargin") private var margin = PageMargin.auto.rawValue
+    var note: LocalizedStringKey?   // 设置页里写在名称下面的说明；菜单栏不用
 
     var body: some View {
-        Picker("页边距", selection: $margin) {
+        Picker(selection: $margin) {
             ForEach(PageMargin.allCases) { Text($0.title).tag($0.rawValue) }
+        } label: {
+            Text("页边距")
+            if let note { Text(note) }
         }
     }
 }
@@ -142,10 +146,14 @@ struct PageMarginMenu: View {
 /// 菜单“显示 → 字号”（单页、双页）
 struct TextScaleMenu: View {
     @AppStorage("textScale") private var scale = TextScale.auto.rawValue
+    var note: LocalizedStringKey?
 
     var body: some View {
-        Picker("字号", selection: $scale) {
+        Picker(selection: $scale) {
             ForEach(TextScale.allCases) { Text($0.title).tag($0.rawValue) }
+        } label: {
+            Text("字号")
+            if let note { Text(note) }
         }
     }
 }
@@ -165,9 +173,13 @@ struct LinkClickPicker: View {
 struct SourceMarkMenu: View {
     @AppStorage("showSourceMark") private var isOn = true
     @AppStorage("sourceMarkStyle") private var style = SourceMarkStyle.box.rawValue
+    var note: LocalizedStringKey?
 
     var body: some View {
-        Toggle("显示对应位置标记", isOn: $isOn)
+        Toggle(isOn: $isOn) {
+            Text("显示对应位置标记")
+            if let note { Text(note) }
+        }
         Picker("标记样式", selection: $style) {
             ForEach(SourceMarkStyle.allCases) { Text($0.title).tag($0.rawValue) }
         }

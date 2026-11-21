@@ -115,7 +115,7 @@ struct ContentView: View {
                     .padding(.top, 4)
                     .disabled(model.running)
                     Spacer(minLength: 0)
-                    Text("转换完成后，双击列表中的文件即可用编辑器打开")
+                    Text("双击列表中的文件，可在编辑器中打开")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.bottom, 6)
@@ -288,8 +288,8 @@ struct ContentView: View {
                         .buttonStyle(.borderless)
                 }
             }
-            Text(model.outputCustom ? String(localized: "输出到指定文件夹（拖入文件夹时保留子目录结构）")
-                                    : String(localized: "保存在原文件旁边，文件名相同，扩展名为 .md"))
+            Text(model.outputCustom ? String(localized: "拖入文件夹时，保留里面的子文件夹结构")
+                                    : String(localized: "保存在原文件旁边，同名的 .md 文件"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
