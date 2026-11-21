@@ -308,12 +308,13 @@ struct EditorView: View {
                 .help("转换为 Markdown")
             Menu {
                 Button(EditorAction.exportPDF.title) { editor.perform(.exportPDF) }
+                Button(EditorAction.exportWord.title) { editor.perform(.exportWord) }
                 Button(EditorAction.exportHTML.title) { editor.perform(.exportHTML) }
             } label: {
                 // 不用“方框加向上箭头”：那是系统“分享”的图标，放在这里会被当成分享
                 Label("导出", systemImage: "doc.badge.arrow.up")
             }
-            .help("导出 PDF / HTML")
+            .help("导出 PDF / Word / HTML")
             // 苹果的分享面板（隔空投送、邮件、信息…）：分享这个 .md 文件；新文档还没存过、没有文件时不能分享
             Button { editor.share() } label: { Label("分享", systemImage: "square.and.arrow.up") }
                 .disabled(fileURL == nil)

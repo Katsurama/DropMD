@@ -1871,6 +1871,84 @@ MainActor.assumeIsolated {
             check("单行网页 h1 粘进空正文段落保留标题", md(tv), "# 网页大标题\n")
         }
     }
+    // 导出为 Word（.docx，beta）：标题层级、有序/无序嵌套列表、表格边框、本机图片嵌入、网络图片拦截、超链接、代码块、扩展行内格式
+    do {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("DropMDWordTest-\(UUID().uuidString)", isDirectory: true)
+        try! fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+
+        let imgDir = dir.appendingPathComponent("图 片", isDirectory: true)
+        try! fm.createDirectory(at: imgDir, withIntermediateDirectories: true)
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        try! png.write(to: imgDir.appendingPathComponent("测试 图.png"))
+
+        let sample = """
+        ---
+        title: [bad: yaml
+        ---
+
+        # 一级标题
+        ## 二级标题
+        ### 三级标题
+        #### 四级标题
+        ##### 五级标题
+        ###### 六级标题
+
+        正文包含 <u>下划线</u>、H<sub>2</sub>O、x<sup>2</sup>、==高亮== 和 [官网](https://example.com)。
+
+        - 无序 1
+        - 无序 2
+          - 嵌套无序
+
+        1. 有序 1
+        2. 有序 2
+
+        > [!NOTE]
+        > 提示框内容
+
+        ```swift
+        let a = 1
+        print(a)
+        ```
+
+        | 列 A | 列 B |
+        | :-- | --: |
+        | 1 | 2 |
+
+        ![本地图](%E5%9B%BE%20%E7%89%87/%E6%B5%8B%E8%AF%95%20%E5%9B%BE.png)
+
+        ![网络图](https://127.0.0.1:9999/should_not_fetch.png)
+        """
+        let outDocx = dir.appendingPathComponent("out.docx")
+        try! WordExport.export(markdown: sample, to: outDocx, base: dir)
+
+        let unpack = dir.appendingPathComponent("unpacked", isDirectory: true)
+        try! fm.createDirectory(at: unpack, withIntermediateDirectories: true)
+        let ditto = Process()
+        ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        ditto.arguments = ["-x", "-k", outDocx.path, unpack.path]
+        try! ditto.run()
+        ditto.waitUntilExit()
+
+        let docXML = (try? String(contentsOf: unpack.appendingPathComponent("word/document.xml"), encoding: .utf8)) ?? ""
+        let relsXML = (try? String(contentsOf: unpack.appendingPathComponent("word/_rels/document.xml.rels"), encoding: .utf8)) ?? ""
+        let stylesXML = (try? String(contentsOf: unpack.appendingPathComponent("word/styles.xml"), encoding: .utf8)) ?? ""
+        let media = (try? fm.contentsOfDirectory(atPath: unpack.appendingPathComponent("word/media").path)) ?? []
+
+        let checks: [(String, Bool)] = [
+            ("Word 导出标题层级 H1-H6", (1...6).allSatisfy { docXML.contains("Heading\($0)") }),
+            ("Word 导出有序与无序列表", docXML.contains("<w:numPr>")),
+            ("Word 导出表格与网格边框", docXML.contains("<w:tbl>") && stylesXML.contains("w:insideH") && stylesXML.contains("w:insideV")),
+            ("Word 导出嵌入本机图片且拦截网络图片", docXML.contains("r:embed=") && !media.isEmpty && !docXML.contains("should_not_fetch")),
+            ("Word 导出超链接", docXML.contains("Hyperlink") && relsXML.contains("https://example.com")),
+            ("Word 导出代码块与浅灰底色", docXML.contains("SourceCode") && stylesXML.contains("F6F8FA")),
+            ("Word 导出下划线上下标高亮", docXML.contains("w:u ") && docXML.contains("subscript") && docXML.contains("superscript") && docXML.contains("w:highlight")),
+        ]
+        for (name, ok) in checks {
+            check(name, ok ? "ok" : "fail", "ok")
+        }
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

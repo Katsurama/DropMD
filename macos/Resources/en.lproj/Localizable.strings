@@ -164,6 +164,7 @@
 "公式块" = "Formula Block";
 "换行（不分段）" = "Line Break (Same Paragraph)";
 "导出 PDF…" = "Export PDF…";
+"导出为 Word 文档（beta）…" = "Export as Word Document (beta)…";
 "导出 HTML…" = "Export HTML…";
 
 /* EditorController.swift */
@@ -195,6 +196,8 @@
 "插入公式块" = "Insert Formula Block";
 "LaTeX 格式" = "LaTeX";
 "导出 HTML 失败" = "Couldn't Export HTML";
+"导出 Word 失败" = "Couldn't Export Word";
+"导出为 Word" = "Export as Word";
 "导出为 %@" = "Export as %@";
 "网络图片未加载（隐私保护）" = "Web image not loaded (privacy protection)";
 "：" = ": ";
@@ -207,7 +210,7 @@
 "语言" = "Language";
 "显示方式" = "View";
 "单页（⌘1） / 双页（⌘2）" = "Page (⌘1) / Split (⌘2)";
-"导出 PDF / HTML" = "Export PDF / HTML";
+"导出 PDF / Word / HTML" = "Export PDF / Word / HTML";
 "格式面板（⌥⌘I）" = "Format Panel (⌥⌘I)";
 "转换文件" = "Convert Files";
 "（%@）" = " (%@)";

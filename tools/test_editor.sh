@@ -7,5 +7,5 @@ S=macos/Sources/DropMD
 OUT="$(mktemp -d)"
 swiftc -O -o "$OUT/editor_test" tools/editor_test/main.swift \
   "$S/MarkdownCodec.swift" "$S/MarkdownInline.swift" "$S/MarkdownSerialize.swift" \
-  "$S/RichBridge.swift" "$S/RichStyle.swift" "$S/RichTextView.swift" "$S/RichLayoutManager.swift" "$S/RichTextView+Paste.swift" "$S/RichTextView+Table.swift" "$S/RichTextView+Menu.swift" "$S/RichTextView+Keyboard.swift" "$S/EditorAction.swift" "$S/DocLanguage.swift" "$S/MathRenderer.swift" "$S/HTMLExport.swift" "$S/Planner.swift" "$S/MarkdownDocument.swift" "$S/FileDeletionWatch.swift"
+  "$S/RichBridge.swift" "$S/RichStyle.swift" "$S/RichTextView.swift" "$S/RichLayoutManager.swift" "$S/RichTextView+Paste.swift" "$S/RichTextView+Table.swift" "$S/RichTextView+Menu.swift" "$S/RichTextView+Keyboard.swift" "$S/EditorAction.swift" "$S/DocLanguage.swift" "$S/MathRenderer.swift" "$S/HTMLExport.swift" "$S/WordExport.swift" "$S/Engine.swift" "$S/Planner.swift" "$S/MarkdownDocument.swift" "$S/FileDeletionWatch.swift"
 "$OUT/editor_test"
