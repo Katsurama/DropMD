@@ -11,7 +11,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
     // 插入
     case link, image, table, rule, details, callout, footnote, inlineMath, mathBlock, lineBreak, date, emoji
     // 导出
-    case exportPDF, exportHTML
+    case exportPDF, exportWord, exportHTML
 
     var id: String { rawValue }
 
@@ -68,6 +68,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
         case .mathBlock: return String(localized: "公式块")
         case .lineBreak: return String(localized: "换行（不分段）")
         case .exportPDF: return String(localized: "导出 PDF…")
+        case .exportWord: return String(localized: "导出为 Word 文档（beta）…")
         case .exportHTML: return String(localized: "导出 HTML…")
         }
     }
@@ -112,6 +113,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
         case .inlineMath, .mathBlock: return "function"
         case .lineBreak: return "return"
         case .exportPDF: return "doc.richtext"
+        case .exportWord: return "doc.text"
         case .exportHTML: return "globe"
         }
     }
@@ -149,6 +151,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
         case .inlineMath: return KeyboardShortcut("m", modifiers: [.command, .option])
         case .mathBlock: return KeyboardShortcut("m", modifiers: [.command, .shift, .option])
         case .exportPDF: return KeyboardShortcut("p", modifiers: [.command, .option])
+        case .exportWord: return nil
         case .exportHTML: return KeyboardShortcut("e", modifiers: [.command, .shift])
         case .lineBreak: return KeyboardShortcut(.return, modifiers: .shift)
         case .rule: return nil

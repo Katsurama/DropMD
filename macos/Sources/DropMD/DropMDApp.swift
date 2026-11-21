@@ -253,7 +253,7 @@ struct FormatCommands: Commands {
     var body: some Commands {
         CommandGroup(after: .saveItem) {
             Divider()
-            ActionMenuItems(actions: [.exportPDF, .exportHTML], editor: editor)
+            ActionMenuItems(actions: [.exportPDF, .exportWord, .exportHTML], editor: editor)
         }
         CommandGroup(before: .toolbar) {
             Button("单页", systemImage: "doc.richtext") { switchMode?(.rich) }

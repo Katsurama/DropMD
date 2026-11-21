@@ -516,6 +516,7 @@ final class EditorController: ObservableObject {
         case .date: insertDate()
         case .emoji: NSApp.orderFrontCharacterPalette(nil)
         case .exportPDF: exportPDF()
+        case .exportWord: exportWord()
         case .exportHTML: exportHTML()
         }
         selectionChanged()
@@ -757,9 +758,9 @@ final class EditorController: ObservableObject {
         a.runModal()
     }
 
-    private func savePanel(ext: String, type: UTType) -> URL? {
+    private func savePanel(ext: String, type: UTType, title: String? = nil) -> URL? {
         let p = NSSavePanel()
-        p.title = String(localized: "导出为 \(ext.uppercased())")
+        p.title = title ?? String(localized: "导出为 \(ext.uppercased())")
         p.prompt = String(localized: "导出")
         p.allowedContentTypes = [type]
         p.canCreateDirectories = true
@@ -774,6 +775,23 @@ final class EditorController: ObservableObject {
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
             .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+
+    /// 导出为 Word（.docx，beta）
+    func exportWord() {
+        let text = currentMarkdown
+        let docxType = UTType(filenameExtension: "docx") ?? .data
+        guard let url = savePanel(ext: "docx", type: docxType, title: String(localized: "导出为 Word")) else { return }
+        let base = fileURL?.deletingLastPathComponent()
+        Task { @MainActor in
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try WordExport.export(markdown: text, to: url, base: base)
+                }.value
+            } catch {
+                self.alert(String(localized: "导出 Word 失败"), error.localizedDescription)
+            }
+        }
     }
 
     /// 导出 HTML 时提示框标题用界面语言
