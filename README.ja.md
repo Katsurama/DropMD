@@ -12,7 +12,7 @@
 
 Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換することもできます。すべてお使いの Mac 上で処理します
 
-[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-インストール) [![Version](https://img.shields.io/badge/Version-1.0.0-0a84ff?style=flat-square)](docs/发行说明.md) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE) [![Patreon](https://img.shields.io/badge/Patreon-%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-F96854?style=flat-square&logo=patreon&logoColor=white)](https://www.patreon.com/c/katsurama/membership) [![Afdian](https://img.shields.io/badge/Afdian-%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-946ce6?style=flat-square)](https://afdian.com/a/katsurama) [![Discord](https://img.shields.io/badge/Discord-%E5%8F%82%E5%8A%A0%E3%81%99%E3%82%8B-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/VUne62RvrJ)
+[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-インストール) [![Version](https://img.shields.io/badge/Version-1.0.0-0a84ff?style=flat-square)](docs/发行说明.md) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE) [![GitHub Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-ea4aaa?style=flat-square&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Katsurama) [![Patreon](https://img.shields.io/badge/Patreon-%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-F96854?style=flat-square&logo=patreon&logoColor=white)](https://www.patreon.com/c/katsurama/membership) [![Afdian](https://img.shields.io/badge/Afdian-%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B-946ce6?style=flat-square)](https://afdian.com/a/katsurama) [![Discord](https://img.shields.io/badge/Discord-%E5%8F%82%E5%8A%A0%E3%81%99%E3%82%8B-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/VUne62RvrJ)
 
 <br>
 
@@ -172,6 +172,7 @@ Swift のインターフェイスは、アプリ内のローカルエンジン�
 
 DropMD がお役に立てたら、コーヒー一杯分の支援が今後の開発の励みになります ❤️
 
+<a href="https://github.com/sponsors/Katsurama"><img src="https://img.shields.io/badge/%F0%9F%92%96%20%E6%B0%97%E3%81%AB%E5%85%A5%E3%81%A3%E3%81%9F%E3%82%89-GitHub%20Sponsors%20%E3%81%A7%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B%20%E2%86%92-ea4aaa?style=for-the-badge&labelColor=3b1d2e&logo=githubsponsors&logoColor=white" alt="GitHub Sponsors で支援する" height="80"></a><br><br>
 <a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/%E2%98%95%20%E6%B0%97%E3%81%AB%E5%85%A5%E3%81%A3%E3%81%9F%E3%82%89-Patreon%20%E3%81%A7%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B%20%E2%86%92-F96854?style=for-the-badge&labelColor=3a1f1a&logo=patreon&logoColor=white" alt="Patreon で支援する" height="80"></a><br><br>
 <a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20%E6%B0%97%E3%81%AB%E5%85%A5%E3%81%A3%E3%81%9F%E3%82%89-Afdian%20%E3%81%A7%E6%94%AF%E6%8F%B4%E3%81%99%E3%82%8B%20%E2%86%92-946ce6?style=for-the-badge&labelColor=2d2640" alt="Afdian で支援する" height="80"></a>
 
