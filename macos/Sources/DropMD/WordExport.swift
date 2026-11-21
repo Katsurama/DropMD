@@ -1,46 +1,41 @@
 import Foundation
-import ImageIO
-import UniformTypeIdentifiers
 
 /// 将 Markdown 文档导出为 Word（.docx）。
-/// 优先使用随程序打包的 Pandoc，同时修饰生成的 OOXML 样式表（表格网格边框、代码块浅灰底色与自动换行）；
-/// 开发或单测环境中若无 Pandoc，也支持由 MarkdownCodec 直接生成标准 OOXML（.docx）。
+/// 使用随程序打包的 Pandoc，同时修饰生成的 OOXML 样式表（表格网格边框、代码块浅灰底色与自动换行）。
 enum WordExport {
     enum ExportError: LocalizedError {
+        case pandocNotFound
         case failed(String)
 
         var errorDescription: String? {
             switch self {
-            case .failed(let message): return message
+            case .pandocNotFound:
+                return String(localized: "找不到 Word 导出组件（Pandoc），程序可能不完整，请重新下载安装。")
+            case .failed(let message):
+                return message
             }
         }
     }
 
     /// 导出 Markdown 为 .docx 文件；base 为文档所在的文件夹（用于解析相对路径的本机图片）
     static func export(markdown: String, to destination: URL, base: URL?) throws {
+        guard let pandoc = pandocExecutable() else { throw ExportError.pandocNotFound }
         let fm = FileManager.default
         let tempDir = fm.temporaryDirectory.appendingPathComponent("dropmd-docx-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: tempDir) }
 
         let tempDocx = tempDir.appendingPathComponent("out.docx")
-        if let pandoc = pandocExecutable() {
-            try exportWithPandoc(pandoc, markdown: markdown, to: tempDocx, base: base, tempDir: tempDir)
-            try polishPandocStyles(at: tempDocx, tempDir: tempDir)
-        } else {
-            try exportBuiltIn(markdown: markdown, to: tempDocx, base: base, tempDir: tempDir)
-        }
+        try exportWithPandoc(pandoc, markdown: markdown, to: tempDocx, base: base, tempDir: tempDir)
+        try polishPandocStyles(at: tempDocx, tempDir: tempDir)
 
-        if fm.fileExists(atPath: destination.path) {
-            _ = try fm.replaceItemAt(destination, withItemAt: tempDocx)
-        } else {
-            try fm.moveItem(at: tempDocx, to: destination)
-        }
+        // 原子写到目标所在卷，避免跨卷 replaceItemAt 失败与悬空符号链接报错
+        try Data(contentsOf: tempDocx).write(to: destination, options: .atomic)
     }
 
     // MARK: - Pandoc 导出路径
 
-    /// 查找随程序打包或本机安装的 Pandoc
+    /// 查找随程序打包的 Pandoc（仅调试构建回退到仓库内的二进制）
     static func pandocExecutable() -> URL? {
         if let engine = Engine.executableURL {
             let dir = engine.deletingLastPathComponent()
@@ -55,12 +50,11 @@ enum WordExport {
                 if FileManager.default.isExecutableFile(atPath: p.path) { return p }
             }
         }
+        #if DEBUG
         let repoPandoc = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("packaging/pandoc/pandoc")
         if FileManager.default.isExecutableFile(atPath: repoPandoc.path) { return repoPandoc }
-        for path in ["/opt/homebrew/bin/pandoc", "/usr/local/bin/pandoc"] where FileManager.default.isExecutableFile(atPath: path) {
-            return URL(fileURLWithPath: path)
-        }
+        #endif
         return nil
     }
 
@@ -77,14 +71,30 @@ enum WordExport {
         return "```yaml\n" + (body.isEmpty ? "" : body + "\n") + "```\n" + rest
     }
 
+    /// 展开折叠块：保留粗体标题与内部内容，避免 Pandoc 把 <details>/<summary> 当作原始 HTML 块丢弃
+    private static func flattenDetails(_ blocks: [MDBlock]) -> [MDBlock] {
+        blocks.flatMap { block -> [MDBlock] in
+            guard case .details(let summary, let body, _) = block else { return [block] }
+            var out: [MDBlock] = []
+            if !summary.isEmpty {
+                out.append(.line(MDLine(kind: .body, runs: [MDRun(text: summary, bold: true)])))
+            }
+            out.append(contentsOf: flattenDetails(body))
+            return out
+        }
+    }
+
     /// 供 Pandoc 使用的 Lua 过滤器：
-    /// 1. <u> / <sub> / <sup> / <kbd> / <mark> / <br> 转为原生 Word 样式；
-    /// 2. 去掉 <details> / <summary> 标签外壳，保留标题和内部内容；
+    /// 1. <u> / <sub> / <sup> / <kbd> / <mark> / <b> / <i> / <s> / <del> / <br> 转为原生 Word 样式；
+    /// 2. 兜底展开未被 MarkdownCodec 拆开的 <details> / <summary> 原始 HTML 块；
     /// 3. 提示框标题（Note / Tip 等）替换为当前界面语言的粗体标题；
-    /// 4. 拦截 http / https 网络图片，绝不联网请求；本机路径的 %20 解码以便 Pandoc 读取文件；
+    /// 4. 只放行 data:image/ 与本机存在的文件（写入 mediabag 避免二次解码），拦截其余一切 URI 方案；
     /// 5. 表格设为占满页面宽度。
     private static let pandocLuaFilter = #"""
-    local tags = {u = true, sub = true, sup = true, kbd = true, mark = true}
+    local tags = {
+      u = true, sub = true, sup = true, kbd = true, mark = true,
+      b = true, strong = true, i = true, em = true, s = true, del = true,
+    }
     local callouts = {
       note = os.getenv("DROPMD_CALLOUT_NOTE"),
       tip = os.getenv("DROPMD_CALLOUT_TIP"),
@@ -92,12 +102,41 @@ enum WordExport {
       warning = os.getenv("DROPMD_CALLOUT_WARNING"),
       caution = os.getenv("DROPMD_CALLOUT_CAUTION"),
     }
+    local img_count = 0
 
     local function url_decode(s)
       return (s:gsub("%%(%x%x)", function(h) return string.char(tonumber(h, 16)) end))
     end
 
-    function Inlines(inlines)
+    local function trim(s)
+      return (s:gsub("^%s+", ""):gsub("%s+$", ""))
+    end
+
+    local function blocked_placeholder(el)
+      local alt = pandoc.utils.stringify(el.caption)
+      local label = os.getenv("DROPMD_BLOCKED_IMAGE") or "Web image not loaded"
+      local colon = os.getenv("DROPMD_COLON") or ": "
+      return pandoc.Emph({pandoc.Str("[" .. label .. (alt ~= "" and (colon .. alt) or "") .. "]")})
+    end
+
+    local function missing_placeholder(el)
+      local alt = pandoc.utils.stringify(el.caption)
+      local label = os.getenv("DROPMD_IMAGE_LABEL") or "Image"
+      return pandoc.Emph({pandoc.Str("[" .. (alt ~= "" and alt or label) .. "]")})
+    end
+
+    local function strip_tag(s, name)
+      local out = s
+      while true do
+        local l = out:lower()
+        local a, b = l:find("</?" .. name .. "%f[%s/>][^>]*>")
+        if not a then break end
+        out = out:sub(1, a - 1) .. out:sub(b + 1)
+      end
+      return out
+    end
+
+    local function handle_inlines(inlines)
       local stack = {}
       local cur = {}
       local function wrap(tag, content)
@@ -106,6 +145,9 @@ enum WordExport {
         elseif tag == "sup" then return pandoc.Superscript(content)
         elseif tag == "kbd" then return pandoc.Code(pandoc.utils.stringify(content))
         elseif tag == "mark" then return pandoc.Span(content, {class = "mark"})
+        elseif tag == "b" or tag == "strong" then return pandoc.Strong(content)
+        elseif tag == "i" or tag == "em" then return pandoc.Emph(content)
+        elseif tag == "s" or tag == "del" then return pandoc.Strikeout(content)
         end
         return pandoc.Span(content)
       end
@@ -138,16 +180,37 @@ enum WordExport {
       return cur
     end
 
-    function RawBlock(el)
-      if el.format == "html" then
-        local t = el.text:lower()
-        if t:match("^%s*<details") or t:match("^%s*</details>") or t:match("^%s*<summary") or t:match("^%s*</summary>") then
-          return {}
+    local function handle_raw_block(el)
+      if el.format ~= "html" then return nil end
+      local lower = el.text:lower()
+      if not (lower:match("^%s*</?details[%s/>]") or lower:match("^%s*</?summary[%s/>]")) then
+        return nil
+      end
+      local out = {}
+      local rest = el.text
+      local s1, s2 = rest:lower():find("<summary%f[%s>][^>]*>")
+      if s1 then
+        local e1, e2 = rest:lower():find("</summary%s*>", s2 + 1)
+        if e1 then
+          local sum_html = rest:sub(s2 + 1, e1 - 1)
+          local sum_text = trim(pandoc.utils.stringify(pandoc.read(sum_html, "html")))
+          if sum_text ~= "" then
+            table.insert(out, pandoc.Para({pandoc.Strong({pandoc.Str(sum_text)})}))
+          end
+          rest = rest:sub(1, s1 - 1) .. "\n" .. rest:sub(e2 + 1)
         end
       end
+      rest = trim(strip_tag(strip_tag(rest, "details"), "summary"))
+      if rest ~= "" then
+        local doc = pandoc.read(rest, "markdown-yaml_metadata_block-pandoc_title_block")
+        for _, b in ipairs(doc.blocks) do
+          table.insert(out, b)
+        end
+      end
+      return out
     end
 
-    function Div(el)
+    local function handle_div(el)
       if el.classes:includes("title") and #el.content == 1 and el.content[1].t == "Para" then
         local key = pandoc.utils.stringify(el.content[1]):lower()
         if callouts[key] and callouts[key] ~= "" then
@@ -157,28 +220,48 @@ enum WordExport {
       end
     end
 
-    function Image(el)
-      local lower = el.src:lower()
-      if lower:match("^https?://") or lower:match("^//") then
-        local alt = pandoc.utils.stringify(el.caption)
-        local label = os.getenv("DROPMD_BLOCKED_IMAGE") or "Web image not loaded"
-        local colon = os.getenv("DROPMD_COLON") or ": "
-        return pandoc.Emph({pandoc.Str("[" .. label .. (alt ~= "" and (colon .. alt) or "") .. "]")})
+    local function handle_image(el)
+      local src = trim(el.src or "")
+      local lower = src:lower()
+      if lower:match("^data:image/") then
+        el.src = src
+        return el
       end
-      if not lower:match("^data:") then
-        local base = os.getenv("DROPMD_BASE_DIR") or ""
-        local decoded = url_decode(el.src)
-        local candidate = (decoded:sub(1, 1) == "/" or base == "") and decoded or (base .. "/" .. decoded)
-        local f = io.open(candidate, "rb")
-        if f then
-          f:close()
-          el.src = candidate
-        end
+      -- Pandoc 会把尖括号地址里的前导空格编成 %20，解码后一并拦截协议头，避免 fetchItem 联网或读系统路径
+      local decoded = url_decode(src)
+      local decoded_lower = trim(decoded):lower()
+      if lower:match("^//") or lower:match("^[%a][%w+.-]*:")
+         or decoded_lower:match("^//") or decoded_lower:match("^[%a][%w+.-]*:") then
+        return blocked_placeholder(el)
       end
+      if decoded == "" or decoded:find("%z") then
+        return missing_placeholder(el)
+      end
+      local base = os.getenv("DROPMD_BASE_DIR") or ""
+      local is_abs = decoded:sub(1, 1) == "/"
+      if not is_abs and base == "" then
+        return missing_placeholder(el)
+      end
+      local candidate = is_abs and decoded or (base .. "/" .. decoded)
+      local f = io.open(candidate, "rb")
+      if not f then
+        return missing_placeholder(el)
+      end
+      -- macOS 上 io.open 可以打开目录，read("*a") 会返回 nil；写入 mediabag 避免 Pandoc 二次 URL 解码
+      local bytes = f:read("*a")
+      f:close()
+      if not bytes or #bytes == 0 then
+        return missing_placeholder(el)
+      end
+      img_count = img_count + 1
+      local ext = decoded:match("%.([%w]+)$")
+      local name = "dropmd_img_" .. img_count .. (ext and ("." .. ext:lower()) or "")
+      pandoc.mediabag.insert(name, nil, bytes)
+      el.src = name
       return el
     end
 
-    function Table(el)
+    local function handle_table(el)
       local cols = #el.colspecs
       if cols > 0 then
         local has_width = false
@@ -194,13 +277,20 @@ enum WordExport {
       end
       return el
     end
+
+    return {
+      { RawBlock = handle_raw_block },
+      { Inlines = handle_inlines, Div = handle_div, Image = handle_image, Table = handle_table },
+    }
     """#
 
     private static func exportWithPandoc(_ pandoc: URL, markdown: String, to output: URL, base: URL?, tempDir: URL) throws {
         let inputURL = tempDir.appendingPathComponent("input.md")
         let filterURL = tempDir.appendingPathComponent("docx_filter.lua")
-        // 通过 MarkdownCodec 规范化一轮：将无空行紧贴的表格、下划线标题、缩进代码等统一为标准语法
-        let normalized = MarkdownCodec.serialize(MarkdownCodec.parse(markdown), preserving: markdown)
+        let dataDir = tempDir.appendingPathComponent("data", isDirectory: true)
+        try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
+        // 不传 preserving，避免直接返回原文导致紧贴段落的表格缺少空行；同时展开折叠块
+        let normalized = MarkdownCodec.serialize(flattenDetails(MarkdownCodec.parse(markdown)))
         try Data(convertFrontMatter(normalized).utf8).write(to: inputURL)
         try Data(pandocLuaFilter.utf8).write(to: filterURL)
 
@@ -218,6 +308,7 @@ enum WordExport {
             "+lists_without_preceding_blankline",
             "+hard_line_breaks",
             "-yaml_metadata_block",
+            "-pandoc_title_block",
             "-implicit_figures",
             "-subscript",
             "-superscript",
@@ -227,26 +318,30 @@ enum WordExport {
             "-smart",
         ].joined()
 
-        var args = [
+        let args = [
             inputURL.path,
             "--from=\(fromFormat)",
             "--to=docx",
+            "--data-dir=\(dataDir.path)",
             "--lua-filter=\(filterURL.path)",
             "-o", output.path,
         ]
-        if let base {
-            args.append("--resource-path=\(base.path)")
-        }
 
         let proc = Process()
         proc.executableURL = pandoc
         proc.arguments = args
-        if let base { proc.currentDirectoryURL = base }
+        // 工作目录固定为临时目录，避免未保存文档中的相对路径解析到宿主工作目录
+        proc.currentDirectoryURL = tempDir
         var env = ProcessInfo.processInfo.environment
         for c in MDCallout.allCases { env["DROPMD_CALLOUT_\(c.rawValue)"] = c.title }
         env["DROPMD_BLOCKED_IMAGE"] = String(localized: "网络图片未加载（隐私保护）")
         env["DROPMD_COLON"] = String(localized: "：")
-        if let base { env["DROPMD_BASE_DIR"] = base.path }
+        env["DROPMD_IMAGE_LABEL"] = String(localized: "图片")
+        if let base {
+            env["DROPMD_BASE_DIR"] = base.path
+        } else {
+            env.removeValue(forKey: "DROPMD_BASE_DIR")
+        }
         proc.environment = env
 
         let errPipe = Pipe()
@@ -333,259 +428,6 @@ enum WordExport {
         }
     }
 
-    // MARK: - 内置纯 Swift OOXML 兜底生成器（无 Pandoc 环境时使用）
-
-    private struct Rel {
-        let id: String
-        let type: String
-        let target: String
-        let external: Bool
-    }
-
-    private static func exportBuiltIn(markdown: String, to output: URL, base: URL?, tempDir: URL) throws {
-        let pkg = tempDir.appendingPathComponent("pkg", isDirectory: true)
-        let wordDir = pkg.appendingPathComponent("word", isDirectory: true)
-        let relsDir = pkg.appendingPathComponent("_rels", isDirectory: true)
-        let wordRelsDir = wordDir.appendingPathComponent("_rels", isDirectory: true)
-        let mediaDir = wordDir.appendingPathComponent("media", isDirectory: true)
-        let fm = FileManager.default
-        for d in [pkg, wordDir, relsDir, wordRelsDir] {
-            try fm.createDirectory(at: d, withIntermediateDirectories: true)
-        }
-
-        let blocks = MarkdownCodec.parse(markdown)
-        var rels: [Rel] = [
-            Rel(id: "rId1", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles", target: "styles.xml", external: false),
-            Rel(id: "rId2", type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering", target: "numbering.xml", external: false),
-        ]
-        var nextRel = 3
-        var nextPicId = 1
-        var imageExts: Set<String> = []
-        var bodyXML = ""
-
-        func addHyperlink(_ url: String) -> String {
-            let id = "rId\(nextRel)"
-            nextRel += 1
-            rels.append(Rel(id: id, type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", target: url, external: true))
-            return id
-        }
-
-        func addImage(_ rawPath: String, alt: String) -> String? {
-            guard let img = resolveLocalImage(rawPath, base: base) else { return nil }
-            try? fm.createDirectory(at: mediaDir, withIntermediateDirectories: true)
-            let id = "rId\(nextRel)"
-            nextRel += 1
-            let picId = nextPicId
-            nextPicId += 1
-            let name = "image\(picId).\(img.ext)"
-            try? img.data.write(to: mediaDir.appendingPathComponent(name))
-            imageExts.insert(img.ext)
-            rels.append(Rel(id: id, type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: "media/\(name)", external: false))
-            // Word 页面正文宽约 15cm（5,400,000 EMU），图片按比例缩放到不超过页面宽度
-            let maxWidthPts: Double = 440
-            let scale = min(1.0, maxWidthPts / max(img.width, 1))
-            let cx = Int((img.width * scale * 12700).rounded())
-            let cy = Int((img.height * scale * 12700).rounded())
-            let descr = xmlEscape(alt)
-            return """
-            <w:r><w:drawing><wp:inline><wp:extent cx="\(cx)" cy="\(cy)"/><wp:docPr id="\(picId)" name="Picture \(picId)" descr="\(descr)"/>\
-            <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">\
-            <pic:pic><pic:nvPicPr><pic:cNvPr id="\(picId)" name="\(xmlEscape(name))" descr="\(descr)"/><pic:cNvPicPr/></pic:nvPicPr>\
-            <pic:blipFill><a:blip r:embed="\(id)"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>\
-            <pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="\(cx)" cy="\(cy)"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>\
-            </pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>
-            """
-        }
-
-        func renderRuns(_ runs: [MDRun], forceBold: Bool = false) -> String {
-            var out = ""
-            for r in runs {
-                if let src = r.image {
-                    let drawing = addImage(src, alt: r.text) ?? "<w:r><w:t xml:space=\"preserve\">[\(xmlEscape(r.text.isEmpty ? src : r.text))]</w:t></w:r>"
-                    if let link = r.link, !link.isEmpty {
-                        out += "<w:hyperlink r:id=\"\(addHyperlink(link))\">\(drawing)</w:hyperlink>"
-                    } else {
-                        out += drawing
-                    }
-                    continue
-                }
-                var rPr = ""
-                if r.code || r.kbd { rPr += "<w:rStyle w:val=\"VerbatimChar\"/>" }
-                if r.link != nil { rPr += "<w:rStyle w:val=\"Hyperlink\"/>" }
-                if r.bold || forceBold { rPr += "<w:b/><w:bCs/>" }
-                if r.italic { rPr += "<w:i/><w:iCs/>" }
-                if r.underline || r.link != nil { rPr += "<w:u w:val=\"single\"/>" }
-                if r.strike { rPr += "<w:strike/>" }
-                if r.highlight { rPr += "<w:highlight w:val=\"yellow\"/>" }
-                if r.sup { rPr += "<w:vertAlign w:val=\"superscript\"/>" }
-                if r.sub { rPr += "<w:vertAlign w:val=\"subscript\"/>" }
-                let pr = rPr.isEmpty ? "" : "<w:rPr>\(rPr)</w:rPr>"
-                let lines = r.text.replacingOccurrences(of: "\u{2028}", with: "\n").components(separatedBy: "\n")
-                var inner = ""
-                for (idx, part) in lines.enumerated() {
-                    if idx > 0 { inner += "<w:br/>" }
-                    inner += "<w:t xml:space=\"preserve\">\(xmlEscape(part))</w:t>"
-                }
-                let runXML = "<w:r>\(pr)\(inner)</w:r>"
-                if let link = r.link, !link.isEmpty {
-                    out += "<w:hyperlink r:id=\"\(addHyperlink(link))\">\(runXML)</w:hyperlink>"
-                } else {
-                    out += runXML
-                }
-            }
-            return out
-        }
-
-        func renderBlocks(_ list: [MDBlock]) {
-            for block in list {
-                switch block {
-                case .line(let line):
-                    switch line.kind {
-                    case .body:
-                        bodyXML += "<w:p><w:pPr><w:pStyle w:val=\"BodyText\"/></w:pPr>\(renderRuns(line.runs))</w:p>"
-                    case .heading(let level):
-                        let lv = min(max(level, 1), 6)
-                        bodyXML += "<w:p><w:pPr><w:pStyle w:val=\"Heading\(lv)\"/></w:pPr>\(renderRuns(line.runs))</w:p>"
-                    case .quote:
-                        var runs = line.runs
-                        if runs.count == 1, runs[0].literal, let c = MDCallout(header: runs[0].text) {
-                            runs = [MDRun(text: c.title, bold: true)]
-                        }
-                        bodyXML += "<w:p><w:pPr><w:pStyle w:val=\"BlockText\"/></w:pPr>\(renderRuns(runs))</w:p>"
-                    case .bullet(let depth):
-                        let ilvl = min(max(depth, 0), 8)
-                        bodyXML += "<w:p><w:pPr><w:pStyle w:val=\"Compact\"/><w:numPr><w:ilvl w:val=\"\(ilvl)\"/><w:numId w:val=\"1\"/></w:numPr></w:pPr>\(renderRuns(line.runs))</w:p>"
-                    case .ordered(let depth):
-                        let ilvl = min(max(depth, 0), 8)
-                        bodyXML += "<w:p><w:pPr><w:pStyle w:val=\"Compact\"/><w:numPr><w:ilvl w:val=\"\(ilvl)\"/><w:numId w:val=\"2\"/></w:numPr></w:pPr>\(renderRuns(line.runs))</w:p>"
-                    case .task(let depth, let done):
-                        let ilvl = min(max(depth, 0), 8)
-                        let box = MDRun(text: (done ? "☑ " : "☐ "))
-                        bodyXML += "<w:p><w:pPr><w:pStyle w:val=\"Compact\"/><w:numPr><w:ilvl w:val=\"\(ilvl)\"/><w:numId w:val=\"1\"/></w:numPr></w:pPr>\(renderRuns([box] + line.runs))</w:p>"
-                    }
-                case .code(_, let lines, _):
-                    let content = lines.enumerated().map { idx, l in
-                        (idx > 0 ? "<w:br/>" : "") + "<w:t xml:space=\"preserve\">\(xmlEscape(l))</w:t>"
-                    }.joined()
-                    bodyXML += "<w:p><w:pPr><w:pStyle w:val=\"SourceCode\"/></w:pPr><w:r><w:rPr><w:rStyle w:val=\"VerbatimChar\"/></w:rPr>\(content)</w:r></w:p>"
-                case .table(let rows, let align):
-                    let cols = max(1, rows.map(\.count).max() ?? 1)
-                    let gridCols = String(repeating: "<w:gridCol w:w=\"\(9000 / cols)\"/>", count: cols)
-                    var tbl = "<w:tbl><w:tblPr><w:tblStyle w:val=\"Table\"/><w:tblW w:type=\"pct\" w:w=\"5000\"/></w:tblPr><w:tblGrid>\(gridCols)</w:tblGrid>"
-                    for (rIdx, row) in rows.enumerated() {
-                        tbl += "<w:tr>" + (rIdx == 0 ? "<w:trPr><w:tblHeader w:val=\"on\"/></w:trPr>" : "")
-                        for cIdx in 0..<cols {
-                            let marker = cIdx < align.count ? align[cIdx] : "---"
-                            let jc = marker == ":-:" ? "<w:jc w:val=\"center\"/>" : marker == "--:" ? "<w:jc w:val=\"right\"/>" : "<w:jc w:val=\"left\"/>"
-                            let shd = rIdx == 0 ? "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"F6F8FA\"/>" : ""
-                            let runs = cIdx < row.count ? row[cIdx] : []
-                            tbl += "<w:tc><w:tcPr>\(shd)</w:tcPr><w:p><w:pPr><w:pStyle w:val=\"Compact\"/>\(jc)</w:pPr>\(renderRuns(runs, forceBold: rIdx == 0))</w:p></w:tc>"
-                        }
-                        tbl += "</w:tr>"
-                    }
-                    tbl += "</w:tbl>"
-                    bodyXML += tbl
-                case .rule:
-                    bodyXML += "<w:p><w:pPr><w:pBdr><w:bottom w:val=\"single\" w:sz=\"6\" w:space=\"1\" w:color=\"D0D7DE\"/></w:pBdr></w:pPr></w:p>"
-                case .details(let summary, let inner, _):
-                    if !summary.isEmpty {
-                        bodyXML += "<w:p><w:pPr><w:pStyle w:val=\"BodyText\"/></w:pPr>\(renderRuns([MDRun(text: summary, bold: true)]))</w:p>"
-                    }
-                    renderBlocks(inner)
-                case .raw(let text):
-                    let content = text.components(separatedBy: "\n").enumerated().map { idx, l in
-                        (idx > 0 ? "<w:br/>" : "") + "<w:t xml:space=\"preserve\">\(xmlEscape(l))</w:t>"
-                    }.joined()
-                    bodyXML += "<w:p><w:pPr><w:pStyle w:val=\"SourceCode\"/></w:pPr><w:r><w:rPr><w:rStyle w:val=\"VerbatimChar\"/></w:rPr>\(content)</w:r></w:p>"
-                }
-            }
-        }
-
-        renderBlocks(blocks)
-
-        let docXML = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" \
-        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" \
-        xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" \
-        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" \
-        xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-        <w:body>\(bodyXML)<w:sectPr/></w:body>
-        </w:document>
-        """
-        try Data(docXML.utf8).write(to: wordDir.appendingPathComponent("document.xml"))
-        try Data(builtInStylesXML.utf8).write(to: wordDir.appendingPathComponent("styles.xml"))
-        try Data(builtInNumberingXML.utf8).write(to: wordDir.appendingPathComponent("numbering.xml"))
-
-        let relItems = rels.map { r in
-            "<Relationship Id=\"\(r.id)\" Type=\"\(r.type)\" Target=\"\(xmlEscape(r.target))\"\(r.external ? " TargetMode=\"External\"" : "")/>"
-        }.joined()
-        let docRelsXML = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\(relItems)</Relationships>"
-        try Data(docRelsXML.utf8).write(to: wordRelsDir.appendingPathComponent("document.xml.rels"))
-
-        let rootRelsXML = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-        <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-        </Relationships>
-        """
-        try Data(rootRelsXML.utf8).write(to: relsDir.appendingPathComponent(".rels"))
-
-        let imgDefaults = imageExts.sorted().map { ext in
-            let mime = UTType(filenameExtension: ext)?.preferredMIMEType ?? "image/\(ext)"
-            return "<Default Extension=\"\(ext)\" ContentType=\"\(mime)\"/>"
-        }.joined()
-        let contentTypesXML = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-        <Default Extension="xml" ContentType="application/xml"/>
-        <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-        \(imgDefaults)
-        <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-        <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
-        <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
-        </Types>
-        """
-        try Data(contentTypesXML.utf8).write(to: pkg.appendingPathComponent("[Content_Types].xml"))
-
-        guard runCommand("/usr/bin/ditto", ["-c", "-k", "--norsrc", pkg.path, output.path]) else {
-            throw ExportError.failed("Unable to package Word document.")
-        }
-    }
-
-    private static func resolveLocalImage(_ rawPath: String, base: URL?) -> (data: Data, ext: String, width: Double, height: Double)? {
-        let lower = rawPath.lowercased()
-        if lower.hasPrefix("http:") || lower.hasPrefix("https:") || lower.hasPrefix("//") { return nil }
-        var data: Data?
-        var ext = "png"
-        if lower.hasPrefix("data:image/"), let comma = rawPath.firstIndex(of: ",") {
-            let meta = rawPath[..<comma].lowercased()
-            if meta.contains("jpeg") || meta.contains("jpg") { ext = "jpg" }
-            else if meta.contains("gif") { ext = "gif" }
-            data = Data(base64Encoded: String(rawPath[rawPath.index(after: comma)...]), options: .ignoreUnknownCharacters)
-        } else {
-            let decoded = rawPath.removingPercentEncoding ?? rawPath
-            let url = decoded.hasPrefix("/") ? URL(fileURLWithPath: decoded) : base.map { URL(fileURLWithPath: decoded, relativeTo: $0) }
-            if let url, let d = try? Data(contentsOf: url) {
-                data = d
-                let e = url.pathExtension.lowercased()
-                if !e.isEmpty { ext = e == "jpeg" ? "jpg" : e }
-            }
-        }
-        guard let data, let src = CGImageSourceCreateWithData(data as CFData, nil),
-              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
-              let w = props[kCGImagePropertyPixelWidth] as? Double,
-              let h = props[kCGImagePropertyPixelHeight] as? Double, w > 0, h > 0 else { return nil }
-        return (data, ext, w, h)
-    }
-
-    private static func xmlEscape(_ s: String) -> String {
-        s.replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-    }
-
     private static func runCommand(_ launchPath: String, _ arguments: [String]) -> Bool {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: launchPath)
@@ -600,43 +442,4 @@ enum WordExport {
             return false
         }
     }
-
-    private static let builtInStylesXML = """
-    <?xml version="1.0" encoding="UTF-8"?>
-    <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-      <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
-      <w:style w:type="paragraph" w:styleId="BodyText"><w:name w:val="Body Text"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/></w:pPr></w:style>
-      <w:style w:type="paragraph" w:styleId="Compact"><w:name w:val="Compact"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="40" w:after="40"/></w:pPr></w:style>
-      <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="320" w:after="120"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:sz w:val="40"/></w:rPr></w:style>
-      <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="240" w:after="100"/><w:outlineLvl w:val="1"/></w:pPr><w:rPr><w:b/><w:sz w:val="32"/></w:rPr></w:style>
-      <w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="200" w:after="80"/><w:outlineLvl w:val="2"/></w:pPr><w:rPr><w:b/><w:sz w:val="28"/></w:rPr></w:style>
-      <w:style w:type="paragraph" w:styleId="Heading4"><w:name w:val="heading 4"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="160" w:after="60"/><w:outlineLvl w:val="3"/></w:pPr><w:rPr><w:b/><w:sz w:val="24"/></w:rPr></w:style>
-      <w:style w:type="paragraph" w:styleId="Heading5"><w:name w:val="heading 5"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="60"/><w:outlineLvl w:val="4"/></w:pPr><w:rPr><w:b/><w:sz w:val="22"/></w:rPr></w:style>
-      <w:style w:type="paragraph" w:styleId="Heading6"><w:name w:val="heading 6"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="60"/><w:outlineLvl w:val="5"/></w:pPr><w:rPr><w:b/><w:color w:val="595959"/><w:sz w:val="22"/></w:rPr></w:style>
-      <w:style w:type="paragraph" w:styleId="BlockText"><w:name w:val="Block Text"/><w:basedOn w:val="BodyText"/><w:pPr><w:ind w:left="480" w:right="480"/></w:pPr></w:style>
-      <w:style w:type="paragraph" w:customStyle="1" w:styleId="SourceCode"><w:name w:val="Source Code"/><w:basedOn w:val="Normal"/><w:pPr><w:shd w:val="clear" w:color="auto" w:fill="F6F8FA"/><w:spacing w:before="120" w:after="120"/></w:pPr></w:style>
-      <w:style w:type="character" w:customStyle="1" w:styleId="VerbatimChar"><w:name w:val="Verbatim Char"/><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="21"/></w:rPr></w:style>
-      <w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="0969DA"/><w:u w:val="single"/></w:rPr></w:style>
-      <w:style w:type="table" w:default="1" w:styleId="Table"><w:name w:val="Table"/><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="D0D7DE"/><w:left w:val="single" w:sz="4" w:space="0" w:color="D0D7DE"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="D0D7DE"/><w:right w:val="single" w:sz="4" w:space="0" w:color="D0D7DE"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="D0D7DE"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="D0D7DE"/></w:tblBorders></w:tblPr></w:style>
-    </w:styles>
-    """
-
-    private static let builtInNumberingXML: String = {
-        var bulletLvls = ""
-        var decLvls = ""
-        for i in 0...8 {
-            let left = (i + 1) * 720
-            bulletLvls += "<w:lvl w:ilvl=\"\(i)\"><w:numFmt w:val=\"bullet\"/><w:lvlText w:val=\"•\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"\(left)\" w:hanging=\"360\"/></w:pPr></w:lvl>"
-            decLvls += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%\(i + 1).\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"\(left)\" w:hanging=\"360\"/></w:pPr></w:lvl>"
-        }
-        return """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-          <w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="multilevel"/>\(bulletLvls)</w:abstractNum>
-          <w:abstractNum w:abstractNumId="2"><w:multiLevelType w:val="multilevel"/>\(decLvls)</w:abstractNum>
-          <w:num w:numId="1"><w:abstractNumId w:val="1"/></w:num>
-          <w:num w:numId="2"><w:abstractNumId w:val="2"/></w:num>
-        </w:numbering>
-        """
-    }()
 }

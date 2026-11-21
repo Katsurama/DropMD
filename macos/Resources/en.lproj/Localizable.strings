@@ -220,6 +220,9 @@
 "转换引擎没有正常响应。" = "The conversion engine didn't respond properly.";
 "找不到转换引擎，程序可能不完整，请重新下载安装。" = "Can't find the conversion engine. The app may be incomplete; please download and install it again.";
 
+/* WordExport.swift */
+"找不到 Word 导出组件（Pandoc），程序可能不完整，请重新下载安装。" = "Can't find the Word export component (Pandoc). The app may be incomplete; please download and install it again.";
+
 /* FormatInspector.swift */
 "文字" = "Text";
 "列表与缩进" = "Lists & Indent";

@@ -1871,17 +1871,38 @@ MainActor.assumeIsolated {
             check("单行网页 h1 粘进空正文段落保留标题", md(tv), "# 网页大标题\n")
         }
     }
-    // 导出为 Word（.docx，beta）：标题层级、有序/无序嵌套列表、表格边框、本机图片嵌入、网络图片拦截、超链接、代码块、扩展行内格式
-    do {
+    // 导出为 Word（.docx，beta）：标题层级、列表、表格、折叠块、本机图片与隐私拦截、超链接、代码块、扩展行内格式
+    if WordExport.pandocExecutable() != nil {
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent("DropMDWordTest-\(UUID().uuidString)", isDirectory: true)
         try! fm.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: dir) }
 
         let imgDir = dir.appendingPathComponent("图 片", isDirectory: true)
+        let subDir = dir.appendingPathComponent("subdir", isDirectory: true)
         try! fm.createDirectory(at: imgDir, withIntermediateDirectories: true)
+        try! fm.createDirectory(at: subDir, withIntermediateDirectories: true)
         let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
         try! png.write(to: imgDir.appendingPathComponent("测试 图.png"))
+        try! png.write(to: dir.appendingPathComponent("50%20off.png"))
+        let dataPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
+        @MainActor func unzipDocx(_ url: URL, into name: String) -> (doc: String, rels: String, styles: String, media: [String]) {
+            let unpack = dir.appendingPathComponent(name, isDirectory: true)
+            try? fm.removeItem(at: unpack)
+            try! fm.createDirectory(at: unpack, withIntermediateDirectories: true)
+            let ditto = Process()
+            ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            ditto.arguments = ["-x", "-k", url.path, unpack.path]
+            try! ditto.run()
+            ditto.waitUntilExit()
+            check("解压 \(name)", "\(ditto.terminationStatus)", "0")
+            let doc = (try? String(contentsOf: unpack.appendingPathComponent("word/document.xml"), encoding: .utf8)) ?? ""
+            let rels = (try? String(contentsOf: unpack.appendingPathComponent("word/_rels/document.xml.rels"), encoding: .utf8)) ?? ""
+            let styles = (try? String(contentsOf: unpack.appendingPathComponent("word/styles.xml"), encoding: .utf8)) ?? ""
+            let media = (try? fm.contentsOfDirectory(atPath: unpack.appendingPathComponent("word/media").path)) ?? []
+            return (doc, rels, styles, media)
+        }
 
         let sample = """
         ---
@@ -1895,7 +1916,7 @@ MainActor.assumeIsolated {
         ##### 五级标题
         ###### 六级标题
 
-        正文包含 <u>下划线</u>、H<sub>2</sub>O、x<sup>2</sup>、==高亮== 和 [官网](https://example.com)。
+        正文包含 <u>下划线</u>、H<sub>2</sub>O、x<sup>2</sup>、==高亮==、**相邻粗***相邻斜*、*相邻斜二***相邻粗二**、<b>粗标签</b>、<i>斜标签</i>、<s>删标签</s>、<del>删二</del> 和 [官网](https://example.com)。
 
         - 无序 1
         - 无序 2
@@ -1912,41 +1933,107 @@ MainActor.assumeIsolated {
         print(a)
         ```
 
+        结果如下：
+        | 紧贴A | 紧贴B |
+        | --- | --- |
+        | 1 | 2 |
+
         | 列 A | 列 B |
         | :-- | --: |
         | 1 | 2 |
 
+        <details>
+        <summary>折叠标题一</summary>
+
+        折叠正文一
+
+        </details>
+
+        <details>
+        <summary>折叠标题二</summary>
+        折叠正文二
+        </details>
+
         ![本地图](%E5%9B%BE%20%E7%89%87/%E6%B5%8B%E8%AF%95%20%E5%9B%BE.png)
 
+        ![百分号图](50%2520off.png)
+
+        ![内嵌图](\(dataPng))
+
+        ![目录](subdir)
+
+        ![缺失图](missing.png)
+
         ![网络图](https://127.0.0.1:9999/should_not_fetch.png)
+
+        ![](https://127.0.0.1:9999/empty_alt_secret.png)
+
+        ![空格图](< https://127.0.0.1:9999/space_secret.png>)
+
+        ![协议图](//127.0.0.1:9999/proto_secret.png)
+
+        ![FTP图](ftp://127.0.0.1:9999/ftp_secret.png)
+
+        ![本地URI](file:///etc/hosts)
+
+        ![非图Data](data:text/html;base64,PGI+eDwvYj4=)
         """
         let outDocx = dir.appendingPathComponent("out.docx")
         try! WordExport.export(markdown: sample, to: outDocx, base: dir)
-
-        let unpack = dir.appendingPathComponent("unpacked", isDirectory: true)
-        try! fm.createDirectory(at: unpack, withIntermediateDirectories: true)
-        let ditto = Process()
-        ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        ditto.arguments = ["-x", "-k", outDocx.path, unpack.path]
-        try! ditto.run()
-        ditto.waitUntilExit()
-
-        let docXML = (try? String(contentsOf: unpack.appendingPathComponent("word/document.xml"), encoding: .utf8)) ?? ""
-        let relsXML = (try? String(contentsOf: unpack.appendingPathComponent("word/_rels/document.xml.rels"), encoding: .utf8)) ?? ""
-        let stylesXML = (try? String(contentsOf: unpack.appendingPathComponent("word/styles.xml"), encoding: .utf8)) ?? ""
-        let media = (try? fm.contentsOfDirectory(atPath: unpack.appendingPathComponent("word/media").path)) ?? []
+        let res = unzipDocx(outDocx, into: "unpacked")
+        let leaked = ["should_not_fetch", "empty_alt_secret", "space_secret", "proto_secret", "ftp_secret", "etc/hosts", "PGI+"]
+            .contains { res.doc.contains($0) || res.rels.contains($0) }
+        let tblCount = res.doc.components(separatedBy: "<w:tbl>").count - 1
 
         let checks: [(String, Bool)] = [
-            ("Word 导出标题层级 H1-H6", (1...6).allSatisfy { docXML.contains("Heading\($0)") }),
-            ("Word 导出有序与无序列表", docXML.contains("<w:numPr>")),
-            ("Word 导出表格与网格边框", docXML.contains("<w:tbl>") && stylesXML.contains("w:insideH") && stylesXML.contains("w:insideV")),
-            ("Word 导出嵌入本机图片且拦截网络图片", docXML.contains("r:embed=") && !media.isEmpty && !docXML.contains("should_not_fetch")),
-            ("Word 导出超链接", docXML.contains("Hyperlink") && relsXML.contains("https://example.com")),
-            ("Word 导出代码块与浅灰底色", docXML.contains("SourceCode") && stylesXML.contains("F6F8FA")),
-            ("Word 导出下划线上下标高亮", docXML.contains("w:u ") && docXML.contains("subscript") && docXML.contains("superscript") && docXML.contains("w:highlight")),
+            ("Word 导出标题层级 H1-H6", (1...6).allSatisfy { res.doc.contains("Heading\($0)") }),
+            ("Word 导出有序与嵌套无序列表", res.doc.contains("<w:numPr>") && res.doc.contains("w:ilvl w:val=\"1\"")),
+            ("Word 导出紧贴表格与网格边框", tblCount >= 2 && res.doc.contains("紧贴A") && !res.doc.contains("| 紧贴A |") && res.styles.contains("w:insideH") && res.styles.contains("w:insideV")),
+            ("Word 导出折叠块标题与正文", ["折叠标题一", "折叠正文一", "折叠标题二", "折叠正文二"].allSatisfy { res.doc.contains($0) }),
+            ("Word 导出嵌入本地图与百分号文件名", res.doc.contains("r:embed=") && res.media.count == 3),
+            ("Word 导出拦截所有外部/异常图片方案", !leaked && res.doc.contains("网络图片未加载（隐私保护）") && res.doc.contains("缺失图") && !res.doc.contains("missing.png")),
+            ("Word 导出超链接", res.doc.contains("Hyperlink") && res.rels.contains("https://example.com")),
+            ("Word 导出代码块与浅灰底色", res.doc.contains("SourceCode") && res.styles.contains("F6F8FA")),
+            ("Word 导出行内样式与 HTML 标签", res.doc.contains("w:u ") && res.doc.contains("subscript") && res.doc.contains("superscript") && res.doc.contains("w:highlight") && res.doc.contains("<w:b") && res.doc.contains("<w:i") && res.doc.contains("<w:strike") && ["相邻粗", "相邻斜", "粗标签", "斜标签", "删标签", "删二"].allSatisfy { res.doc.contains($0) }),
         ]
         for (name, ok) in checks {
             check(name, ok ? "ok" : "fail", "ok")
+        }
+
+        // 覆盖已有文件与悬空符号链接
+        try! WordExport.export(markdown: "# 覆盖成功\n", to: outDocx, base: dir)
+        check("Word 导出覆盖已有文件", unzipDocx(outDocx, into: "unpacked_overwrite").doc.contains("覆盖成功") ? "ok" : "fail", "ok")
+        let dangling = dir.appendingPathComponent("dangling.docx")
+        try! fm.createSymbolicLink(at: dangling, withDestinationURL: dir.appendingPathComponent("nonexistent-target.docx"))
+        try! WordExport.export(markdown: "# 悬空链接\n", to: dangling, base: dir)
+        check("Word 导出覆盖悬空符号链接", unzipDocx(dangling, into: "unpacked_dangling").doc.contains("悬空链接") ? "ok" : "fail", "ok")
+
+        // 未保存文档（base: nil）不读相对路径图片，且开头 % 不被当作文档标题
+        let noBaseDocx = dir.appendingPathComponent("nobase.docx")
+        try! WordExport.export(markdown: "% completion rate\n\n# 标题\n\n![相对图](50%2520off.png)\n", to: noBaseDocx, base: nil)
+        let noBase = unzipDocx(noBaseDocx, into: "unpacked_nobase")
+        check("Word 导出禁用 pandoc_title_block 且无 base 时不读相对图",
+              noBase.doc.contains("% completion rate") && !noBase.doc.contains("w:val=\"Title\"") && noBase.media.isEmpty ? "ok" : "fail", "ok")
+
+        // 真实示例文档导出检查
+        if let sampleText = try? String(contentsOfFile: "packaging/samples/editor_sample.md", encoding: .utf8) {
+            let sampleDocx = dir.appendingPathComponent("editor_sample.docx")
+            try! WordExport.export(markdown: sampleText, to: sampleDocx, base: URL(fileURLWithPath: "packaging/samples", isDirectory: true))
+            let s = unzipDocx(sampleDocx, into: "unpacked_sample")
+            check("Word 导出示例文档结构完整",
+                  s.doc.contains("Heading1") && s.doc.contains("<w:tbl>") && s.doc.contains("Hyperlink")
+                      && s.rels.contains("https://example.com") && s.doc.contains("点击展开的折叠块") && s.doc.contains("折叠块里的内容") ? "ok" : "fail",
+                  "ok")
+        }
+    } else {
+        print("跳过 Word 导出测试（未找到 Pandoc）")
+        let tmpOut = FileManager.default.temporaryDirectory.appendingPathComponent("dropmd-nopandoc-\(UUID().uuidString).docx")
+        defer { try? FileManager.default.removeItem(at: tmpOut) }
+        do {
+            try WordExport.export(markdown: "# 测试\n", to: tmpOut, base: nil)
+            check("无 Pandoc 时导出应报错", "did not throw", "throw")
+        } catch {
+            check("无 Pandoc 时返回本地化错误", error.localizedDescription.isEmpty ? "empty" : "ok", "ok")
         }
     }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
