@@ -932,6 +932,7 @@ final class RichTextView: NSTextView {
     /// 移到能点的地方时显示手形指针（链接由系统处理）；移到代码块上时在右上角显示“复制”按钮
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
+        if pointerOnScroller(event) { updateCopyButton(at: nil); return NSCursor.arrow.set() }
         let point = convert(event.locationInWindow, from: nil)
         updateCopyButton(at: point)
         if clickTarget(at: point) != nil || overCopyButton(point) { NSCursor.pointingHand.set() }
@@ -1006,7 +1007,9 @@ final class RichTextView: NSTextView {
 
     override func cursorUpdate(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        if clickTarget(at: point) != nil || overCopyButton(point) {
+        if pointerOnScroller(event) {
+            NSCursor.arrow.set()
+        } else if clickTarget(at: point) != nil || overCopyButton(point) {
             NSCursor.pointingHand.set()
         } else if columnBoundary(at: point) != nil {
             NSCursor.resizeLeftRight.set()
@@ -1043,5 +1046,14 @@ final class RichTextView: NSTextView {
             }
             super.mouseDown(with: event)
         }
+    }
+}
+
+extension NSTextView {
+    /// 覆盖式滚动条盖在文字上面，系统仍按文字区显示 I 形指针：鼠标在滚动条上时要自己改成箭头
+    func pointerOnScroller(_ event: NSEvent) -> Bool {
+        guard let scroll = enclosingScrollView, scroll.scrollerStyle == .overlay,
+              let scroller = scroll.verticalScroller, !scroller.isHidden else { return false }
+        return scroller.frame.contains(scroll.convert(event.locationInWindow, from: nil))
     }
 }
