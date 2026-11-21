@@ -251,7 +251,7 @@ struct EditorView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 5)
         .background(.bar)
-        .overlay(alignment: .top) { Rectangle().fill(Color(nsColor: RichStyle.lineColor).opacity(0.5)).frame(height: 1) }
+        .overlay(alignment: .top) { Divider() }
     }
 
     /// 文档语言：决定汉字用中文、日文还是韩文的写法
@@ -436,9 +436,11 @@ private extension View {
     /// 工具栏中不显示文件名（文件名在底部状态栏），中间的按钮才能在窗口正中
     @ViewBuilder
     func hidesToolbarTitle() -> some View {
-        if #available(macOS 15.0, *) {
+        if #available(macOS 26.0, *) {
+            toolbar(removing: .title)   // 背景交给系统（滚动边缘效果）
+        } else if #available(macOS 15.0, *) {
             toolbar(removing: .title)
-                // 工具栏用系统的半透明背景（与 Xcode 相同），内容滚到下面时模糊显示
+                // macOS 15 没有滚动边缘效果，工具栏用系统的半透明背景，内容滚到下面时模糊显示
                 .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
         } else {
             self

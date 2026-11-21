@@ -133,7 +133,7 @@ struct ContentView: View {
         )
         .background(Color.accentColor.opacity(dropTargeted ? 0.08 : 0),
                     in: RoundedRectangle(cornerRadius: compact ? 18 : 22, style: .continuous))
-        .glassCard(radius: compact ? 18 : 22)
+        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: compact ? 18 : 22, style: .continuous))
         .animation(.smooth(duration: 0.2), value: dropTargeted)
     }
 
@@ -188,7 +188,7 @@ struct ContentView: View {
         }
         .padding(16)
         .frame(maxHeight: .infinity)
-        .glassCard()
+        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     // MARK: 设置
@@ -298,7 +298,7 @@ struct ContentView: View {
         .padding(20)
         .frame(width: 364)   // 限制要在卡片里面：写在外面时，放不下的内容会把卡片撑大，盖住左边
         .frame(maxHeight: .infinity, alignment: .top)
-        .glassCard()
+        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .animation(.smooth(duration: 0.2), value: model.mode)
         .animation(.smooth(duration: 0.2), value: model.outputCustom)
         .animation(.smooth(duration: 0.2), value: model.ocrEngine)
