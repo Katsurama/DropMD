@@ -57,6 +57,20 @@ Word、Excel、PowerPoint、PDF などのファイルを Markdown に変換す�
 
 Apple シリコン搭載の Mac、macOS 14 以降に対応しています。以降のバージョンはアプリ内からインストールできます（**DropMD → アップデートを確認…**）。
 
+### Homebrew でインストール
+
+```bash
+brew tap katsurama/dropmd https://github.com/Katsurama/DropMD
+brew install --cask katsurama/dropmd/dropmd
+```
+
+アップデートと完全アンインストール：
+
+```bash
+brew upgrade --cask katsurama/dropmd/dropmd         # 最新の安定版にアップデート
+brew uninstall --zap --cask katsurama/dropmd/dropmd # 設定やキャッシュを含めてアンインストール
+```
+
 ### 初回起動時の“Apple は検証できませんでした”
 
 DropMD は無料のオープンソースソフトウェアで、有料の Apple デベロッパ証明書（年 99 ドル）で署名していないため、初めて開くと macOS が“‘DropMD’にマルウェアが含まれていないことを検証できませんでした”と表示します。これは DropMD に問題があるという意味ではありません。ソースコードはすべてこのリポジトリにあり、ダウンロード用のファイルは GitHub Actions で公開ビルドされ、各リリースには `.sha256` チェックサムが付いています。

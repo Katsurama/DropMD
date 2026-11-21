@@ -56,6 +56,20 @@
 
 适用于 Apple 芯片的 Mac，macOS 14 及以上。以后的新版本在 App 里更新即可（**DropMD → 检查更新…**）。
 
+### 通过 Homebrew 安装
+
+```bash
+brew tap katsurama/dropmd https://github.com/Katsurama/DropMD
+brew install --cask katsurama/dropmd/dropmd
+```
+
+更新与彻底卸载：
+
+```bash
+brew upgrade --cask katsurama/dropmd/dropmd         # 更新到最新正式版
+brew uninstall --zap --cask katsurama/dropmd/dropmd # 卸载并清理全部配置与缓存
+```
+
 ### 第一次打开：提示“无法验证开发者/文件已损坏”怎么办
 
 DropMD 是免费的开源软件，没有购买苹果的开发者签名（每年 99 美元），所以 macOS 第一次打开时会提示“Apple 无法验证‘DropMD’是否包含恶意软件”。这不代表软件有问题：全部源码都在这个仓库里，安装包由 GitHub Actions 公开构建，每个版本都附带 `.sha256` 校验值。

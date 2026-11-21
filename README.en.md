@@ -51,6 +51,20 @@ It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all o
 
 For Macs with Apple silicon, macOS 14 or later. Later versions can be installed from inside the app (**DropMD → Check for Updates…**).
 
+### Install with Homebrew
+
+```bash
+brew tap katsurama/dropmd https://github.com/Katsurama/DropMD
+brew install --cask katsurama/dropmd/dropmd
+```
+
+Upgrade or completely uninstall:
+
+```bash
+brew upgrade --cask katsurama/dropmd/dropmd         # Update to the latest stable release
+brew uninstall --zap --cask katsurama/dropmd/dropmd # Uninstall and remove all preferences and caches
+```
+
 ### First launch: “Apple could not verify…”
 
 DropMD is free, open source software and isn't signed with a paid Apple developer certificate ($99 a year), so the first time you open it macOS says “Apple could not verify ‘DropMD’ is free of malware”. This doesn't mean anything is wrong with it: all the source code is in this repository, the downloads are built in public by GitHub Actions, and every release comes with a `.sha256` checksum.
