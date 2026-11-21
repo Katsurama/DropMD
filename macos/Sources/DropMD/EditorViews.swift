@@ -42,8 +42,11 @@ struct MarkdownTextView: NSViewRepresentable {
         tv.string = text
         tv.delegate = context.coordinator
 
-        let scroll = NSScrollView()
+        let scroll = SplitScrollView()
+        scroll.overlayScrollers = true   // 原文只在双页里显示
         scroll.hasVerticalScroller = true
+        scroll.hasHorizontalScroller = false
+        scroll.horizontalScrollElasticity = .none   // 自动换行，不横向滚动
         scroll.autohidesScrollers = true
         scroll.borderType = .noBorder
         scroll.documentView = tv

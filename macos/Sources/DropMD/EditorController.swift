@@ -109,6 +109,8 @@ final class EditorController: ObservableObject {
     var isRichMode = true {
         didSet {
             guard isRichMode != oldValue else { return }
+            (richView?.enclosingScrollView as? SplitScrollView)?.overlayScrollers = !isRichMode
+            clearSourceMark()
             richView?.sourceCursorRange = nil
             richView?.sourceCaretLocation = nil
             lastCursorLine = -1
@@ -297,7 +299,7 @@ final class EditorController: ObservableObject {
         tv.scroll(NSPoint(x: 0, y: max(0, rect.minY + tv.textContainerInset.height - clip.contentInsets.top)))
     }
 
-    /// 双页：在右边编辑时，左边原文里对应的那几行加上淡淡的底色（设置里可关掉）；不在屏幕里时左边自动滚过去
+    /// 双页：在右边编辑时，左边原文里对应的那几行整行高亮（与 GitHub 选中行相同，设置里可关掉）；不在屏幕里时左边自动滚过去
     func syncSourceMark() {
         guard SourceMarkStyle.isOn else { return clearSourceMark() }
         guard !isRichMode, !richTextEdited, let rich = richView, rich.window?.firstResponder === rich,
@@ -312,7 +314,7 @@ final class EditorController: ObservableObject {
         guard range != sourceMarkRange else { return }
         clearSourceMark()
         guard range.length > 0 else { return }
-        lm.addTemporaryAttribute(.backgroundColor, value: RichStyle.markColor.withAlphaComponent(0.16), forCharacterRange: range)
+        (tv as? SourceTextView)?.markedLines = range
         sourceMarkRange = range
         let glyphs = lm.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
         let rect = lm.boundingRect(forGlyphRange: glyphs, in: tc).offsetBy(dx: 0, dy: tv.textContainerOrigin.y)
@@ -322,16 +324,14 @@ final class EditorController: ObservableObject {
     }
     private var sourceMarkRange: NSRange?
 
-    /// 左边原文被右边的修改整体替换了：底色跟着文字没了，重新标
+    /// 左边原文被右边的修改整体替换了：行的位置变了，重新标
     func sourceTextReplaced() {
         sourceMarkRange = nil
         syncSourceMark()
     }
 
     func clearSourceMark() {
-        if let r = sourceMarkRange, let tv = textView, NSMaxRange(r) <= (tv.string as NSString).length {
-            tv.layoutManager?.removeTemporaryAttribute(.backgroundColor, forCharacterRange: r)
-        }
+        (textView as? SourceTextView)?.markedLines = nil
         sourceMarkRange = nil
     }
 

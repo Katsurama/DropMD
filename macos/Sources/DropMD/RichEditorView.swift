@@ -46,7 +46,8 @@ struct RichTextEditor: NSViewRepresentable {
         tv.baseURL = baseURL
         tv.delegate = context.coordinator
 
-        let scroll = NSScrollView()
+        let scroll = SplitScrollView()
+        scroll.overlayScrollers = !controller.isRichMode
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
         scroll.borderType = .noBorder

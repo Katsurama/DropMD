@@ -174,14 +174,18 @@ struct SourceMarkMenu: View {
     @AppStorage("showSourceMark") private var isOn = true
     @AppStorage("sourceMarkStyle") private var style = SourceMarkStyle.box.rawValue
     var note: LocalizedStringKey?
+    var styleNote: LocalizedStringKey?
 
     var body: some View {
         Toggle(isOn: $isOn) {
             Text("显示对应位置标记")
             if let note { Text(note) }
         }
-        Picker("标记样式", selection: $style) {
+        Picker(selection: $style) {
             ForEach(SourceMarkStyle.allCases) { Text($0.title).tag($0.rawValue) }
+        } label: {
+            Text("标记样式")
+            if let styleNote { Text(styleNote) }
         }
         .disabled(!isOn)
     }
