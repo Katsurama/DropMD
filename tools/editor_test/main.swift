@@ -1752,6 +1752,22 @@ MainActor.assumeIsolated {
         tv.setKind(.body)
         check("多行列表代码块变回正文", md(tv), "1. 第一步\n2. echo a\n3. echo b\n4. 第二步\n")
     }
+    do {   // 外部 RTF 粘贴一行列表项（带 NSTextList）：去掉列表符号后不越界、不改下一段
+        let list = NSTextList(markerFormat: .disc, options: 0)
+        let ps = NSMutableParagraphStyle(); ps.textLists = [list]
+        let item = NSAttributedString(string: "\t•\t苹果", attributes: [.paragraphStyle: ps, .font: NSFont.systemFont(ofSize: 13)])
+        let rtf = item.rtf(from: NSRange(location: 0, length: item.length), documentAttributes: [:])!
+        do {
+            let tv = makeView("")
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDTestRTFList-\(UUID().uuidString)"))
+            board.clearContents()
+            board.setData(rtf, forType: .rtf)
+            tv.setSelectedRange(NSRange(location: tv.string.utf16.count, length: 0))
+            _ = tv.readSelection(from: board, type: .rtf)
+            board.releaseGlobally()
+            check("RTF 一行列表项粘到空文档末尾", md(tv), "苹果\n")
+        }
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }
