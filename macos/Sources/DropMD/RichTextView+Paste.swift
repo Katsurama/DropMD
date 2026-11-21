@@ -190,10 +190,13 @@ extension RichTextView {
             if inserted > 0 {
                 let range = NSRange(location: sel.location, length: inserted)
                 let oneLine = !(string as NSString).substring(with: range).contains { $0.isNewline }
+                let beforeClean = textStorage?.length ?? 0
                 cleanPasted(range, html: pboard.string(forType: .html), inDetails: dest[DMKey.inDetails] != nil,
                             kind: oneLine ? RichBridge.kind(of: dest) : nil)
-                if oneLine {   // 列表层级、代码块编号等段落属性也照目标段落
-                    changeAttributes(in: range) { old in
+                // cleanPasted 可能删字（如列表符号“•\t”），范围按长度变化缩短，否则越界或改到下一段
+                let cleaned = NSRange(location: sel.location, length: max(0, inserted + (textStorage?.length ?? 0) - beforeClean))
+                if oneLine, cleaned.length > 0 {   // 列表层级、代码块编号等段落属性也照目标段落
+                    changeAttributes(in: cleaned) { old in
                         var a = old
                         for k in Self.paragraphLevelKeys { a[k] = dest[k] }
                         return a
