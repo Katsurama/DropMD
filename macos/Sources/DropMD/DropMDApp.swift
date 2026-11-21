@@ -350,15 +350,17 @@ enum HelpDocs {
     static let qqGroup = URL(string: "https://qun.qq.com/universal-share/share?ac=1&authKey=mbUgS60nnSzR2inccSoO%2BM4r%2BNMmccWLqCLkRWF%2F3aaEx%2FCX30Fizgha%2Fo6qaAvV&busi_data=eyJncm91cENvZGUiOiIxMTI1ODkzNTA0IiwidG9rZW4iOiJkQ1NySUpoeCtmTUlrV3JUWUN5SFZqNU5wZllLa2lFLzFrUjZMKzdnaXV0eUM1R001ZzMzb1ZFOXNTbFNudFVPIiwidWluIjoiMzI0MzY3NzM1MiJ9&data=AJTczm17mcBKqj3VXo3mcTEzkLtb9_ozC8vIN86Zcm8p_2cQJ63-BoTHLDlRXXAZ9OTuDjY1Rqekn1E_zbQZfA&svctype=4&tempid=h5_group_info")!
     static var showsQQGroup: Bool { (Bundle.main.preferredLocalizations.first ?? "").hasPrefix("zh") }
 
-    /// 赞助：爱发电和 Patreon，所有语言都显示（爱发电已支持英文和海外付款，非中文界面叫 Afdian）。中文界面爱发电在前
+    /// 赞助：GitHub Sponsors、爱发电和 Patreon，所有语言都显示（非中文界面爱发电叫 Afdian）。中文界面爱发电在前，其他语言 GitHub 在前
     struct Sponsor { let name: String; let menuTitle: String; let url: URL }
     static var sponsors: [Sponsor] {
+        let github = Sponsor(name: "GitHub Sponsors", menuTitle: String(localized: "在 GitHub 赞助…"),
+                             url: URL(string: "https://github.com/sponsors/Katsurama")!)
         let patreon = Sponsor(name: "Patreon", menuTitle: String(localized: "在 Patreon 赞助…"),
                               url: URL(string: "https://www.patreon.com/c/katsurama/membership")!)
         let afdian = Sponsor(name: String(localized: "爱发电"), menuTitle: String(localized: "在爱发电赞助…"),
                              url: URL(string: "https://afdian.com/a/katsurama")!)
         let lang = Bundle.main.preferredLocalizations.first ?? "en"
-        return lang.hasPrefix("zh") ? [afdian, patreon] : [patreon, afdian]
+        return lang.hasPrefix("zh") ? [afdian, github, patreon] : [github, patreon, afdian]
     }
 
     /// 微信赞赏码（App 包里的图片）：只在中文界面显示
