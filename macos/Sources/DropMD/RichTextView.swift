@@ -525,6 +525,8 @@ final class RichTextView: NSTextView {
         var shift = 0
         var lastTarget = RichKind.body
         // 从后往前处理，前面段落的位置不受影响
+        let newCodeID = UUID().uuidString
+        let newQuoteID = UUID().uuidString
         for p in paragraphs.reversed() {
             let a = storage.attributes(at: p.location, effectiveRange: nil)
             let old = RichBridge.kind(of: a)
@@ -535,7 +537,7 @@ final class RichTextView: NSTextView {
                 target = item
             }
             if p == paragraphs.last { lastTarget = target }
-            let delta = restyle(p, to: target, from: old)
+            let delta = restyle(p, to: target, from: old, codeID: newCodeID, quoteID: newQuoteID)
             // 光标在段首时，段首新插入的待办方框也算在光标前面（输入的文字在方框之后）
             if p.location < selection.location || (delta > 0 && p.location == selection.location) { shift += delta }
         }
@@ -588,7 +590,8 @@ final class RichTextView: NSTextView {
 
     /// 修改一个段落的样式，返回段落开头插入（正数）或删除（负数）的字符数
     @discardableResult
-    func restyle(_ para: NSRange, to target: RichKind, from oldKind: RichKind) -> Int {
+    func restyle(_ para: NSRange, to target: RichKind, from oldKind: RichKind,
+                 codeID: String = UUID().uuidString, quoteID: String = UUID().uuidString) -> Int {
         guard let storage = textStorage, para.length > 0 else { return 0 }
         let start = para.location
         var delta = 0
@@ -626,6 +629,31 @@ final class RichTextView: NSTextView {
         let range = paragraphRange(at: start)
         guard range.length > 0 else { return delta }
         let inDetails = storage.attribute(DMKey.inDetails, at: range.location, effectiveRange: nil) != nil
+        let isCodeGap = storage.attribute(DMKey.codeGap, at: range.location, effectiveRange: nil) != nil
+        var blockMarks = RichStyle.marks(for: target)
+        if !isCodeGap {
+            let prevLoc = range.location > 0 ? paragraphRange(at: range.location - 1).location : nil
+            let nextLoc = NSMaxRange(range) < storage.length ? paragraphRange(at: NSMaxRange(range)).location : nil
+            let lm = layoutManager as? RichLayoutManager
+            switch target {
+            case .code(let lang):
+                let diffNeighbour = [prevLoc, nextLoc].compactMap({ $0 }).contains { loc in
+                    let a = storage.attributes(at: loc, effectiveRange: nil)
+                    guard (a[DMKey.inDetails] != nil) == inDetails, case .code(let other) = RichBridge.kind(of: a) else { return false }
+                    return other != lang
+                }
+                if diffNeighbour { blockMarks[DMKey.codeBlock] = codeID }
+            case .quote:
+                let calloutNeighbour = [prevLoc, nextLoc].compactMap({ $0 }).contains { loc in
+                    let a = storage.attributes(at: loc, effectiveRange: nil)
+                    guard (a[DMKey.inDetails] != nil) == inDetails, RichBridge.kind(of: a) == .quote else { return false }
+                    return lm?.callout(at: loc, in: storage) != nil || a[DMKey.callout] != nil
+                }
+                if calloutNeighbour { blockMarks[DMKey.quoteBlock] = quoteID }
+            default:
+                break
+            }
+        }
         let style = RichStyle.paragraphStyle(target, inDetails: inDetails && target != .summary)
         changeAttributes(in: range) { old in
             var a = old
@@ -648,7 +676,7 @@ final class RichTextView: NSTextView {
                 let font = RichStyle.setBold(RichStyle.baseFont(for: target), bold)
                 a[.font] = ((a[.superscript] as? Int) ?? 0) != 0 ? RichStyle.scaled(font, 0.75) : font
             }
-            for (k, v) in RichStyle.marks(for: target) { a[k] = v }
+            for (k, v) in blockMarks { a[k] = v }
             return a
         }
         return delta
