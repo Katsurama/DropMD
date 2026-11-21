@@ -173,7 +173,8 @@ final class UpdateChecker: ObservableObject {
     static var currentVersion: AppVersion? { AppVersion(currentVersionText) }
 
     private init() {
-        autoCheck = defaults.bool(forKey: "autoCheckUpdates")
+        // 没设置过时默认启动时检查更新（只读 GitHub 上的版本列表，不下载、不安装）
+        autoCheck = defaults.object(forKey: "autoCheckUpdates") as? Bool ?? true
         // 默认只提示正式版（新版本先发测试版、再发正式版），装着测试版也一样；用户在更新窗口里勾选后才提示测试版
         includeBeta = defaults.bool(forKey: "includeBetaUpdates")
         lastChecked = defaults.object(forKey: "lastUpdateCheck") as? Date
