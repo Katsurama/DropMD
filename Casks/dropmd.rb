@@ -18,6 +18,15 @@ cask "dropmd" do
 
   app "DropMD.app"
 
+  postflight_steps do
+    run "/usr/bin/xattr",
+        args:           ["-dr", "com.apple.quarantine", "{{appdir}}/DropMD.app"],
+        writable_paths: ["DropMD.app"],
+        writable_base:  :appdir,
+        must_succeed:   false,
+        print_stderr:   false
+  end
+
   zap trash: [
     "~/Library/Application Support/DropMD",
     "~/Library/Caches/DropMD",
@@ -31,9 +40,7 @@ cask "dropmd" do
 
   caveats <<~EOS
     DropMD is an open-source app signed ad-hoc without an Apple Developer ID or notarization.
-    On first launch, macOS Gatekeeper may block it. You can allow it in:
-      System Settings → Privacy & Security → Open Anyway
-    or remove the quarantine attribute in Terminal:
-      xattr -dr com.apple.quarantine /Applications/DropMD.app
+    The quarantine attribute is automatically cleared on install so you can open DropMD directly.
+    If macOS still blocks it, allow it in System Settings → Privacy & Security → Open Anyway.
   EOS
 end
