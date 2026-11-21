@@ -1768,6 +1768,44 @@ MainActor.assumeIsolated {
             check("RTF 一行列表项粘到空文档末尾", md(tv), "苹果\n")
         }
     }
+    do {   // 折叠块内含行内公式、图片的标题：按模型文字匹配找得到段落
+        let doc = "<details>\n<summary>折叠</summary>\n\n## 公式 $E=mc^2$\n\n## 图标 ![logo](logo.png) 说明\n\n</details>\n"
+        let tv = makeView(doc)
+        let ns = tv.string as NSString
+        let titles = extractHeadings(doc).map(\.title)
+        check("含公式与图片的标题：大纲提取", titles.joined(separator: " | "), "公式 $E=mc^2$ | 图标 logo 说明")
+        let mathPara = tv.headingParagraph(title: titles[0], occurrence: 0).map { ns.substring(with: $0).trimmingCharacters(in: .newlines) } ?? "无"
+        let imgPara = tv.headingParagraph(title: titles[1], occurrence: 0).map { ns.substring(with: $0).trimmingCharacters(in: .newlines) } ?? "无"
+        check("含行内公式的标题：headingParagraph", mathPara, "公式 \u{FFFC}")
+        check("含图片的标题：headingParagraph", imgPara, "图标 ［图片：logo］ 说明")
+    }
+    // 别的程序复制来的多行代码（剪贴板有 RTF，末尾没有换行）贴进代码块中间的空行：仍是一整块，语言不变
+    do {
+        let tv = makeView("```python\nx = 1\n\ny = 2\n```\n")
+        let pb = NSPasteboard(name: NSPasteboard.Name("dropmd-test-\(UUID().uuidString)"))
+        let code = "let a = 1\nlet b = 2"
+        let rich = NSAttributedString(string: code, attributes: [.font: NSFont(name: "Menlo", size: 12)!])
+        pb.declareTypes([.rtf, .string], owner: nil)
+        pb.setData(rich.rtf(from: NSRange(location: 0, length: rich.length), documentAttributes: [:]), forType: .rtf)
+        pb.setString(code, forType: .string)
+        tv.setSelectedRange(NSRange(location: ("x = 1\n" as NSString).length, length: 0))
+        _ = tv.readSelection(from: pb, type: .rtf)
+        check("外部多行代码贴进代码块", md(tv), "```python\nx = 1\nlet a = 1\nlet b = 2\ny = 2\n```\n")
+        pb.releaseGlobally()
+    }
+    // 单页之间复制的 swift 代码块贴进 python 代码块中间：用目标的语言和块编号，不把它拆开
+    do {
+        let src = makeView("```swift\nlet a = 1\nlet b = 2\n```\n")
+        src.setSelectedRange(NSRange(location: 0, length: (src.string as NSString).length))
+        let pb = NSPasteboard(name: NSPasteboard.Name("dropmd-test-\(UUID().uuidString)"))
+        let rich = NSPasteboard.PasteboardType("io.github.dropmd.rich")
+        _ = src.writeSelection(to: pb, types: [rich])
+        let tv = makeView("```python\nx = 1\ny = 2\n```\n")
+        tv.setSelectedRange(NSRange(location: ("x = 1\n" as NSString).length, length: 0))
+        _ = tv.readSelection(from: pb, type: rich)
+        check("单页内多行代码贴进别的语言的代码块", md(tv), "```python\nx = 1\nlet a = 1\nlet b = 2\ny = 2\n```\n")
+        pb.releaseGlobally()
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

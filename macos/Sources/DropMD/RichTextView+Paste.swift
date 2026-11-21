@@ -185,6 +185,11 @@ extension RichTextView {
                 replace(sel, with: fitted(RichBridge.runsString([MDRun(text: flat)], kind: .body, baseURL: baseURL), to: dest))
                 return true
             }
+            // 多行贴进代码块：只要纯文字，每行都用这一块的格式（语言、块编号），否则网页的富文本把代码块拆成正文段落
+            if Self.isCodeBlock(dest), let text = pboard.string(forType: .string), text.contains(where: \.isNewline) {
+                replace(sel, with: codeText(text, to: dest))
+                return true
+            }
             guard super.readSelection(from: pboard, type: type) else { return false }
             let inserted = (textStorage?.length ?? 0) - before + sel.length
             if inserted > 0 {
@@ -216,6 +221,15 @@ extension RichTextView {
         if !pasted.string.contains("\n") || RichBridge.tableBlock(of: dest) != nil {
             // 一行里的字、或贴进表格单元格：用目标这一段的格式和字号，不把这一段（或整张表）拆开
             replace(selectedRange(), with: fitInline(pasted, to: dest))
+            return true
+        }
+        if Self.isCodeBlock(dest) {
+            // 多段贴进代码块：都当作这一块的代码（纯文字），不保留别的语言、块编号，否则这一块被拆开
+            var text = ""
+            pasted.enumerateAttributes(in: NSRange(location: 0, length: pasted.length)) { a, r, _ in
+                text += (a[DMKey.math] as? String) ?? (pasted.string as NSString).substring(with: r).replacingOccurrences(of: "\u{FFFC}", with: "")
+            }
+            replace(selectedRange(), with: codeText(text, to: dest))
             return true
         }
         if dest[DMKey.inDetails] != nil {
@@ -256,6 +270,20 @@ extension RichTextView {
         }
         replace(selectedRange(), with: pasted)
         return true
+    }
+
+    /// 段落在代码块里（公式块不算）
+    private static func isCodeBlock(_ a: [NSAttributedString.Key: Any]) -> Bool {
+        guard case .code = RichBridge.kind(of: a) else { return false }
+        return a[DMKey.math] == nil
+    }
+
+    /// 贴进代码块的纯文字：保留换行，每行都用目标段落的字体和段落属性（语言、块编号、列表归属、段落样式）
+    private func codeText(_ text: String, to dest: [NSAttributedString.Key: Any]) -> NSAttributedString {
+        let plain = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+        // 不用 runsString：它把段落里的换行变成显示为空格的软换行，代码的每一行要保持是单独的一段
+        let run = MDRun(text: plain)
+        return fitted(NSAttributedString(string: plain, attributes: RichStyle.attributes(for: run, kind: RichBridge.kind(of: dest))), to: dest)
     }
 
     /// 贴到折叠块外时，去掉没有对应折叠块标题的游离折叠标记与缩进（保留各自原有的段落样式）
