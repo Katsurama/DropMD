@@ -10,5 +10,3 @@ selftest_out/
 .build/
 DropMD-macOS-AppleSilicon.*
 .DS_Store
-.workbuddy-ai/
-.claude/

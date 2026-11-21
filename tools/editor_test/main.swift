@@ -1823,7 +1823,7 @@ MainActor.assumeIsolated {
         do {
             let tv = makeView("| A | B |\n| --- | --- |\n| 1 | 2 |\n")
             tv.setSelectedRange((tv.string as NSString).range(of: "1"))
-            let board = NSPasteboard(name: NSPasteboard.Name("DropMDFix6A-\(UUID().uuidString)"))
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDTestTableHTML-\(UUID().uuidString)"))
             board.clearContents()
             board.setString("<h1>Title</h1><p>Next</p>", forType: .html)
             _ = tv.readSelection(from: board)
@@ -1834,7 +1834,7 @@ MainActor.assumeIsolated {
         do {
             let tv = makeView("| A | B |\n| --- | --- |\n| 1 | 2 |\n")
             tv.setSelectedRange((tv.string as NSString).range(of: "A"))
-            let board = NSPasteboard(name: NSPasteboard.Name("DropMDFix6B-\(UUID().uuidString)"))
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDTestTableHeader-\(UUID().uuidString)"))
             board.clearContents()
             board.setString("HeaderNew", forType: .string)
             _ = tv.readSelection(from: board)
@@ -1847,7 +1847,7 @@ MainActor.assumeIsolated {
         do {
             let src = makeView("第一段\n\n第二段\n")
             src.setSelectedRange(NSRange(location: 0, length: (src.string as NSString).length))
-            let board = NSPasteboard(name: NSPasteboard.Name("DropMDFix6C-\(UUID().uuidString)"))
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDTestSummaryPaste-\(UUID().uuidString)"))
             board.clearContents()
             _ = src.writeSelection(to: board, types: src.writablePasteboardTypes)
             let tv = makeView("<details>\n<summary>折叠标题</summary>\n\n折叠内容\n\n</details>\n")
@@ -1860,7 +1860,7 @@ MainActor.assumeIsolated {
         do {
             let tv = makeView("\n")
             tv.setSelectedRange(NSRange(location: 0, length: 0))
-            let board = NSPasteboard(name: NSPasteboard.Name("DropMDFix6D-\(UUID().uuidString)"))
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDTestSingleH1-\(UUID().uuidString)"))
             board.clearContents()
             let s = NSAttributedString(string: "网页大标题", attributes: [.font: NSFont.boldSystemFont(ofSize: 24)])
             board.setData(try! s.data(from: NSRange(location: 0, length: s.length),

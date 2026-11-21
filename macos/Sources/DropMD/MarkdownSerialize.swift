@@ -99,7 +99,7 @@ extension MarkdownCodec {
             tail += 1
         }
         let n = a.count - head - tail, m = b.count - head - tail
-        // shortcut: 中间超过 400 万格（如整篇大改）就不再逐块对比，改动的部分按标准写法写
+        // 中间超过 400 万格（如整篇大改）就不再逐块对比，改动的部分按标准写法写
         guard n > 0, m > 0, n * m <= 4_000_000 else { return result }
         var table = [[Int32]](repeating: [Int32](repeating: 0, count: m + 1), count: n + 1)
         for i in stride(from: n - 1, through: 0, by: -1) {

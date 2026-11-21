@@ -66,7 +66,7 @@ extension RichTextView {
     /// 系统读剪贴板时丢掉两样：中文的粗体、斜体（网页的字体没有对应字形）和标题（读成粗体正文）。HTML 里还写着：
     /// 只读它的文字，不交给系统的网页读取。按顺序逐段对上粘贴的文字，对不上的段不处理，所以不会标错地方
     private func applyHTMLFormats(_ html: String, _ range: NSRange) {
-        // shortcut: 超过 1 MB 的 HTML 不处理（只是少了斜体和标题），真有人遇到再改
+        // 超过 1 MB 的 HTML 跳过解析，避免粘贴超大网页内容时卡顿
         guard let storage = textStorage, html.utf8.count < 1_000_000 else { return }
         let chunks = Self.htmlChunks(html)
         guard chunks.contains(where: { $0.bold || $0.italic || $0.heading > 0 }) else { return }

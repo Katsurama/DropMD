@@ -1,7 +1,7 @@
 """高精度模式的可选识别方式：Xiaomi-OCR-0。把 PDF 逐页画成图片交给模型，模型直接输出整页 Markdown。
 
 不经过 Docling，所以公式和表格不需要别的模型。
-shortcut: 整页模式不导出 PDF 里的图片（官方分区模式要装 PaddlePaddle），需要时可用 Docling 的版面模型截图。
+整页模式不导出 PDF 里的图片（官方分区模式要装 PaddlePaddle），需要时可用 Docling 的版面模型截图。
 
 模型从本机加载，不会访问网络。
 
