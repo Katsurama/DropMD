@@ -240,13 +240,13 @@ struct FormatCommands: Commands {
             ActionMenuItems(actions: [.exportPDF, .exportHTML], editor: editor)
         }
         CommandGroup(before: .toolbar) {
-            Button("单页") { switchMode?(.rich) }
+            Button("单页", systemImage: "doc.richtext") { switchMode?(.rich) }
                 .keyboardShortcut("1")
                 .disabled(switchMode == nil)
-            Button("双页") { switchMode?(.source) }
+            Button("双页", systemImage: "rectangle.split.2x1") { switchMode?(.source) }
                 .keyboardShortcut("2")
                 .disabled(switchMode == nil)
-            Button("格式面板") { toggleInspector?() }
+            Button("格式面板", systemImage: "paintbrush") { toggleInspector?() }
                 .keyboardShortcut("i", modifiers: [.command, .option])
                 .disabled(toggleInspector == nil)
             AppearanceMenu()
@@ -262,7 +262,7 @@ struct FormatCommands: Commands {
             }
             Divider()
             Menu("段落样式") {
-                ActionMenuItems(actions: EditorAction.paragraphStyles.filter { $0 != .codeBlock }, editor: editor)
+                ActionMenuItems(actions: EditorAction.paragraphStyles.filter { $0 != .codeBlock }, editor: editor, icons: false)
             }
             codeBlockMenu
             Divider()
@@ -281,7 +281,7 @@ struct FormatCommands: Commands {
     }
 
     private var calloutMenu: some View {
-        Menu("提示框") {
+        Menu("提示框", systemImage: EditorAction.callout.symbol) {
             ForEach(MDCallout.allCases, id: \.self) { c in
                 Button(c.title) { editor?.callout(c) }.disabled(editor == nil)
             }
@@ -289,7 +289,7 @@ struct FormatCommands: Commands {
     }
 
     private var codeBlockMenu: some View {
-        Menu("代码块") {
+        Menu("代码块", systemImage: EditorAction.codeBlock.symbol) {
             ActionMenuItems(actions: [.codeBlock], editor: editor)
             Divider()
             ForEach(codeLanguages, id: \.self) { lang in

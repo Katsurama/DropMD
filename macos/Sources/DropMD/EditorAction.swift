@@ -176,12 +176,15 @@ enum EditorAction: String, CaseIterable, Identifiable {
 struct ActionMenuItems: View {
     let actions: [EditorAction]
     let editor: EditorController?
+    var icons = true   // 段落样式各级标题图标相同，不显示
 
     var body: some View {
         ForEach(actions) { action in
-            Button(action.menuTitle) { editor?.perform(action) }
-                .keyboardShortcut(action.shortcut)
-                .disabled(editor == nil)
+            Button { editor?.perform(action) } label: {
+                if icons { Label(action.menuTitle, systemImage: action.symbol) } else { Text(action.menuTitle) }
+            }
+            .keyboardShortcut(action.shortcut)
+            .disabled(editor == nil)
         }
     }
 }
