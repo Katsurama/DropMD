@@ -46,6 +46,7 @@ final class SplitScrollView: NSScrollView {
 
     private func applyScrollerStyle() {
         scrollerStyle = overlayScrollers ? .overlay : NSScroller.preferredScrollerStyle
+        verticalScroller?.alphaValue = overlayScrollers ? 0 : 1
     }
 
     override func viewDidMoveToWindow() {
@@ -60,11 +61,66 @@ final class SplitScrollView: NSScrollView {
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.applyScrollerStyle() } }
         }
     }
+
+    private var fadeOut: DispatchWorkItem?
+    private static weak var shown: SplitScrollView?
+    private var hoverArea: NSTrackingArea?
+
+    /// 双页：只在自己滚动、或鼠标移到滚动条上时显示，停下约 1 秒后淡出。
+    /// 不靠系统淡出：接着鼠标时系统会让覆盖式滚动条一直显示；跟着另一边同步滚动时也不显示
+    private func showScrollerBriefly() {
+        guard overlayScrollers, let scroller = verticalScroller else { return }
+        // 同一时间只显示一边：换到另一边滚动时，前一边的滚动条立刻收起
+        if let other = Self.shown, other !== self { other.fadeOut?.cancel(); other.verticalScroller?.alphaValue = 0 }
+        Self.shown = self
+        scroller.alphaValue = 1
+        fadeOut?.cancel()
+        let work = DispatchWorkItem { [weak self, weak scroller] in
+            guard let self, let scroller else { return }
+            // 正在拖动滚动条时不淡出
+            if NSEvent.pressedMouseButtons != 0 || self.pointerOnScroller() { return self.showScrollerBriefly() }
+            NSAnimationContext.runAnimationGroup { $0.duration = 0.3; scroller.animator().alphaValue = 0 }
+        }
+        fadeOut = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
+    }
+
+    private func pointerOnScroller() -> Bool {
+        guard let scroller = verticalScroller, let window else { return false }
+        return scroller.frame.contains(convert(window.mouseLocationOutsideOfEventStream, from: nil))
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        super.scrollWheel(with: event)
+        showScrollerBriefly()
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverArea { removeTrackingArea(hoverArea) }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect], owner: self)
+        addTrackingArea(area)
+        hoverArea = area
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        if pointerOnScroller() { showScrollerBriefly() }
+    }
 }
 
 /// 带当前逻辑行背景高亮的源码文本视图（仅在无选区时绘制）。
 final class SourceTextView: NSTextView {
     private var lastCaretLineRect: NSRect = .zero
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        if pointerOnScroller(event) { NSCursor.arrow.set() }
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        if pointerOnScroller(event) { NSCursor.arrow.set() } else { super.cursorUpdate(with: event) }
+    }
     private var scaleObservers: [NSObjectProtocol] = []
 
     /// 双页：右边光标对应的原文行（字符范围），整行高亮，行号栏同一行也高亮
