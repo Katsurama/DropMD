@@ -107,7 +107,9 @@ enum TextScale: String, CaseIterable, Identifiable {
         let target = current.scale(screen: scroll.window?.screen, viewWidth: scroll.frame.width)
         guard abs(scroll.magnification - target) > 0.001 else { return }
         // 缩放后滚回原来的高度（默认按中心缩放，顶部几行和光标会被推出视野）；没有横向滚动，左边从 0 开始
-        let top = scroll.contentView.bounds.origin.y
+        // 停在最顶上时（工具栏下面留的那段空，原点是负数）按屏幕上的距离换算，否则标题会钻到工具栏底下
+        let old = scroll.magnification, origin = scroll.contentView.bounds.origin.y
+        let top = origin < 0 ? origin * old / target : origin
         scroll.magnification = target
         scroll.contentView.scroll(to: NSPoint(x: 0, y: top))
         scroll.reflectScrolledClipView(scroll.contentView)
