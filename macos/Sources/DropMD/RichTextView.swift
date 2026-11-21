@@ -556,11 +556,10 @@ final class RichTextView: NSTextView {
         var loc = location
         while loc > 0 {
             let p = paragraphRange(at: loc - 1)
-            guard p.location < first else { return nil }
             let a = storage.attributes(at: p.location, effectiveRange: nil)
             switch RichBridge.kind(of: a) {
-            case .bullet, .ordered: return RichBridge.kind(of: a)
-            case .task(let d, _): return .task(d, false)
+            case .bullet, .ordered: return p.location < first ? RichBridge.kind(of: a) : nil
+            case .task(let d, _): return p.location < first ? .task(d, false) : nil
             case .code where a[DMKey.listCode] != nil: loc = p.location
             default: return nil
             }

@@ -1744,6 +1744,14 @@ MainActor.assumeIsolated {
         let fresh = makeView("<div>\nx\n</div>\n\n正文\n")
         check("离开原样块后保留卡片下方间距", "\(gapBeforeBody(tv))", "\(gapBeforeBody(fresh))")
     }
+    do {   // 多行的列表代码块整体变回正文：每行都变成列表项，编号接上
+        let tv = makeView("1. 第一步\n\n   ```bash\n   echo a\n   echo b\n   ```\n\n2. 第二步\n")
+        let ns = tv.string as NSString
+        let a = ns.range(of: "echo a").location, b = NSMaxRange(ns.range(of: "echo b"))
+        tv.setSelectedRange(NSRange(location: a, length: b - a))
+        tv.setKind(.body)
+        check("多行列表代码块变回正文", md(tv), "1. 第一步\n2. echo a\n3. echo b\n4. 第二步\n")
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }
