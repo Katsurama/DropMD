@@ -68,6 +68,68 @@ enum PageMargin: String, CaseIterable, Identifiable {
     }
 }
 
+/// 字号（菜单“显示 → 字号”、设置）：整块编辑区按比例放大缩小，排版、页边距照常，导出和保存不受影响
+enum TextScale: String, CaseIterable, Identifiable {
+    case auto, large, medium, small
+    var id: String { rawValue }
+
+    static var current: TextScale { TextScale(rawValue: UserDefaults.standard.string(forKey: "textScale") ?? "") ?? .auto }
+
+    var title: String {
+        switch self {
+        case .auto: return String(localized: "自动")
+        case .large: return String(localized: "大")
+        case .medium: return String(localized: "中")
+        case .small: return String(localized: "小")
+        }
+    }
+
+    /// 放大倍数。中 = 原来的大小，大 = 正文大 2 号，小 = 小 1 号。
+    /// 自动：屏幕点越密（笔记本）字越小，按每英寸的点数放大，最多 1.25 倍；窗口很窄时不放大
+    func scale(screen: NSScreen?, viewWidth: CGFloat) -> CGFloat {
+        switch self {
+        case .large: return 18 / 16
+        case .medium: return 1
+        case .small: return 15 / 16
+        case .auto:
+            guard viewWidth >= 760, let screen,
+                  let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else { return 1 }
+            let mm = CGDisplayScreenSize(id).width
+            guard mm > 0 else { return 1 }
+            let pointsPerInch = screen.frame.width / (mm / 25.4)
+            return (min(max(pointsPerInch / 110, 1), 1.25) * 20).rounded() / 20   // 取到 0.05，避免反复微调
+        }
+    }
+
+    /// 按当前设置放大编辑区所在的滚动区域
+    @MainActor static func apply(to scroll: NSScrollView?) {
+        guard let scroll else { return }
+        let target = current.scale(screen: scroll.window?.screen, viewWidth: scroll.frame.width)
+        guard abs(scroll.magnification - target) > 0.001 else { return }
+        // 缩放后滚回原来的高度（默认按中心缩放，顶部几行和光标会被推出视野）；没有横向滚动，左边从 0 开始
+        let top = scroll.contentView.bounds.origin.y
+        scroll.magnification = target
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: top))
+        scroll.reflectScrolledClipView(scroll.contentView)
+        if let doc = scroll.documentView, let clip = scroll.documentView?.superview as? NSClipView {
+            // 缩放后正文和可见区域一样宽，否则页边距、折行按旧宽度算，字被切掉或右边空一条
+            let width = clip.bounds.width
+            if width > 0, abs(doc.frame.width - width) > 0.5 { doc.setFrameSize(NSSize(width: width, height: doc.frame.height)) }
+        }
+    }
+
+    /// 窗口挪到另一块屏幕、或改了字号设置时，通知编辑区重新排版（会再调 apply）
+    @MainActor static func observe(_ view: NSView) -> [NSObjectProtocol] {
+        let nc = NotificationCenter.default
+        let relayout: @Sendable (Notification) -> Void = { [weak view] _ in MainActor.assumeIsolated { view?.needsLayout = true } }
+        var tokens = [nc.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main, using: relayout)]
+        if let window = view.window {
+            tokens.append(nc.addObserver(forName: NSWindow.didChangeScreenNotification, object: window, queue: .main, using: relayout))
+        }
+        return tokens
+    }
+}
+
 /// 单击链接时怎么做（设置“通用 → 链接”）
 enum LinkClickAction: String, CaseIterable, Identifiable {
     case open, confirm, command

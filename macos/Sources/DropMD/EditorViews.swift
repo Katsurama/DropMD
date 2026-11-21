@@ -19,7 +19,7 @@ struct MarkdownTextView: NSViewRepresentable {
         container.widthTracksTextView = true
         layout.addTextContainer(container)
 
-        let tv = NSTextView(frame: .zero, textContainer: container)
+        let tv = SourceTextView(frame: .zero, textContainer: container)
         tv.isRichText = false
         tv.importsGraphics = false
         tv.allowsUndo = true
@@ -32,7 +32,7 @@ struct MarkdownTextView: NSViewRepresentable {
         tv.isIncrementalSearchingEnabled = true
         tv.drawsBackground = true
         tv.backgroundColor = .textBackgroundColor
-        tv.textContainerInset = NSSize(width: 28, height: 24)
+        tv.textContainerInset = NSSize(width: 16, height: 24)
         tv.isVerticallyResizable = true
         tv.isHorizontallyResizable = false
         tv.autoresizingMask = [.width]
@@ -48,6 +48,10 @@ struct MarkdownTextView: NSViewRepresentable {
         scroll.borderType = .noBorder
         scroll.documentView = tv
         scroll.contentView.postsBoundsChangedNotifications = true
+        let ruler = SourceLineNumberRulerView(scrollView: scroll, textView: tv)
+        scroll.verticalRulerView = ruler
+        scroll.hasVerticalRuler = true
+        scroll.rulersVisible = true
         NotificationCenter.default.addObserver(
             context.coordinator, selector: #selector(Coordinator.didScroll(_:)),
             name: NSView.boundsDidChangeNotification, object: scroll.contentView)

@@ -25,12 +25,22 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
         config.setURLSchemeHandler(images, forURLScheme: LocalImageHandler.scheme)
         webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 800, height: 600), configuration: config)
         webView.navigationDelegate = self
+        webView.pageZoom = Self.autoZoom(NSScreen.main)
         view = webView
+    }
+
+    /// 与 App 里字号“自动”相同：屏幕点越密（笔记本）字越大，最多 1.25 倍（快速查看读不到 App 的设置，只用“自动”）
+    private static func autoZoom(_ screen: NSScreen?) -> CGFloat {
+        guard let screen, let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else { return 1 }
+        let mm = CGDisplayScreenSize(id).width
+        guard mm > 0 else { return 1 }
+        return (min(max(screen.frame.width / (mm / 25.4) / 110, 1), 1.25) * 20).rounded() / 20
     }
 
     func preparePreviewOfFile(at url: URL) async throws {
         revision += 1
         let rev = revision
+        webView.pageZoom = Self.autoZoom(view.window?.screen ?? NSScreen.main)   // 每次预览按当时所在的屏幕算
         // 和 App 打开文件时一样识别编码（UTF-8 / UTF-16 / GB18030 / Shift-JIS 等）
         let text = MarkdownDocument.decode(try Data(contentsOf: url))
         if !ready {

@@ -77,10 +77,13 @@ final class RichTextView: NSTextView {
 
     private static let topMargin: CGFloat = 56
     private var marginObserver: NSObjectProtocol?
+    private var scaleObservers: [NSObjectProtocol] = []
 
     /// 在“显示 → 页边距”或设置里改了页边距：马上重新排版
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        scaleObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        scaleObservers = window == nil ? [] : TextScale.observe(self)   // 窗口换了屏幕：字号“自动”重新计算
         guard marginObserver == nil, window != nil else { return }
         marginObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.needsLayout = true; self?.needsDisplay = true; self?.updateBlink() }
@@ -89,10 +92,20 @@ final class RichTextView: NSTextView {
 
     deinit {
         if let marginObserver { NotificationCenter.default.removeObserver(marginObserver) }
+        scaleObservers.forEach { NotificationCenter.default.removeObserver($0) }
+    }
+
+    // 字号放大缩小后正文要和可见区域一样宽（拉窗口时系统只按变化量加减，会和缩放后的宽度对不上）
+    override func resize(withOldSuperviewSize oldSize: NSSize) {
+        super.resize(withOldSuperviewSize: oldSize)
+        if let clip = superview as? NSClipView, clip.bounds.width > 0, abs(frame.width - clip.bounds.width) > 0.5 {
+            setFrameSize(NSSize(width: clip.bounds.width, height: frame.height))
+        }
     }
 
     override func layout() {
         super.layout()
+        TextScale.apply(to: enclosingScrollView)
         let inset = NSSize(width: PageMargin.current.margin(for: bounds.width), height: Self.topMargin)
         if abs(textContainerInset.width - inset.width) > 0.5 || textContainerInset.height != inset.height {
             textContainerInset = inset

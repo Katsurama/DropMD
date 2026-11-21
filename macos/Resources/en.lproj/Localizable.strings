@@ -412,3 +412,8 @@
 "目录" = "Outline";
 "暂无标题" = "No Headings";
 "已选 %lld 字 · %@" = "%lld selected · %@";
+"字号" = "Text Size";
+"大" = "Large";
+"中" = "Medium";
+"小" = "Small";
+"选“自动”时，笔记本等屏幕点更密的显示器上字更大。只改显示，不影响导出和保存。" = "With Automatic, text is larger on denser displays such as laptops. Only changes the display; exports and saved files are not affected.";

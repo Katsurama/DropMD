@@ -139,6 +139,17 @@ struct PageMarginMenu: View {
     }
 }
 
+/// 菜单“显示 → 字号”（单页、双页）
+struct TextScaleMenu: View {
+    @AppStorage("textScale") private var scale = TextScale.auto.rawValue
+
+    var body: some View {
+        Picker("字号", selection: $scale) {
+            ForEach(TextScale.allCases) { Text($0.title).tag($0.rawValue) }
+        }
+    }
+}
+
 /// 设置里“点击链接时”怎么做
 struct LinkClickPicker: View {
     @AppStorage("linkClickAction") private var action = LinkClickAction.confirm.rawValue
@@ -240,6 +251,7 @@ struct FormatCommands: Commands {
                 .disabled(toggleInspector == nil)
             AppearanceMenu()
             PageMarginMenu()
+            TextScaleMenu()
             SourceMarkMenu()
             Divider()
         }
