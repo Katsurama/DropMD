@@ -13,6 +13,13 @@ enum SourceGutterStyle {
             : NSColor(srgbRed: 0.04, green: 0.41, blue: 0.85, alpha: 0.055)
     }
 
+    /// 双页对应位置：整行高亮，与 GitHub 点行号选中行相同（Primer attention-muted）
+    static let markLineColor = NSColor(name: "DropMD.source.markLine") { a in
+        isDark(a)
+            ? NSColor(srgbRed: 0.733, green: 0.502, blue: 0.035, alpha: 0.15)
+            : NSColor(srgbRed: 1.0, green: 0.973, blue: 0.773, alpha: 1)
+    }
+
     /// 行号栏右侧与编辑区之间的细分隔线颜色。
     static let separatorColor = NSColor(name: "DropMD.source.gutterSeparator") { a in
         isDark(a)
@@ -28,10 +35,57 @@ enum SourceGutterStyle {
     }
 }
 
+/// 双页的两个编辑区用的滚动视图：双页时滚动条只在滚动时出现（只出现在正在滚动的一边），单页时跟系统设置
+final class SplitScrollView: NSScrollView {
+    var overlayScrollers = false { didSet { applyScrollerStyle() } }
+    private var styleObserver: NSObjectProtocol?
+
+    deinit {
+        if let styleObserver { NotificationCenter.default.removeObserver(styleObserver) }
+    }
+
+    private func applyScrollerStyle() {
+        scrollerStyle = overlayScrollers ? .overlay : NSScroller.preferredScrollerStyle
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let styleObserver { NotificationCenter.default.removeObserver(styleObserver) }
+        styleObserver = nil
+        guard window != nil else { return }
+        applyScrollerStyle()
+        // 系统设置里改了“显示滚动条”后，系统会把样式改回去：等它改完再设回来
+        styleObserver = NotificationCenter.default.addObserver(
+            forName: NSScroller.preferredScrollerStyleDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.applyScrollerStyle() } }
+        }
+    }
+}
+
 /// 带当前逻辑行背景高亮的源码文本视图（仅在无选区时绘制）。
 final class SourceTextView: NSTextView {
     private var lastCaretLineRect: NSRect = .zero
     private var scaleObservers: [NSObjectProtocol] = []
+
+    /// 双页：右边光标对应的原文行（字符范围），整行高亮，行号栏同一行也高亮
+    var markedLines: NSRange? {
+        didSet {
+            guard markedLines != oldValue else { return }
+            needsDisplay = true
+            enclosingScrollView?.verticalRulerView?.needsDisplay = true
+        }
+    }
+
+    /// 高亮行在视图中的矩形（整行宽，折行时包括所有视觉行）
+    func markedLinesRect() -> NSRect {
+        guard let r = markedLines, r.length > 0, let lm = layoutManager, let tc = textContainer, tc.containerSize.width > 0,
+              lm.numberOfGlyphs > 0, NSMaxRange(r) <= (string as NSString).length else { return .zero }
+        let glyphs = lm.glyphRange(forCharacterRange: r, actualCharacterRange: nil)
+        guard glyphs.length > 0 else { return .zero }
+        let first = lm.lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+        let last = lm.lineFragmentRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
+        return NSRect(x: 0, y: first.minY + textContainerOrigin.y, width: bounds.width, height: last.maxY - first.minY)
+    }
 
     // 字号（显示 → 字号）与单页相同：整块按比例放大；设置一改、窗口换屏幕都马上重新计算
     override func viewDidMoveToWindow() {
@@ -57,9 +111,8 @@ final class SourceTextView: NSTextView {
     }
 
     private func fitWidthToClipView() {
-        guard let clip = superview as? NSClipView else { return }
-        let width = clip.bounds.width
-        if width > 0, abs(frame.width - width) > 0.5 { setFrameSize(NSSize(width: width, height: frame.height)) }
+        guard superview is NSClipView else { return }
+        if let width = visibleWidth, abs(frame.width - width) > 0.5 { setFrameSize(NSSize(width: width, height: frame.height)) }
     }
 
     override func drawBackground(in rect: NSRect) {
@@ -69,6 +122,11 @@ final class SourceTextView: NSTextView {
         if !lineRect.isEmpty, lineRect.intersects(rect) {
             SourceGutterStyle.caretLineHighlightColor.setFill()
             lineRect.intersection(rect).fill()
+        }
+        let mark = markedLinesRect()
+        if !mark.isEmpty, mark.intersects(rect) {
+            SourceGutterStyle.markLineColor.setFill()
+            mark.intersection(rect).fill()
         }
     }
 
@@ -93,8 +151,25 @@ final class SourceTextView: NSTextView {
     }
 
     override func setFrameSize(_ newSize: NSSize) {
-        super.setFrameSize(newSize)
+        var size = newSize
+        // 自动换行：宽度等于看得见的部分（行号栏占的位置是内边距，要扣掉，否则右边被挡住、能横向拖动）
+        if let w = visibleWidth { size.width = w }
+        super.setFrameSize(size)
         if !lastCaretLineRect.isEmpty { setNeedsDisplay(lastCaretLineRect) }
+    }
+
+    /// 可见区域的宽度（扣掉行号栏等内边距）
+    private var visibleWidth: CGFloat? {
+        guard let clip = superview as? NSClipView else { return nil }
+        let w = clip.bounds.width - clip.contentInsets.left - clip.contentInsets.right
+        return w > 0 ? w : nil
+    }
+
+    /// 不能横向滚动：始终停在最左边（行号栏的内边距之外）
+    override func adjustScroll(_ newVisible: NSRect) -> NSRect {
+        var r = super.adjustScroll(newVisible)
+        r.origin.x = -((superview as? NSClipView)?.contentInsets.left ?? 0)
+        return r
     }
 
     /// 供 textStorage 编辑通知调用：不访问 layoutManager，仅标记旧的光标行区域需要重绘。
@@ -104,6 +179,7 @@ final class SourceTextView: NSTextView {
 
     /// 计算当前光标所在逻辑行在视图坐标中的整行矩形（折行时覆盖所有视觉行）；有选区时返回 .zero。
     private func caretLineRect() -> NSRect {
+        guard markedLines == nil else { return .zero }   // 正在标对应位置（光标在右边）：只显示一条高亮
         guard selectedRanges.count == 1, let sel = selectedRanges.first?.rangeValue, sel.length == 0 else {
             return .zero
         }
@@ -334,7 +410,8 @@ final class SourceLineNumberRulerView: NSRulerView {
 
         let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
         let hairline = 1.0 / max(1.0, scale)
-        let activeLine = activeLineIndex(in: tv)
+        let mark = (tv as? SourceTextView)?.markedLines
+        let activeLine = mark == nil ? activeLineIndex(in: tv) : nil   // 正在标对应位置时只显示一条高亮
         let originY = tv.textContainerOrigin.y
         let dirtyInTV = convert(rect, to: tv)
         let containerTop = max(0, dirtyInTV.minY - originY)
@@ -360,10 +437,15 @@ final class SourceLineNumberRulerView: NSRulerView {
                         SourceGutterStyle.caretLineHighlightColor.setFill()
                         NSRect(x: 0, y: yInRuler, width: self.bounds.width - hairline, height: lineInRuler.height).fill()
                     }
+                    let marked = mark.map { NSLocationInRange(charLoc, $0) } ?? false
+                    if marked {
+                        SourceGutterStyle.markLineColor.setFill()
+                        NSRect(x: 0, y: yInRuler, width: self.bounds.width - hairline, height: lineInRuler.height).fill()
+                    }
                     // 折行时仅在逻辑行首个视觉行绘制行号
                     if charLoc == self.lineStarts[lineIdx] {
                         let drawY = yInRuler + lm.location(forGlyphAt: glyphRange.location).y * zoom - gutterAscender
-                        let attrs = lineIdx == activeLine ? Self.activeAttributes : Self.normalAttributes
+                        let attrs = lineIdx == activeLine || marked ? Self.activeAttributes : Self.normalAttributes
                         let labelRect = NSRect(x: 0, y: drawY, width: labelWidth, height: max(lineInRuler.height, 18))
                         ("\(lineIdx + 1)" as NSString).draw(in: labelRect, withAttributes: attrs)
                     }

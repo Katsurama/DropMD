@@ -19,19 +19,20 @@ enum MarkdownHighlighter {
         }
     }
 
-    private static let foregroundColor = primer("fg", light: 0x1F2328, dark: 0xE6EDF3)
-    private static let headingColor = primer("heading", light: 0x0550AE, dark: 0x79C0FF)
-    private static let headingMarkerColor = primer("headingMarker", light: 0x0969DA, dark: 0x58A6FF)
-    private static let mutedColor = primer("muted", light: 0x59636E, dark: 0x8B949E)
-    private static let markerColor = primer("marker", light: 0x6E7781, dark: 0x8B949E)
-    private static let listMarkerColor = primer("listMarker", light: 0x953800, dark: 0xFFA657)
-    private static let htmlTagColor = primer("htmlTag", light: 0x116329, dark: 0x7EE787)
-    private static let linkColor = primer("link", light: 0x0969DA, dark: 0x58A6FF)
-    private static let inlineCodeColor = primer("inlineCode", light: 0xCF222E, dark: 0xFF7B72)
+    // 深色用 GitHub“深色高对比度”配色：和单页同一个系统深灰底并排时也看得清
+    private static let foregroundColor = primer("fg", light: 0x1F2328, dark: 0xF0F3F6)
+    private static let headingColor = primer("heading", light: 0x0550AE, dark: 0x91CBFF)
+    private static let headingMarkerColor = primer("headingMarker", light: 0x0969DA, dark: 0x71B7FF)
+    private static let mutedColor = primer("muted", light: 0x59636E, dark: 0xB7BDC8)
+    private static let markerColor = primer("marker", light: 0x6E7781, dark: 0xB7BDC8)
+    private static let listMarkerColor = primer("listMarker", light: 0x953800, dark: 0xFFB757)
+    private static let htmlTagColor = primer("htmlTag", light: 0x116329, dark: 0x72F088)
+    private static let linkColor = primer("link", light: 0x0969DA, dark: 0x71B7FF)
+    private static let inlineCodeColor = primer("inlineCode", light: 0xCF222E, dark: 0xFF9492)
     private static let inlineCodeBackground = primer("inlineCodeBg", light: 0xAFB8C1, dark: 0x6E7681,
                                                      lightAlpha: 0.20, darkAlpha: 0.28)
-    private static let mathColor = primer("math", light: 0x8250DF, dark: 0xD2A8FF)
-    private static let fenceColor = primer("fence", light: 0x0A3069, dark: 0xA5D6FF)
+    private static let mathColor = primer("math", light: 0x8250DF, dark: 0xDBB7FF)
+    private static let fenceColor = primer("fence", light: 0x0A3069, dark: 0xADDCFF)
 
     static var baseAttributes: [NSAttributedString.Key: Any] {
         let p = NSMutableParagraphStyle()

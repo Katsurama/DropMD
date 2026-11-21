@@ -211,8 +211,8 @@ extension RichTextView {
         let pasted = NSMutableAttributedString(attributedString: RichBridge.restoringAttachments(s, baseURL: baseURL))
         let dest = paragraphAttributes(paragraphRange(at: selectedRange().location))
         if !pasted.string.contains("\n") || RichBridge.tableBlock(of: dest) != nil {
-            // 一行里的字、或贴进表格单元格：用目标这一段的格式，不把这一段（或整张表）拆开
-            replace(selectedRange(), with: fitted(pasted, to: dest))
+            // 一行里的字、或贴进表格单元格：用目标这一段的格式和字号，不把这一段（或整张表）拆开
+            replace(selectedRange(), with: fitInline(pasted, to: dest))
             return true
         }
         if dest[DMKey.inDetails] != nil {
@@ -226,6 +226,9 @@ extension RichTextView {
                 RichBridge.markInDetails(part)
                 pasted.replaceCharacters(in: r, with: part)
             }
+        } else {
+            // 贴到折叠块外：只保留剪贴板里自带完整折叠块（有标题行）的内容，游离的折叠块标记和缩进全部去掉
+            Self.stripOrphanDetails(pasted)
         }
         // 引用、原样内容的块编号是复制来源那里的：每段换一个新编号（复制来的两段仍是两段，也不和文中别的块重号）；
         // 只有一段、贴进同一种块的中间时，用目标那一块的编号，不把它切开
@@ -252,6 +255,97 @@ extension RichTextView {
         return true
     }
 
+    /// 贴到折叠块外时，去掉没有对应折叠块标题的游离折叠标记与缩进（保留各自原有的段落样式）
+    private static func stripOrphanDetails(_ s: NSMutableAttributedString) {
+        let ns = s.string as NSString
+        var loc = 0
+        var inOwnDetails = false
+        while loc < ns.length {
+            let para = ns.paragraphRange(for: NSRange(location: loc, length: 0))
+            loc = NSMaxRange(para)
+            let a = s.attributes(at: para.location, effectiveRange: nil)
+            if a[DMKey.summary] != nil {
+                inOwnDetails = true
+            } else if a[DMKey.inDetails] != nil {
+                if !inOwnDetails { unmarkInDetails(s, in: para) }
+            } else {
+                inOwnDetails = false
+                s.removeAttribute(DMKey.inDetails, range: para)
+            }
+        }
+    }
+
+    /// 撤回 RichBridge.markInDetails 对段落做过的折叠块标记与缩进
+    private static func unmarkInDetails(_ s: NSMutableAttributedString, in range: NSRange) {
+        var styles: [(NSRange, NSParagraphStyle)] = []
+        s.enumerateAttribute(.paragraphStyle, in: range, options: []) { value, r, _ in
+            if let p = value as? NSParagraphStyle { styles.append((r, p)) }
+        }
+        for (r, p) in styles {
+            if let cell = p.textBlocks.first as? NSTextTableBlock {
+                cell.table.setWidth(0, type: .absoluteValueType, for: .margin, edge: .minX)
+                continue
+            }
+            guard let m = p.mutableCopy() as? NSMutableParagraphStyle else { continue }
+            m.firstLineHeadIndent = max(0, m.firstLineHeadIndent - RichStyle.detailsIndent)
+            m.headIndent = max(0, m.headIndent - RichStyle.detailsIndent)
+            s.addAttribute(.paragraphStyle, value: m, range: r)
+        }
+        s.removeAttribute(DMKey.inDetails, range: range)
+    }
+
+    /// 行内粘贴：改用目标段落的字体、字号与字距，保留粗体、斜体、行内代码、链接等行内格式
+    private func fitInline(_ s: NSAttributedString, to dest: [NSAttributedString.Key: Any]) -> NSAttributedString {
+        let out = NSMutableAttributedString(attributedString: s)
+        guard out.length > 0 else { return out }
+        let destKind = RichBridge.kind(of: dest)
+        let destImplicitBold = destKind.isHeading || destKind == .summary || RichBridge.tableBlock(of: dest)?.startingRow == 0
+        let kern = RichStyle.kern(for: destKind)
+        var runs: [(NSRange, [NSAttributedString.Key: Any])] = []
+        out.enumerateAttributes(in: NSRange(location: 0, length: out.length), options: []) { a, r, _ in
+            runs.append((r, a))
+        }
+        for (r, old) in runs {
+            if old[.attachment] != nil || old[DMKey.image] != nil { continue }
+            var a = old
+            if destKind.isMonospaced {
+                for key in [DMKey.inlineCode, DMKey.kbd, DMKey.highlight, DMKey.link, DMKey.title, DMKey.literal] { a[key] = nil }
+                for key: NSAttributedString.Key in [.link, .backgroundColor, .obliqueness, .underlineStyle, .underlineColor, .strikethroughStyle, .superscript, .kern] {
+                    a[key] = nil
+                }
+                a[.font] = RichStyle.baseFont(for: destKind)
+                a[.foregroundColor] = RichStyle.textColor(for: destKind)
+            } else {
+                let srcKind = RichBridge.kind(of: old)
+                let srcImplicitBold = srcKind.isHeading || srcKind == .summary || RichBridge.tableBlock(of: old)?.startingRow == 0
+                var bold = RichStyle.isBold(old[.font] as? NSFont)
+                if destImplicitBold {
+                    bold = true
+                } else if srcImplicitBold || srcKind.isMonospaced {
+                    bold = false
+                }
+                var font: NSFont
+                if a[DMKey.inlineCode] != nil {
+                    font = .monospacedSystemFont(ofSize: RichStyle.inlineCodeSize, weight: .regular)
+                    if bold { font = RichStyle.setBold(font, true) }
+                } else if a[DMKey.kbd] != nil {
+                    font = RichStyle.kbdFont
+                    if bold { font = RichStyle.setBold(font, true) }
+                } else {
+                    font = RichStyle.setBold(RichStyle.baseFont(for: destKind), bold)
+                }
+                if ((a[.superscript] as? Int) ?? 0) != 0 { font = RichStyle.scaled(font, 0.75) }
+                a[.font] = font
+                a[.kern] = kern
+                if a[DMKey.link] == nil && a[DMKey.literal] == nil {
+                    a[.foregroundColor] = a[DMKey.inlineCode] != nil ? RichStyle.inlineCodeColor : RichStyle.textColor(for: destKind)
+                }
+            }
+            out.setAttributes(a, range: r)
+        }
+        return fitted(out, to: dest)
+    }
+
     /// 从网页、Word 等粘贴的文字：去掉颜色、字体、对齐等无法保存的格式，统一为编辑器的样式
     private func normalizePasted(_ range: NSRange, inDetails: Bool, kind: RichKind?) {
         let paragraphKind = kind ?? currentKind
@@ -264,8 +358,10 @@ extension RichTextView {
             var a = old.filter { Self.keptKeys.contains($0.key) }
             if RichBridge.tableBlock(of: old) != nil { a[.paragraphStyle] = old[.paragraphStyle] }
             let font = old[.font] as? NSFont
-            if a[DMKey.inlineCode] == nil, a[.attachment] == nil {
-                a[.font] = RichStyle.setBold(RichStyle.baseFont(for: paragraphKind), RichStyle.isBold(font))
+            if a[DMKey.inlineCode] == nil, a[DMKey.kbd] == nil, a[.attachment] == nil {
+                let bold = paragraphKind.isHeading || paragraphKind == .summary || (!paragraphKind.isMonospaced && RichStyle.isBold(font))
+                a[.font] = RichStyle.setBold(RichStyle.baseFont(for: paragraphKind), bold)
+                a[.kern] = RichStyle.kern(for: paragraphKind)
                 if let font, font.fontDescriptor.symbolicTraits.contains(.italic) {
                     a[.obliqueness] = RichStyle.italicObliqueness
                 }

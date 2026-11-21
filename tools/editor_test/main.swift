@@ -1603,6 +1603,147 @@ MainActor.assumeIsolated {
         tv.delete(nil)
         check("删掉代码块间的空行后仍是两块", (tv.layoutManager as! RichLayoutManager).codeBlock(at: 0).map { (tv.string as NSString).substring(with: $0) } ?? "无", "let a = 1\n")
     }
+    // 折叠块里多段复制到外面：去掉折叠块标记和缩进，保留各自段落样式；粘进另一个折叠块时仍归那一块
+    do {
+        @MainActor func copyPaste(_ src: String, copyStart: String, copyEnd: String, includeEndNewline: Bool = true, into: NSRange) -> RichTextView {
+            let tv = makeView(src)
+            let ns = tv.string as NSString
+            let s = ns.range(of: copyStart).location
+            let e = ns.range(of: copyEnd)
+            let end = includeEndNewline ? NSMaxRange(e) : NSMaxRange(e)
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDTestDetails-\(UUID().uuidString)"))
+            board.clearContents()
+            tv.setSelectedRange(NSRange(location: s, length: end - s))
+            _ = tv.writeSelection(to: board, types: tv.writablePasteboardTypes)
+            tv.setSelectedRange(into)
+            _ = tv.readSelection(from: board)
+            board.releaseGlobally()
+            return tv
+        }
+        @MainActor func attrs(of tv: RichTextView, last needle: String) -> [NSAttributedString.Key: Any] {
+            let r = (tv.string as NSString).range(of: needle, options: .backwards)
+            return tv.textStorage!.attributes(at: r.location, effectiveRange: nil)
+        }
+
+        let src1 = "<details open>\n<summary>折叠</summary>\n\n## 小标题\n\n- **粗** 和 *斜* 和 `代码`\n\n普通 [链接](https://example.com)\n\n</details>\n"
+        let tv0 = makeView(src1)
+        let tv1 = copyPaste(src1, copyStart: "小标题", copyEnd: "普通 链接\n", into: NSRange(location: (tv0.string as NSString).length - 1, length: 0))
+        check("折叠块内多段粘到块外空段：Markdown", md(tv1),
+              src1 + "\n## 小标题\n\n- **粗** 和 *斜* 和 `代码`\n\n普通 [链接](https://example.com)\n")
+        let aH = attrs(of: tv1, last: "小标题"), aL = attrs(of: tv1, last: "粗"), aB = attrs(of: tv1, last: "普通")
+        let indentH = (aH[.paragraphStyle] as? NSParagraphStyle)?.firstLineHeadIndent ?? -1
+        let indentL = (aL[.paragraphStyle] as? NSParagraphStyle)?.firstLineHeadIndent ?? -1
+        let indentB = (aB[.paragraphStyle] as? NSParagraphStyle)?.firstLineHeadIndent ?? -1
+        check("折叠块内多段粘到块外空段：属性与缩进",
+              "\(aH[DMKey.inDetails] == nil) \(aL[DMKey.inDetails] == nil) \(aB[DMKey.inDetails] == nil) \(indentH) \(indentL) \(indentB)",
+              "true true true 0.0 \(RichStyle.indent) 0.0")
+
+        let src2 = "<details open>\n<summary>折</summary>\n\n第一段\n\n第二段\n\n</details>\n\n隔开\n\n落点\n"
+        let tv2 = copyPaste(src2, copyStart: "第一段", copyEnd: "第二段", into: (makeView(src2).string as NSString).range(of: "落点"))
+        check("折叠块内多段粘到远处正文", md(tv2),
+              "<details open>\n<summary>折</summary>\n\n第一段\n\n第二段\n\n</details>\n\n隔开\n\n第一段\n\n第二段\n")
+        let a2a = attrs(of: tv2, last: "第一段"), a2b = attrs(of: tv2, last: "第二段")
+        check("折叠块内多段粘到远处正文：属性与缩进",
+              "\(a2a[DMKey.inDetails] == nil) \(a2b[DMKey.inDetails] == nil) \((a2a[.paragraphStyle] as? NSParagraphStyle)?.firstLineHeadIndent ?? -1) \((a2b[.paragraphStyle] as? NSParagraphStyle)?.firstLineHeadIndent ?? -1)",
+              "true true 0.0 0.0")
+
+        let src3 = "<details open>\n<summary>甲</summary>\n\n## 标题\n\n- 列表\n\n</details>\n\n<details open>\n<summary>乙</summary>\n\n原有\n\n</details>\n"
+        let tv3 = copyPaste(src3, copyStart: "标题", copyEnd: "列表\n", into: (makeView(src3).string as NSString).range(of: "原有"))
+        check("折叠块内多段粘进另一个折叠块", md(tv3),
+              "<details open>\n<summary>甲</summary>\n\n## 标题\n\n- 列表\n\n</details>\n\n<details open>\n<summary>乙</summary>\n\n## 标题\n\n- 列表\n\n</details>\n")
+        let a3H = attrs(of: tv3, last: "标题"), a3L = attrs(of: tv3, last: "列表")
+        check("折叠块内多段粘进另一个折叠块：属性与缩进",
+              "\(a3H[DMKey.inDetails] != nil) \(a3L[DMKey.inDetails] != nil) \((a3H[.paragraphStyle] as? NSParagraphStyle)?.firstLineHeadIndent ?? -1) \((a3L[.paragraphStyle] as? NSParagraphStyle)?.firstLineHeadIndent ?? -1)",
+              "true true \(RichStyle.detailsIndent) \(RichStyle.indent + RichStyle.detailsIndent)")
+
+        let src4 = "<details open>\n<summary>折</summary>\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n</details>\n"
+        let tv4 = copyPaste(src4, copyStart: "A", copyEnd: "2\n", into: NSRange(location: (makeView(src4).string as NSString).length - 1, length: 0))
+        check("折叠块内表格粘到块外", md(tv4),
+              "<details open>\n<summary>折</summary>\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n</details>\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n")
+        let a4 = attrs(of: tv4, last: "1")
+        check("折叠块内表格粘到块外：属性与左边距",
+              "\(a4[DMKey.inDetails] == nil) \(RichBridge.tableBlock(of: a4)?.table.width(for: .margin, edge: .minX) ?? -1)",
+              "true 0.0")
+    }
+    // 行内粘贴：立刻使用目标段落的字号和基础字体，保留行内格式（粗体、斜体、代码、链接）
+    do {
+        @MainActor func copyPasteInline(_ src: String, copy: String, at target: String) -> RichTextView {
+            let tv = makeView(src)
+            let ns = tv.string as NSString
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDTestInline-\(UUID().uuidString)"))
+            board.clearContents()
+            tv.setSelectedRange(ns.range(of: copy))
+            _ = tv.writeSelection(to: board, types: tv.writablePasteboardTypes)
+            tv.setSelectedRange(NSRange(location: ns.range(of: target).location, length: 0))
+            _ = tv.readSelection(from: board)
+            board.releaseGlobally()
+            return tv
+        }
+        @MainActor func info(_ tv: RichTextView, _ needle: String, backwards: Bool) -> (size: CGFloat, bold: Bool, italic: Bool, code: Bool, link: String?, kern: Double?) {
+            let r = (tv.string as NSString).range(of: needle, options: backwards ? .backwards : [])
+            let a = tv.textStorage!.attributes(at: r.location, effectiveRange: nil)
+            let font = a[.font] as? NSFont
+            return (font?.pointSize ?? 0, RichStyle.isBold(font), ((a[.obliqueness] as? Double) ?? 0) != 0,
+                    a[DMKey.inlineCode] != nil, a[DMKey.link] as? String, a[.kern] as? Double)
+        }
+
+        let tv1 = copyPasteInline("# 标题 *斜* `代码` [链](https://example.com)\n\n前后\n", copy: "标题 斜 代码 链", at: "后")
+        check("标题片段行内粘进正文：Markdown", md(tv1),
+              "# 标题 *斜* `代码` [链](https://example.com)\n\n前标题 *斜* `代码` [链](https://example.com)后\n")
+        let i1t = info(tv1, "标题", backwards: true), i1i = info(tv1, "斜", backwards: true)
+        let i1c = info(tv1, "代码", backwards: true), i1l = info(tv1, "链", backwards: true)
+        check("标题片段行内粘进正文：字号与格式",
+              "\(i1t.size) \(i1t.bold) \(i1t.kern == nil) | \(i1i.size) \(i1i.italic) \(i1i.bold) | \(i1c.code) \(i1c.size) \(i1c.bold) | \(i1l.link ?? "") \(i1l.size) \(i1l.bold)",
+              "\(RichStyle.bodySize) false true | \(RichStyle.bodySize) true false | true \(RichStyle.inlineCodeSize) false | https://example.com \(RichStyle.bodySize) false")
+
+        let tv2 = copyPasteInline("甲 **粗** *斜* `码` [链](https://example.com)\n\n前后\n", copy: "粗 斜 码 链", at: "后")
+        check("正文带格式片段行内粘进正文：保留粗体等格式", md(tv2),
+              "甲 **粗** *斜* `码` [链](https://example.com)\n\n前**粗** *斜* `码` [链](https://example.com)后\n")
+        let i2b = info(tv2, "粗", backwards: true)
+        check("正文带格式片段行内粘进正文：粗体字号", "\(i2b.size) \(i2b.bold)", "\(RichStyle.bodySize) true")
+
+        let tv3 = copyPasteInline("## 标头\n\n普通 **粗** *斜* `码` [链](https://example.com)\n", copy: "普通 粗 斜 码 链", at: "头")
+        check("正文片段行内粘进标题：Markdown", md(tv3),
+              "## 标普通 粗 *斜* `码` [链](https://example.com)头\n\n普通 **粗** *斜* `码` [链](https://example.com)\n")
+        let h2Size = RichStyle.baseFont(for: .heading(2)).pointSize
+        let i3p = info(tv3, "普通", backwards: false), i3i = info(tv3, "斜", backwards: false)
+        let i3c = info(tv3, "码", backwards: false), i3l = info(tv3, "链", backwards: false)
+        check("正文片段行内粘进标题：字号与格式",
+              "\(i3p.size) \(i3p.bold) \(i3p.kern ?? 0) | \(i3i.size) \(i3i.italic) | \(i3c.code) \(i3c.size) | \(i3l.link ?? "") \(i3l.size)",
+              "\(h2Size) true -0.2 | \(h2Size) true | true \(RichStyle.inlineCodeSize) | https://example.com \(h2Size)")
+    }
+    // 列表项里的代码块变回正文：变成同一列表的项目，不断开列表
+    do {
+        for (name, src, want) in [
+            ("无序列表代码块变回正文", "- 项目一\n\n  ```\n  code\n  ```\n- 项目二\n", "- 项目一\n- code\n- 项目二\n"),
+            ("有序列表代码块变回正文", "1. 第一步\n\n   ```\n   code\n   ```\n2. 第二步\n", "1. 第一步\n2. code\n3. 第二步\n"),
+        ] {
+            let tv = makeView(src)
+            let loc = (tv.string as NSString).range(of: "code").location
+            tv.setSelectedRange(NSRange(location: loc, length: 0))
+            tv.setKind(.body)
+            check(name, md(tv), want)
+        }
+    }
+    // 离开原样块后，下一段保留卡片下方的间距
+    do {
+        @MainActor func gapBeforeBody(_ tv: RichTextView) -> CGFloat {
+            let lm = tv.layoutManager!
+            lm.ensureLayout(for: tv.textContainer!)
+            let g = lm.glyphIndexForCharacter(at: (tv.string as NSString).range(of: "正文").location)
+            let cur = lm.lineFragmentUsedRect(forGlyphAt: g, effectiveRange: nil)
+            let prev = lm.lineFragmentUsedRect(forGlyphAt: g - 1, effectiveRange: nil)
+            return cur.minY - prev.maxY
+        }
+        let tv = makeView("<div>\nx\n</div>\n")
+        let xEnd = NSMaxRange((tv.string as NSString).range(of: "x"))
+        tv.setSelectedRange(NSRange(location: xEnd, length: 0))
+        tv.insertNewline(nil)
+        tv.insertNewline(nil)
+        type(tv, "正文")
+        let fresh = makeView("<div>\nx\n</div>\n\n正文\n")
+        check("离开原样块后保留卡片下方间距", "\(gapBeforeBody(tv))", "\(gapBeforeBody(fresh))")
+    }
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

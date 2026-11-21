@@ -46,6 +46,16 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             invalidateLayout(forCharacterRange: table, actualCharacterRange: nil)
             invalidateDisplay(forCharacterRange: table)
         }
+        // 段后间距看下一段是什么（codeEdgeSpacing）：在一段后面加了段落，上一段也要重排，否则卡片下面不留空
+        // 只在加减了段落（改动里有换行，或改在段首）时才需要，段落中间打字不重排
+        if editMask.contains(.editedCharacters), newCharRange.location > 0 {
+            let ns = textStorage.string as NSString
+            let atStart = ns.character(at: newCharRange.location - 1) == 0x0A
+            if atStart || ns.substring(with: newCharRange).contains("\n") {
+                let prev = ns.paragraphRange(for: NSRange(location: newCharRange.location - 1, length: 0))
+                invalidateLayout(forCharacterRange: prev, actualCharacterRange: nil)
+            }
+        }
         // 临时属性会触发显示失效和字形生成，必须等本轮 endEditing 完全结束后再应用
         scheduleDisplayStyles(for: newCharRange, delta: delta)
         let now = hiddenRanges

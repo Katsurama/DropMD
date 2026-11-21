@@ -526,9 +526,16 @@ final class RichTextView: NSTextView {
         var lastTarget = RichKind.body
         // 从后往前处理，前面段落的位置不受影响
         for p in paragraphs.reversed() {
-            let old = RichBridge.kind(of: storage.attributes(at: p.location, effectiveRange: nil))
-            if p == paragraphs.last { lastTarget = map(old) }
-            let delta = restyle(p, to: map(old), from: old)
+            let a = storage.attributes(at: p.location, effectiveRange: nil)
+            let old = RichBridge.kind(of: a)
+            var target = map(old)
+            // 列表项里的代码块变回正文：变成同一列表的项目，列表不断开（模型里没有“列表项的第二段”）
+            if target == .body, case .code = old, a[DMKey.listCode] != nil,
+               let item = listItemKind(before: p.location, after: paragraphs[0].location) {
+                target = item
+            }
+            if p == paragraphs.last { lastTarget = target }
+            let delta = restyle(p, to: target, from: old)
             // 光标在段首时，段首新插入的待办方框也算在光标前面（输入的文字在方框之后）
             if p.location < selection.location || (delta > 0 && p.location == selection.location) { shift += delta }
         }
@@ -540,6 +547,25 @@ final class RichTextView: NSTextView {
             typingAttributes = RichStyle.typingAttributes(for: lastTarget)
         }
         refreshTypingAttributes()
+    }
+
+    /// 往上找代码块所属的列表项（跳过同一列表项里的代码行），返回新项目用的样式；待办不带勾
+    /// 列表项也在这次要改的段落里（after 之后）时不算：选中的内容一起变正文
+    private func listItemKind(before location: Int, after first: Int) -> RichKind? {
+        guard let storage = textStorage else { return nil }
+        var loc = location
+        while loc > 0 {
+            let p = paragraphRange(at: loc - 1)
+            guard p.location < first else { return nil }
+            let a = storage.attributes(at: p.location, effectiveRange: nil)
+            switch RichBridge.kind(of: a) {
+            case .bullet, .ordered: return RichBridge.kind(of: a)
+            case .task(let d, _): return .task(d, false)
+            case .code where a[DMKey.listCode] != nil: loc = p.location
+            default: return nil
+            }
+        }
+        return nil
     }
 
     /// 光标所在段落还没有文字时，之后输入的文字使用这个段落的样式。

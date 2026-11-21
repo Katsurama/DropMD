@@ -111,7 +111,7 @@ enum TextScale: String, CaseIterable, Identifiable {
         let old = scroll.magnification, origin = scroll.contentView.bounds.origin.y
         let top = origin < 0 ? origin * old / target : origin
         scroll.magnification = target
-        scroll.contentView.scroll(to: NSPoint(x: 0, y: top))
+        scroll.contentView.scroll(to: NSPoint(x: -scroll.contentView.contentInsets.left, y: top))   // 双页原文左边有行号栏的内边距
         scroll.reflectScrolledClipView(scroll.contentView)
         if let doc = scroll.documentView, let clip = scroll.documentView?.superview as? NSClipView {
             // 缩放后正文和可见区域一样宽，否则页边距、折行按旧宽度算，字被切掉或右边空一条
@@ -472,12 +472,17 @@ enum RichStyle {
         }
     }
 
+    /// 一级、二级标题的字距收紧一点
+    static func kern(for kind: RichKind) -> Double? {
+        kind == .heading(1) ? -0.4 : kind == .heading(2) ? -0.2 : nil
+    }
+    static var kbdFont: NSFont { .monospacedSystemFont(ofSize: codeSize - 1, weight: .medium) }
+
     /// 单段文字的属性
     static func attributes(for r: MDRun, kind: RichKind) -> [NSAttributedString.Key: Any] {
         // 一定要设置颜色：不设置时 NSTextView 用黑色，暗色模式下看不清
         var a: [NSAttributedString.Key: Any] = [.foregroundColor: textColor(for: kind)]
-        if case .heading(1) = kind { a[.kern] = -0.4 }
-        else if case .heading(2) = kind { a[.kern] = -0.2 }
+        a[.kern] = kern(for: kind)
         var font = baseFont(for: kind)
         if r.code {
             font = .monospacedSystemFont(ofSize: inlineCodeSize, weight: .regular)
@@ -486,7 +491,7 @@ enum RichStyle {
             a[.backgroundColor] = codeBackground
         }
         if r.kbd {
-            font = .monospacedSystemFont(ofSize: codeSize - 1, weight: .medium)
+            font = kbdFont
             a[DMKey.kbd] = true
             a[.backgroundColor] = kbdBackground
         }

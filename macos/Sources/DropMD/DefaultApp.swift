@@ -132,7 +132,7 @@ private struct GeneralSettings: View {
                 AppearanceMenu()
                 PageMarginMenu(note: "不影响导出与保存。")
                 TextScaleMenu(note: "选择“自动”时，按屏幕分辨率调整。不影响导出与保存。")
-                SourceMarkMenu(note: "在双页中，于另一侧标示光标的对应位置。")
+                SourceMarkMenu(note: "在双页中，于另一侧标示光标的对应位置。", styleNote: "仅用于右侧预览。左侧原文以整行底色标示。")
             }
             Section("链接") {
                 LinkClickPicker()
