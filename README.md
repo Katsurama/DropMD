@@ -1,198 +1,187 @@
-<p align="right">🌐 <b>简体中文</b> | <a href="README.en.md">English</a> | <a href="README.ja.md">日本語</a></p>
+<p align="right">🌐 <b>English</b> | <a href="README.zh-CN.md">简体中文</a> | <a href="README.ja.md">日本語</a></p>
 
 <div align="center">
 
-<img src="docs/images/icon.png" width="112" alt="DropMD 图标">
+<img src="docs/images/icon.png" width="112" alt="DropMD icon">
 
 # DropMD
 
-**Mac 上的离线 Markdown 编辑器**
+**An offline Markdown editor for the Mac**
 
-还能把 Word、Excel、PowerPoint、PDF 等文件转换为 Markdown，全部在本机完成
+It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all on your own Mac
 
-[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-安装) [![版本](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-1.0.0-0a84ff?style=flat-square)](docs/发行说明.md) [![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-3b82f6?style=flat-square)](LICENSE) [![GitHub Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-%E6%94%AF%E6%8C%81%E4%BD%9C%E8%80%85-ea4aaa?style=flat-square&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Katsurama) [![爱发电](https://img.shields.io/badge/%E7%88%B1%E5%8F%91%E7%94%B5-%E6%94%AF%E6%8C%81%E4%BD%9C%E8%80%85-946ce6?style=flat-square)](https://afdian.com/a/katsurama) [![Discord](https://img.shields.io/badge/Discord-%E5%8A%A0%E5%85%A5%E4%BA%A4%E6%B5%81-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/VUne62RvrJ) [![QQ 群](https://img.shields.io/badge/QQ%20%E7%BE%A4-1125893504-12B7F5?style=flat-square&logo=qq&logoColor=white)](https://qun.qq.com/universal-share/share?ac=1&authKey=mbUgS60nnSzR2inccSoO%2BM4r%2BNMmccWLqCLkRWF%2F3aaEx%2FCX30Fizgha%2Fo6qaAvV&busi_data=eyJncm91cENvZGUiOiIxMTI1ODkzNTA0IiwidG9rZW4iOiJkQ1NySUpoeCtmTUlrV3JUWUN5SFZqNU5wZllLa2lFLzFrUjZMKzdnaXV0eUM1R001ZzMzb1ZFOXNTbFNudFVPIiwidWluIjoiMzI0MzY3NzM1MiJ9&data=AJTczm17mcBKqj3VXo3mcTEzkLtb9_ozC8vIN86Zcm8p_2cQJ63-BoTHLDlRXXAZ9OTuDjY1Rqekn1E_zbQZfA&svctype=4&tempid=h5_group_info)
-
-<br>
-
-📦 [**安装**](#-安装) &nbsp;·&nbsp; ✨ [功能](#-功能) &nbsp;·&nbsp; 🔄 [文件转换](#-文件转换) &nbsp;·&nbsp; 🔒 [隐私](#-隐私) &nbsp;·&nbsp; 🛠️ [从源码构建](#️-从源码构建) &nbsp;·&nbsp; 📖 [使用说明](docs/使用说明.md) &nbsp;·&nbsp; 💬 [交流](#-交流)
+[![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-555555?style=flat-square&logo=apple)](#-install) [![Version](https://img.shields.io/badge/Version-1.0.0-0a84ff?style=flat-square)](docs/发行说明.md) [![License](https://img.shields.io/badge/License-MIT-3b82f6?style=flat-square)](LICENSE) [![GitHub Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-Support%20me-ea4aaa?style=flat-square&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Katsurama) [![Patreon](https://img.shields.io/badge/Patreon-Support%20me-F96854?style=flat-square&logo=patreon&logoColor=white)](https://www.patreon.com/c/katsurama/membership) [![Afdian](https://img.shields.io/badge/Afdian-Support%20me-946ce6?style=flat-square)](https://afdian.com/a/katsurama) [![Discord](https://img.shields.io/badge/Discord-Join%20chat-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/VUne62RvrJ)
 
 <br>
 
-<img src="docs/images/demo.gif" alt="演示：单页输入时自动变格式，双页显示原文与预览，拖入 Word 一键转换" width="100%">
+📦 [**Install**](#-install) &nbsp;·&nbsp; ✨ [Features](#-features) &nbsp;·&nbsp; 🔄 [File conversion](#-file-conversion) &nbsp;·&nbsp; 🔒 [Privacy](#-privacy) &nbsp;·&nbsp; 🛠️ [Build from source](#️-build-from-source) &nbsp;·&nbsp; 📖 [User Guide](docs/User%20Guide.md) &nbsp;·&nbsp; 💬 [Community](#-community)
 
 <br>
 
-[![在 B 站看 3 分钟介绍视频](https://img.shields.io/badge/B%E7%AB%99-3%20%E5%88%86%E9%92%9F%E4%BB%8B%E7%BB%8D%E8%A7%86%E9%A2%91-00A1D6?style=for-the-badge&logo=bilibili&logoColor=white)](https://www.bilibili.com/video/BV1pTxQ6SEP4)
+<img src="docs/images/demo.en.gif" alt="Demo: formatting as you type in Page view, source and preview side by side in Split view, and converting a Word file by dragging it in" width="100%">
 
 </div>
 
 > [!NOTE]
-> 有问题请在 [Issues](../../issues) 里反馈，或到下方[交流](#-交流)加入 QQ 群和 Discord。
+> Please report problems in Issues, or come chat with us on [Discord](https://discord.gg/VUne62RvrJ).
+> The interface follows your Mac's language: English, Japanese, or Simplified / Traditional Chinese. You can also choose one in DropMD → Settings…
 
-## ✨ 功能
+## ✨ Features
 
-<p align="center"><img src="docs/images/editor-light.jpg" alt="浅色模式下的单页编辑与格式面板" width="49%"> <img src="docs/images/editor-dark.jpg" alt="深色模式下的双页：Markdown 原文与预览" width="49%"></p>
+<p align="center"><img src="docs/images/editor-light.en.jpg" alt="Page view with the Format panel in light mode" width="49%"> <img src="docs/images/editor-dark.en.jpg" alt="Split view in dark mode: Markdown source and preview" width="49%"></p>
 
-- **单页**：像 Pages / Word 一样直接排版，不用会写 Markdown，保存的仍是标准 Markdown 文件
-- **双页**：左边 Markdown 原文，右边是单页，两边都能直接改、实时同步；滚动一起走，右边会标出左边光标所在的那一段
-- **常用格式**：标题、粗体、斜体、下划线、删除线、高亮、列表、待办、表格、图片、链接、代码块
-- **更多格式**：提示框（`> [!NOTE]`）、折叠块、脚注、数学公式、上标 / 下标、键盘按键
-- **表格和右键菜单**：右键插入、删除行和列，设置对齐；拖动列边界调整列宽；右键菜单按点中的内容（链接、图片、代码块、提示框）给出常用操作
-- **界面语言**：简体中文、繁体中文、英文或日文，跟随系统，也可以在“设置”里单独选择
-- **中文输入法友好**：段首输入“－ ”“》 ”“1。 ”“【】 ”“＃ ”也能自动变成列表、引用、待办、标题
-- **原生 Mac 界面**：SwiftUI 开发，macOS 26 起使用 Liquid Glass，浅色 / 深色都有专门配色
-- **文件转换**：Word、Excel、PowerPoint、PDF 转成 Markdown；扫描版 PDF 可选 [Xiaomi-OCR-0](#-新接入xiaomi-ocr-0) 识别 🆕
-- **快速查看**：在访达里选中 .md 文件按空格，不用打开就能看到排版效果
-- **导出和分享**：PDF、HTML，或用“分享”按钮通过隔空投送、邮件发送；自动保存和版本历史
-- **软件更新**：在 App 里检查新版本，下载后校验完整性，点“重新启动”即完成
+- **Page view**: edit the formatted document directly, like in Pages or Word. You don't need to know Markdown, and the file is still saved as standard Markdown
+- **Split view**: Markdown source on the left, Page view on the right; edit either side and the other updates right away. Both sides scroll together, and the right side marks the paragraph your cursor is in
+- **Everyday formatting**: headings, bold, italic, underline, strikethrough, highlight, lists, checklists, tables, images, links, code blocks
+- **More formatting**: callouts (`> [!NOTE]`), collapsible sections, footnotes, math formulas, superscript / subscript, keyboard keys
+- **Tables and the context menu**: right-click to insert or delete rows and columns and set alignment; drag a column edge to resize; the context menu offers common actions for links, images, code blocks and callouts
+- **Chinese, Japanese and Korean text**: choose the document language so characters use the right glyph shapes, on screen and in exported files
+- **A native Mac app**: built with SwiftUI, uses Liquid Glass on macOS 26 and later, with colors designed for both light and dark mode
+- **Quick Look**: select a .md file in Finder and press Space to see it formatted without opening it
+- **Export and share**: PDF and HTML, or send the file via AirDrop or Mail with the Share button; auto save and version history
+- **Software updates**: check for new versions in the app; downloads are checked for integrity, then click Restart to finish
 
-## 📦 安装
+## 📦 Install
 
-1. 打开[最新版本](../../releases/latest)，在页面下方的 **Assets** 里只下载 `DropMD-macOS-AppleSilicon.dmg`
-   - `.zip` 是给 App 内更新用的，`.sha256` 是校验值，都不用下
-   - 标着 **Pre-release** 的是测试版，一般用户不用装
-2. 打开后把 **DropMD** 拖到右边的 **Applications**（应用程序）文件夹
-3. 第一次打开会被系统拦下，按下面的方法打开一次，以后就不会再提示
+1. Open the [latest release](../../releases/latest) and, under **Assets** at the bottom, download only `DropMD-macOS-AppleSilicon.dmg`
+   - The `.zip` is for in-app updates and the `.sha256` files are checksums; you don't need them
+   - Releases marked **Pre-release** are betas; most people don't need them
+2. Open it and drag **DropMD** to Applications
+3. macOS blocks it the first time you open it. Open it once as described below and you won't be asked again
 
-适用于 Apple 芯片的 Mac，macOS 14 及以上。以后的新版本在 App 里更新即可（**DropMD → 检查更新…**）。
+For Macs with Apple silicon, macOS 14 or later. Later versions can be installed from inside the app (**DropMD → Check for Updates…**).
 
-### 通过 Homebrew 安装
+### Install with Homebrew
 
 ```bash
 brew tap katsurama/dropmd https://github.com/Katsurama/DropMD
 brew install --cask katsurama/dropmd/dropmd
 ```
 
-更新与彻底卸载：
+Upgrade or completely uninstall:
 
 ```bash
-brew upgrade --cask katsurama/dropmd/dropmd         # 更新到最新正式版
-brew uninstall --zap --cask katsurama/dropmd/dropmd # 卸载并清理全部配置与缓存
+brew upgrade --cask katsurama/dropmd/dropmd         # Update to the latest stable release
+brew uninstall --zap --cask katsurama/dropmd/dropmd # Uninstall and remove all preferences and caches
 ```
 
-### 第一次打开：提示“无法验证开发者/文件已损坏”怎么办
+### First launch: “Apple could not verify…”
 
-DropMD 是免费的开源软件，没有购买苹果的开发者签名（每年 99 美元），所以 macOS 第一次打开时会提示“Apple 无法验证‘DropMD’是否包含恶意软件”。这不代表软件有问题：全部源码都在这个仓库里，安装包由 GitHub Actions 公开构建，每个版本都附带 `.sha256` 校验值。
+DropMD is free, open source software and isn't signed with a paid Apple developer certificate ($99 a year), so the first time you open it macOS says “Apple could not verify ‘DropMD’ is free of malware”. This doesn't mean anything is wrong with it: all the source code is in this repository, the downloads are built in public by GitHub Actions, and every release comes with a `.sha256` checksum.
 
-**方法一：在系统设置里放行（推荐）**
+**Option 1: allow it in System Settings (recommended)**
 
-1. 双击打开 DropMD，看到提示后点 **完成**（不要点“移到废纸篓”）
-2. 打开 **系统设置 → 隐私与安全性**，拉到最下面
-3. 在“安全性”一栏会看到“已阻止使用‘DropMD’”，点旁边的 **仍要打开**，输入开机密码
-4. 再次弹出提示时，点 **仍要打开**
+1. Double-click DropMD. When the message appears, click **Done** (not “Move to Trash”)
+2. Open **System Settings → Privacy & Security** and scroll to the bottom
+3. Under “Security” you'll see “‘DropMD’ was blocked”. Click **Open Anyway** next to it and enter your login password
+4. When the message appears again, click **Open Anyway**
 
-**方法二：在“终端”里运行一行命令**
+**Option 2: run one command in Terminal**
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/DropMD.app
 ```
 
-这行命令只是去掉系统给“从网上下载的文件”加的标记，之后双击就能直接打开。
+This only removes the mark macOS puts on files downloaded from the internet. After that, DropMD opens with a double-click.
 
 > [!NOTE]
-> 只需要做一次。之后在 App 内更新的新版本不会再被拦下。
+> You only need to do this once. New versions installed from inside the app aren't blocked.
 
-## 🔄 文件转换
+## 🔄 File conversion
 
-菜单 **文件 → 转换文件为 Markdown…**，拖入文件或整个文件夹，批量转换，逐个显示结果。
+Choose **File → Convert Files to Markdown…**, then drag in files or whole folders. They are converted in one go, with a result for each file.
 
-| 模式 | 适合 | 引擎 |
+| Mode | Good for | Engine |
 | --- | --- | --- |
-| 快速 | Word、Excel、PowerPoint、HTML、文字型 PDF | [MarkItDown](https://github.com/microsoft/markitdown) |
-| Word 高质量 | 需要还原排版和图片的 Word 文档 | [Pandoc](https://pandoc.org/) |
-| 高精度 | 论文、表格、公式、扫描版 PDF | [Docling](https://github.com/docling-project/docling) + OCR（RapidOCR、Apple Vision），或 [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0) |
+| Fast | Word, Excel, PowerPoint, HTML, text-based PDF | [MarkItDown](https://github.com/microsoft/markitdown) |
+| Word, better layout | Word documents whose layout and images should be kept | [Pandoc](https://pandoc.org/) |
+| High Accuracy | Papers, tables, formulas, scanned PDFs | [Docling](https://github.com/docling-project/docling) + OCR (RapidOCR, Apple Vision), or [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0) |
 
-不需要安装 Python，转换引擎已经打包在 App 里。
+You don't need to install Python: the conversion engine is built into the app.
 
-### 🆕 新接入：Xiaomi-OCR-0
+### 🆕 New: Xiaomi-OCR-0
 
-<p align="center"><img src="docs/images/convert-xiaomi.jpg" alt="转换窗口：高精度模式下选择 Xiaomi-OCR-0" width="82%"></p>
+High Accuracy mode can now use [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0), an open source document recognition model from Xiaomi (Apache-2.0). Choose it under OCR Engine. The first time, it downloads about 1.8 GB after you agree; after that it works fully offline.
 
-高精度模式现在可以选 [Xiaomi-OCR-0](https://github.com/xiaomi-research/Xiaomi-OCR-0)：小米开源的文档识别模型（Apache-2.0）。在“OCR 引擎”里选它，第一次用时同意后下载约 1.8 GB，之后完全离线。
-
-| | Xiaomi-OCR-0 | RapidOCR（默认） |
+| | Xiaomi-OCR-0 | RapidOCR (default) |
 | --- | --- | --- |
-| 认字 | 更准，公式和表格一起识别 | 日常够用，公式要另外打开 |
-| 多语言混排 | 中、日、繁、英、法、德、西、俄，写在同一行也能认 | 中、日、繁、英 |
-| 速度（10 页测试文档） | 约 155 秒 | 约 30 秒 |
-| 额外下载 | 约 1.8 GB | 不用 |
-| PDF 里的图片 | 不导出 | 导出 |
+| Text | More accurate; reads formulas and tables too | Fine for everyday use; formulas are a separate option |
+| Mixed languages | Chinese, Japanese, English, French, German, Spanish, Russian, even on one line | Chinese, Japanese, English |
+| Speed (10-page test document) | About 155 seconds | About 30 seconds |
+| Extra download | About 1.8 GB | None |
+| Images in the PDF | Not exported | Exported |
 
 > [!NOTE]
-> 速度是在 M4 芯片、16 GB 内存的 Mac 上用干净的测试页测的，真实扫描件会有出入。Xiaomi-OCR-0 认韩文和越南文错字较多。DropMD 是独立项目，与小米没有关联。
+> Speed was measured on an M4 Mac with 16 GB of memory using clean test pages; real scans will differ. Xiaomi-OCR-0 makes more mistakes in Korean and Vietnamese. DropMD is an independent project and isn't affiliated with Xiaomi.
 
-## 🔒 隐私
+## 🔒 Privacy
 
-- 所有编辑和转换都在这台 Mac 上完成，文件不会上传
-- 只在你同意时联网：下载高精度模式的识别模型、检查更新
-- 没有统计、没有广告，不修改原始文件
+- All editing and conversion happen on this Mac; your files are never uploaded
+- Goes online only with your consent: to download the High Accuracy recognition models and to check for updates
+- No analytics, no ads, and your original files are never changed
 
-## 🛠️ 从源码构建
+## 🛠️ Build from source
 
-需要 Apple 芯片的 Mac、Python 3.12 和 Xcode 26 以上。
+You need a Mac with Apple silicon, Python 3.12 and Xcode 26 or later.
 
 ```bash
 pip install -r requirements.txt -r requirements-build.txt
 pyinstaller packaging/dropmd.spec --noconfirm
-tools/fetch_fonts.sh      # 下载 MiSans 字体（不放在仓库中）
-macos/build_app.sh        # 输出 dist/DropMD.app
+tools/fetch_fonts.sh      # download the MiSans font (not stored in this repository)
+macos/build_app.sh        # outputs dist/DropMD.app
 ```
 
 ```bash
-tools/test_codec.sh       # Markdown 往返测试
-tools/test_editor.sh      # 单页编辑器按键测试
-tools/test_update.sh      # 软件更新的安装测试
-tools/test_l10n.sh        # 检查界面文字是否都有英文、日文、繁体译文
+tools/test_codec.sh       # Markdown round-trip tests
+tools/test_editor.sh      # Page view editing tests
+tools/test_update.sh      # software update install tests
+tools/test_l10n.sh        # checks every interface text has English, Japanese and Traditional Chinese translations
 ```
 
 <details>
-<summary>项目结构</summary>
+<summary>Project layout</summary>
 
 ```
-macos/                 界面（Swift / SwiftUI）
-  Sources/DropMD/      编辑器、文件转换窗口、软件更新
-  Sources/DropMDQuickLook/  快速查看（Quick Look）扩展
-  Resources/preview/   双页预览（markdown-it、KaTeX，随源码提供，不联网加载）
-  Resources/en.lproj/  英文界面文字（ja.lproj：日文，zh-Hant.lproj：繁体）
-  Resources/AppIcon.icon  App 图标（Icon Composer 格式，自动适配浅色 / 深色）
-  build_app.sh         组装 DropMD.app
-src/dropmd/            转换引擎（Python：MarkItDown / Pandoc / Docling）
-tools/                 测试脚本
-.github/workflows/     构建 .dmg、自检、发布
-docs/                  使用说明（简体、繁体、英文、日文）、发行说明、依赖清单
+macos/                 Interface (Swift / SwiftUI)
+  Sources/DropMD/      Editor, converter window, software updates
+  Sources/DropMDQuickLook/  Quick Look extension
+  Resources/preview/   Split view preview (markdown-it, KaTeX; bundled, nothing loaded from the web)
+  Resources/en.lproj/  English interface text (ja.lproj: Japanese, zh-Hant.lproj: Traditional Chinese)
+  Resources/AppIcon.icon  App icon (Icon Composer format, adapts to light / dark)
+  build_app.sh         Assembles DropMD.app
+src/dropmd/            Conversion engine (Python: MarkItDown / Pandoc / Docling)
+tools/                 Test scripts
+.github/workflows/     Builds the .dmg, self-tests, releases
+docs/                  User guides, release notes, dependency list
 ```
 
-Swift 界面把转换任务交给 App 里的本机引擎（子进程，通过标准输入输出交换 JSON）。依赖及版本见 [依赖清单](docs/依赖清单.md)。
+The Swift interface hands conversions to the local engine inside the app (a child process that exchanges JSON over standard input and output). For dependencies and versions, see the [dependency list](docs/依赖清单.md) (in Chinese).
 
 </details>
 
-## 💬 交流
+## 💬 Community
 
 <div align="center">
-<p>参与测试、反馈问题与交流</p>
-<p><a href="https://qun.qq.com/universal-share/share?ac=1&authKey=mbUgS60nnSzR2inccSoO%2BM4r%2BNMmccWLqCLkRWF%2F3aaEx%2FCX30Fizgha%2Fo6qaAvV&busi_data=eyJncm91cENvZGUiOiIxMTI1ODkzNTA0IiwidG9rZW4iOiJkQ1NySUpoeCtmTUlrV3JUWUN5SFZqNU5wZllLa2lFLzFrUjZMKzdnaXV0eUM1R001ZzMzb1ZFOXNTbFNudFVPIiwidWluIjoiMzI0MzY3NzM1MiJ9&data=AJTczm17mcBKqj3VXo3mcTEzkLtb9_ozC8vIN86Zcm8p_2cQJ63-BoTHLDlRXXAZ9OTuDjY1Rqekn1E_zbQZfA&svctype=4&tempid=h5_group_info"><img src="docs/images/qq-group-qr.png" width="150" alt="DropMD 交流群二维码"></a></p>
-<p><a href="https://qun.qq.com/universal-share/share?ac=1&authKey=mbUgS60nnSzR2inccSoO%2BM4r%2BNMmccWLqCLkRWF%2F3aaEx%2FCX30Fizgha%2Fo6qaAvV&busi_data=eyJncm91cENvZGUiOiIxMTI1ODkzNTA0IiwidG9rZW4iOiJkQ1NySUpoeCtmTUlrV3JUWUN5SFZqNU5wZllLa2lFLzFrUjZMKzdnaXV0eUM1R001ZzMzb1ZFOXNTbFNudFVPIiwidWluIjoiMzI0MzY3NzM1MiJ9&data=AJTczm17mcBKqj3VXo3mcTEzkLtb9_ozC8vIN86Zcm8p_2cQJ63-BoTHLDlRXXAZ9OTuDjY1Rqekn1E_zbQZfA&svctype=4&tempid=h5_group_info"><img src="https://img.shields.io/badge/QQ%20%E7%BE%A4-1125893504-12B7F5?style=for-the-badge&logo=qq&logoColor=white" alt="QQ 群 1125893504"></a> &nbsp; <a href="https://discord.gg/VUne62RvrJ"><img src="https://img.shields.io/badge/Discord-%E5%8A%A0%E5%85%A5%E4%BA%A4%E6%B5%81-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord 加入交流"></a></p>
+<p>Join the beta, report problems, and chat with other users</p>
+<p><a href="https://discord.gg/VUne62RvrJ"><img src="https://img.shields.io/badge/Discord-Join%20the%20chat-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord: join the chat"></a></p>
 </div>
 
-## ☕ 支持作者
+## ☕ Support
 
 <div align="center">
 
-如果 DropMD 帮到了你，欢迎请我喝杯咖啡，你的支持会让我继续更新下去 ❤️
+If DropMD helps you, a coffee keeps the updates coming ❤️
 
-<a href="https://github.com/sponsors/Katsurama"><img src="https://img.shields.io/badge/%F0%9F%92%96%20%E5%96%9C%E6%AC%A2%E8%BF%99%E4%B8%AA%E9%A1%B9%E7%9B%AE%EF%BC%9F-%E5%9C%A8%20GitHub%20Sponsors%20%E6%94%AF%E6%8C%81%E6%88%91%20%E2%86%92-ea4aaa?style=for-the-badge&labelColor=3b1d2e&logo=githubsponsors&logoColor=white" alt="在 GitHub Sponsors 支持我" height="80"></a><br><br>
-<a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20%E5%96%9C%E6%AC%A2%E8%BF%99%E4%B8%AA%E9%A1%B9%E7%9B%AE%EF%BC%9F-%E5%9C%A8%E7%88%B1%E5%8F%91%E7%94%B5%E6%94%AF%E6%8C%81%E6%88%91%20%E2%86%92-946ce6?style=for-the-badge&labelColor=2d2640" alt="在爱发电支持我" height="80"></a><br><br>
-
-或者用微信扫码赞赏
-
-<img src="docs/images/wechat-reward.jpg" alt="微信赞赏码" width="300">
+<a href="https://github.com/sponsors/Katsurama"><img src="https://img.shields.io/badge/%F0%9F%92%96%20Enjoying%20DropMD%3F-Sponsor%20me%20on%20GitHub%20%E2%86%92-ea4aaa?style=for-the-badge&labelColor=3b1d2e&logo=githubsponsors&logoColor=white" alt="Sponsor me on GitHub" height="80"></a><br><br>
+<a href="https://www.patreon.com/c/katsurama/membership"><img src="https://img.shields.io/badge/%E2%98%95%20Enjoying%20DropMD%3F-Support%20me%20on%20Patreon%20%E2%86%92-F96854?style=for-the-badge&labelColor=3a1f1a&logo=patreon&logoColor=white" alt="Support me on Patreon" height="80"></a><br><br>
+<a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20Enjoying%20DropMD%3F-Support%20me%20on%20Afdian%20%E2%86%92-946ce6?style=for-the-badge&labelColor=2d2640" alt="Support me on Afdian" height="80"></a>
 
 </div>
 
-### 💖 赞助者
+### 💖 Sponsors
 
-还没有赞助者，欢迎成为第一位 ☕
+No sponsors yet. Be the first ☕
 
-## 📄 许可证
+## 📄 License
 
-[MIT](LICENSE) © 2026 DropMD contributors。第三方组件的许可证见 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)，在 App 的 **帮助 → 开源许可** 中也能查看。
+[MIT](LICENSE) © 2026 DropMD contributors. Third-party licenses are in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md), and in the app under **Help → Open Source Licenses**.
