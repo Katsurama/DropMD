@@ -64,11 +64,14 @@ def _vision_options(primary: str = "zh-Hans"):
 
 
 def _build_converter(ocr_engine: str, formulas: bool, vision_lang: str):
+    from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.pipeline_options import PdfPipelineOptions
     from docling.document_converter import DocumentConverter, PdfFormatOption
 
     opts = PdfPipelineOptions(artifacts_path=models_dir())
+    # 显式强制走 CPU：避免 macOS 27 / PyTorch MPS 下 RT-DETR 版面模型输出错乱、TableFormer cv2.resize 崩溃及推理变慢；不影响 xiaomi.py 继续使用 MPS
+    opts.accelerator_options = AcceleratorOptions(device=AcceleratorDevice.CPU)
     opts.enable_remote_services = False  # 禁止任何远程服务
     opts.do_ocr = True
     opts.ocr_options = _vision_options(vision_lang) if ocr_engine == OCR_VISION else _rapidocr_options()

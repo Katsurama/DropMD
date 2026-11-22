@@ -85,6 +85,7 @@ def _selftest(out_dir: str, hq: bool) -> int:
     try:
         from . import hq as hqmod
 
+        from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions  # noqa: F401
         import docling.document_converter  # noqa: F401
         for eng in hqmod.available_ocr_engines():
             if eng == hqmod.OCR_VISION:

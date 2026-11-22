@@ -38,7 +38,7 @@ jobs:
   macos:
     name: 构建 macOS 版（Apple 芯片）
     runs-on: xcode-27
-    timeout-minutes: 30  # 正常约 10 分钟；卡住时尽早结束，少耗分钟
+    timeout-minutes: 40  # 正常约 10-15 分钟；为模型下载波动留余量，卡住时尽早结束
     permissions:
       contents: write  # 仅用于填写了版本号时创建 Release 并上传 .dmg / .zip
     steps:
