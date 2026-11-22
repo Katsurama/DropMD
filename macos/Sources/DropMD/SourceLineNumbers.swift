@@ -134,8 +134,8 @@ final class SourceTextView: NSTextView {
 
     /// 高亮行在视图中的矩形（整行宽，折行时包括所有视觉行）
     func markedLinesRect() -> NSRect {
-        guard let r = markedLines, r.length > 0, let lm = layoutManager, let tc = textContainer, tc.containerSize.width > 0,
-              lm.numberOfGlyphs > 0, NSMaxRange(r) <= (string as NSString).length else { return .zero }
+        guard SourceMarkStyle.isOn, let r = markedLines, r.length > 0, let lm = layoutManager, let tc = textContainer,
+              tc.containerSize.width > 0, lm.numberOfGlyphs > 0, NSMaxRange(r) <= (string as NSString).length else { return .zero }
         let glyphs = lm.glyphRange(forCharacterRange: r, actualCharacterRange: nil)
         guard glyphs.length > 0 else { return .zero }
         let first = lm.lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
@@ -148,6 +148,15 @@ final class SourceTextView: NSTextView {
         super.viewDidMoveToWindow()
         scaleObservers.forEach { NotificationCenter.default.removeObserver($0) }
         scaleObservers = window == nil ? [] : TextScale.observe(self)
+        if window != nil {
+            scaleObservers.append(NotificationCenter.default.addObserver(
+                forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.needsDisplay = true
+                    self?.enclosingScrollView?.verticalRulerView?.needsDisplay = true
+                }
+            })
+        }
     }
 
     deinit {
@@ -235,7 +244,7 @@ final class SourceTextView: NSTextView {
 
     /// 计算当前光标所在逻辑行在视图坐标中的整行矩形（折行时覆盖所有视觉行）；有选区时返回 .zero。
     private func caretLineRect() -> NSRect {
-        guard markedLines == nil else { return .zero }   // 正在标对应位置（光标在右边）：只显示一条高亮
+        guard !SourceMarkStyle.isOn || markedLines == nil else { return .zero }   // 正在标对应位置（光标在右边）：只显示一条高亮
         guard selectedRanges.count == 1, let sel = selectedRanges.first?.rangeValue, sel.length == 0 else {
             return .zero
         }
@@ -466,7 +475,7 @@ final class SourceLineNumberRulerView: NSRulerView {
 
         let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
         let hairline = 1.0 / max(1.0, scale)
-        let mark = (tv as? SourceTextView)?.markedLines
+        let mark = SourceMarkStyle.isOn ? (tv as? SourceTextView)?.markedLines : nil
         let activeLine = mark == nil ? activeLineIndex(in: tv) : nil   // 正在标对应位置时只显示一条高亮
         let originY = tv.textContainerOrigin.y
         let dirtyInTV = convert(rect, to: tv)

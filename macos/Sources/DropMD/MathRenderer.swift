@@ -98,9 +98,14 @@ final class MathRenderer: NSObject, WKNavigationDelegate {
         if !ready { finishLoading(false) }   // 加载好之后被拦下的跳转不算
     }
 
-    /// 系统结束了后台网页（如内存紧张）：重新加载，加载完接着画排队的公式
+    /// 系统结束了后台网页（如内存紧张）：复位状态并重新加载，加载完接着画排队的公式
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         ready = false
+        busy = false
+        for (key, callbacks) in waiting where !queue.contains(where: { $0.key == key }) {
+            callbacks.forEach { $0(nil) }
+            waiting.removeValue(forKey: key)
+        }
         webView.reload()
     }
 

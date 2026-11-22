@@ -1993,7 +1993,7 @@ MainActor.assumeIsolated {
             ("Word 导出嵌入本地图与百分号文件名", res.doc.contains("r:embed=") && res.media.count == 3),
             ("Word 导出拦截所有外部/异常图片方案", !leaked && res.doc.contains("网络图片未加载（隐私保护）") && res.doc.contains("缺失图") && !res.doc.contains("missing.png")),
             ("Word 导出超链接", res.doc.contains("Hyperlink") && res.rels.contains("https://example.com")),
-            ("Word 导出代码块与浅灰底色", res.doc.contains("SourceCode") && res.styles.contains("F6F8FA")),
+            ("Word 导出代码块与浅灰底色", res.doc.contains("SourceCode") && res.styles.contains("F6F8FA") && res.styles.contains("1D1D1F") && res.styles.contains("w:line=\"324\"")),
             ("Word 导出行内样式与 HTML 标签", res.doc.contains("w:u ") && res.doc.contains("subscript") && res.doc.contains("superscript") && res.doc.contains("w:highlight") && res.doc.contains("<w:b") && res.doc.contains("<w:i") && res.doc.contains("<w:strike") && ["相邻粗", "相邻斜", "粗标签", "斜标签", "删标签", "删二"].allSatisfy { res.doc.contains($0) }),
         ]
         for (name, ok) in checks {
@@ -2036,6 +2036,81 @@ MainActor.assumeIsolated {
             check("无 Pandoc 时返回本地化错误", error.localizedDescription.isEmpty ? "empty" : "ok", "ok")
         }
     }
+
+    // 字号缩放（TextScale）：固定比例 + 自动模式按窗口宽度（而非单个编辑区宽度）
+    do {
+        check("字号缩放固定比例", "\(TextScale.large.scale(screen: nil, viewWidth: 500)) \(TextScale.medium.scale(screen: nil, viewWidth: 500)) \(TextScale.small.scale(screen: nil, viewWidth: 500))",
+              "\(18.0 / 16.0) 1.0 \(15.0 / 16.0)")
+        check("字号自动在窄窗口时不放大", "\(TextScale.auto.scale(screen: NSScreen.main, viewWidth: 700))", "1.0")
+        let oldScale = UserDefaults.standard.string(forKey: "textScale")
+        defer {
+            if let oldScale { UserDefaults.standard.set(oldScale, forKey: "textScale") }
+            else { UserDefaults.standard.removeObject(forKey: "textScale") }
+        }
+        UserDefaults.standard.set("large", forKey: "textScale")
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 480, height: 400))
+        let doc = NSView(frame: NSRect(x: 0, y: 0, width: 480, height: 800))
+        scroll.documentView = doc
+        TextScale.apply(to: scroll)
+        check("TextScale.apply 应用大字号", "\(scroll.magnification)", "\(18.0 / 16.0)")
+
+        UserDefaults.standard.set("auto", forKey: "textScale")
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 980, height: 660), styleMask: [.titled], backing: .buffered, defer: false)
+        // 双页左边只有 490 宽，但所在窗口是 980 宽 (>= 760)：应按窗口宽度算，两边字号一致
+        let leftScroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 490, height: 600))
+        let rightScroll = NSScrollView(frame: NSRect(x: 490, y: 0, width: 490, height: 600))
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 980, height: 600))
+        container.addSubview(leftScroll)
+        container.addSubview(rightScroll)
+        win.contentView = container
+        TextScale.apply(to: leftScroll)
+        TextScale.apply(to: rightScroll)
+        let expectedAuto = TextScale.auto.scale(screen: win.screen, viewWidth: win.frame.width)
+        check("双页左右字号按窗口宽度一致", "\(leftScroll.magnification == rightScroll.magnification) \(abs(leftScroll.magnification - expectedAuto) < 0.001)", "true true")
+    }
+
+    // 行号栏（SourceLineNumberRulerView）与源码视图（SourceTextView）对应位置标记开关
+    do {
+        let oldMark = UserDefaults.standard.object(forKey: "showSourceMark")
+        defer {
+            if let oldMark { UserDefaults.standard.set(oldMark, forKey: "showSourceMark") }
+            else { UserDefaults.standard.removeObject(forKey: "showSourceMark") }
+        }
+        let storage = NSTextStorage(string: "line 1\nline 2\nline 3\n")
+        let lm = NSLayoutManager()
+        storage.addLayoutManager(lm)
+        let tc = NSTextContainer(size: NSSize(width: 400, height: CGFloat.greatestFiniteMagnitude))
+        lm.addTextContainer(tc)
+        let tv = SourceTextView(frame: NSRect(x: 0, y: 0, width: 400, height: 300), textContainer: tc)
+        let scroll = SplitScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+        scroll.documentView = tv
+        let ruler = SourceLineNumberRulerView(scrollView: scroll, textView: tv)
+        scroll.verticalRulerView = ruler
+        scroll.hasVerticalRuler = true
+        scroll.rulersVisible = true
+        lm.ensureLayout(for: tc)
+
+        let thinThickness = ruler.ruleThickness
+        storage.replaceCharacters(in: NSRange(location: storage.length, length: 0), with: String(repeating: "x\n", count: 100))
+        let wideThickness = ruler.ruleThickness
+        check("行号栏超过 100 行自动加宽", "\(wideThickness > thinThickness)", "true")
+
+        tv.markedLines = NSRange(location: 0, length: 6)
+        UserDefaults.standard.set(true, forKey: "showSourceMark")
+        let rectOn = tv.markedLinesRect()
+        UserDefaults.standard.set(false, forKey: "showSourceMark")
+        let rectOff = tv.markedLinesRect()
+        check("关掉显示对应位置标记后高亮立即消失", "\(!rectOn.isEmpty) \(rectOff.isEmpty)", "true true")
+    }
+
+    // 双页对照表（LineMap）：无序列表（含 -）、有序列表、待办列表每一项各自对应原文行，不把整段列表并成一项
+    do {
+        let mdList = "# 标题\n\n- 第一项\n- 第二项\n- 第三项\n\n> 引用一\n> 引用二\n"
+        let (_, map) = RichBridge.attributedWithLineMap(markdown: mdList, baseURL: nil)
+        let lines = map.map { "\($0.line)..<\($0.endLine)" }.joined(separator: " ")
+        check("双页对照表精确到每個列表项与引用行", lines, "0..<1 2..<3 3..<4 4..<5 6..<7 7..<8")
+    }
+
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

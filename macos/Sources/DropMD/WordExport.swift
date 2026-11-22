@@ -51,9 +51,12 @@ enum WordExport {
             }
         }
         #if DEBUG
-        let repoPandoc = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("packaging/pandoc/pandoc")
-        if FileManager.default.isExecutableFile(atPath: repoPandoc.path) { return repoPandoc }
+        let candidates = [
+            URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("packaging/pandoc/pandoc"),
+            URL(fileURLWithPath: "/Applications/DropMD.app/Contents/Resources/engine/_internal/pandoc/pandoc"),
+            URL(fileURLWithPath: "/Applications/DropMD.app/Contents/Resources/engine/pandoc/pandoc"),
+        ]
+        for p in candidates where FileManager.default.isExecutableFile(atPath: p.path) { return p }
         #endif
         return nil
     }
@@ -358,8 +361,9 @@ enum WordExport {
     }
 
     /// 修饰 Pandoc 生成的 word/styles.xml：
-    /// 1. 给 Table 样式加上浅灰四周边框与内边距、表头浅灰底色；
-    /// 2. 给 SourceCode 代码块加上浅灰底色、细边框与自动折行（避免长代码行超出纸张）。
+    /// 1. 统一正文与各级标题的字体、色彩、粗细与行距（去除 Pandoc 默认偏旧的深海蓝与斜体标题）；
+    /// 2. 给 Table 样式加上浅灰四周边框与内边距、表头浅灰底色；
+    /// 3. 给 SourceCode 代码块、BlockText 引用块、VerbatimChar 行内代码加上现代浅灰边框或底色与自动折行。
     private static func polishPandocStyles(at docxURL: URL, tempDir: URL) throws {
         let unpackDir = tempDir.appendingPathComponent("unpacked", isDirectory: true)
         try FileManager.default.createDirectory(at: unpackDir, withIntermediateDirectories: true)
@@ -367,6 +371,28 @@ enum WordExport {
 
         let stylesURL = unpackDir.appendingPathComponent("word/styles.xml")
         guard var xml = try? String(contentsOf: stylesURL, encoding: .utf8) else { return }
+
+        // 0. 现代排版：正文字号 11pt、1.35 倍行距；各级标题改为深炭黑粗体，去除 H4/H6 默认斜体
+        xml = xml.replacingOccurrences(
+            of: "<w:pPr>\n        <w:spacing w:after=\"200\" />\n      </w:pPr>",
+            with: "<w:pPr>\n        <w:spacing w:after=\"160\" w:line=\"324\" w:lineRule=\"auto\" />\n      </w:pPr>"
+        )
+        xml = xml.replacingOccurrences(
+            of: "<w:spacing w:after=\"180\" w:before=\"180\" />",
+            with: "<w:spacing w:after=\"140\" w:before=\"80\" w:line=\"324\" w:lineRule=\"auto\" />"
+        )
+        xml = xml.replacingOccurrences(
+            of: "<w:color w:themeColor=\"accent1\" w:themeShade=\"BF\" w:val=\"0F4761\" />",
+            with: "<w:b /><w:bCs /><w:color w:val=\"1D1D1F\" />"
+        )
+        xml = xml.replacingOccurrences(
+            of: "<w:i />\n      <w:iCs />\n      <w:b /><w:bCs /><w:color w:val=\"1D1D1F\" />",
+            with: "<w:b /><w:bCs /><w:color w:val=\"1D1D1F\" />"
+        )
+        xml = xml.replacingOccurrences(
+            of: "<w:i />\n      <w:iCs />\n      <w:color w:themeColor=\"text1\" w:themeTint=\"A6\" w:val=\"595959\" />",
+            with: "<w:b /><w:bCs /><w:color w:val=\"57606A\" />"
+        )
 
         // 1. 表格加上网格边框与单元格上下内边距，表头加浅灰底色
         let oldTablePr = """
@@ -392,10 +418,10 @@ enum WordExport {
                 <w:insideV w:val="single" w:sz="4" w:space="0" w:color="D0D7DE" />
               </w:tblBorders>
               <w:tblCellMar>
-                <w:top w:type="dxa" w:w="80" />
-                <w:left w:type="dxa" w:w="120" />
-                <w:bottom w:type="dxa" w:w="80" />
-                <w:right w:type="dxa" w:w="120" />
+                <w:top w:type="dxa" w:w="100" />
+                <w:left w:type="dxa" w:w="140" />
+                <w:bottom w:type="dxa" w:w="100" />
+                <w:right w:type="dxa" w:w="140" />
               </w:tblCellMar>
             </w:tblPr>
         """
@@ -405,7 +431,32 @@ enum WordExport {
             with: "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"F6F8FA\" /><w:vAlign w:val=\"center\" />"
         )
 
-        // 2. 代码块段落：开启自动换行，加上浅灰背景与细边框
+        // 2. 引用块（BlockText）与行内代码（VerbatimChar）
+        let oldBlockText = """
+            <w:pPr>
+              <w:spacing w:after="100" w:before="100" />
+              <w:ind w:firstLine="0" w:left="480" w:right="480" />
+            </w:pPr>
+        """
+        let newBlockText = """
+            <w:pPr>
+              <w:pBdr>
+                <w:left w:val="single" w:sz="18" w:space="12" w:color="D0D7DE" />
+              </w:pBdr>
+              <w:spacing w:after="120" w:before="120" w:line="312" w:lineRule="auto" />
+              <w:ind w:firstLine="0" w:left="240" w:right="240" />
+            </w:pPr>
+            <w:rPr>
+              <w:color w:val="57606A" />
+            </w:rPr>
+        """
+        xml = xml.replacingOccurrences(of: oldBlockText, with: newBlockText)
+        xml = xml.replacingOccurrences(
+            of: "<w:rFonts w:ascii=\"Consolas\" w:hAnsi=\"Consolas\" />\n      <w:sz w:val=\"22\" />",
+            with: "<w:rFonts w:ascii=\"Menlo\" w:hAnsi=\"Menlo\" w:cs=\"Menlo\" />\n      <w:sz w:val=\"21\" />\n      <w:szCs w:val=\"21\" />\n      <w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"F6F8FA\" />"
+        )
+
+        // 3. 代码块段落：开启自动换行，加上浅灰背景与细边框
         let oldSourceCode = "<w:pPr><w:wordWrap w:val=\"off\" /></w:pPr>"
         let newSourceCode = """
         <w:pPr>\
@@ -416,7 +467,7 @@ enum WordExport {
         <w:right w:val="single" w:sz="4" w:space="8" w:color="E1E4E8" />\
         </w:pBdr>\
         <w:shd w:val="clear" w:color="auto" w:fill="F6F8FA" />\
-        <w:spacing w:before="120" w:after="120" />\
+        <w:spacing w:before="120" w:after="120" w:line="276" w:lineRule="auto" />\
         </w:pPr>
         """
         xml = xml.replacingOccurrences(of: oldSourceCode, with: newSourceCode)

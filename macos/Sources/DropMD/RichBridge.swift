@@ -8,15 +8,43 @@ enum RichBridge {
         attributed(from: MarkdownCodec.parse(markdown), baseURL: baseURL)
     }
 
-    /// 双页的对照表：每段原文从第几行开始（line），在单页里从第几个字开始（offset）。按顺序排列
-    typealias LineMap = [(line: Int, offset: Int)]
+    /// 双页的对照表：每段原文从第几行开始、到第几行结束（lines），在单页里从第几个字开始（offset）。按顺序排列
+    typealias LineMap = [(line: Int, endLine: Int, offset: Int)]
 
     static func attributedWithLineMap(markdown: String, baseURL: URL?) -> (NSAttributedString, LineMap) {
         let parsed = MarkdownCodec.parseWithSource(markdown)
         var starts: [Int] = []
         let s = attributed(from: parsed.blocks, baseURL: baseURL) { starts.append($0) }
-        let map = parsed.groups.compactMap { g -> (line: Int, offset: Int)? in
-            g.blocks.lowerBound < starts.count ? (g.lines.lowerBound, starts[g.blocks.lowerBound]) : nil
+        var lineCursor: [Int: Int] = [:]
+        var map: LineMap = []
+        for g in parsed.groups {
+            let linesCount = max(1, g.lines.count)
+            let blocksCount = max(1, g.blocks.count)
+            for (idx, b) in g.blocks.enumerated() where b < starts.count {
+                var subStart = g.lines.lowerBound + (idx * linesCount) / blocksCount
+                var subEnd = g.lines.lowerBound + ((idx + 1) * linesCount) / blocksCount
+                // 列表、引用一段原文可能包含多项：逐行对上各自的列表符号或 >，使双页标记精确到单行
+                if g.blocks.count > 1, case .line(let l) = parsed.blocks[b], l.kind.tight {
+                    let from = lineCursor[g.lines.lowerBound] ?? g.lines.lowerBound
+                    var nextFrom = min(from + 1, g.lines.upperBound)
+                    if idx + 1 < g.blocks.count {
+                        for k in (from + 1)..<g.lines.upperBound {
+                            let lineText = parsed.lines[k]
+                            if l.kind == .quote {
+                                if lineText.range(of: #"^ {0,3}>"#, options: .regularExpression) != nil { nextFrom = k; break }
+                            } else if lineText.range(of: #"^[ \t]*([-*+]|\d{1,9}[.)])(?:[ \t]|$)"#, options: .regularExpression) != nil {
+                                nextFrom = k; break
+                            }
+                        }
+                    } else {
+                        nextFrom = g.lines.upperBound
+                    }
+                    subStart = min(from, max(g.lines.lowerBound, g.lines.upperBound - 1))
+                    subEnd = max(subStart + 1, nextFrom)
+                    lineCursor[g.lines.lowerBound] = nextFrom
+                }
+                map.append((line: subStart, endLine: max(subStart + 1, subEnd), offset: starts[b]))
+            }
         }
         return (s, map)
     }
@@ -299,9 +327,10 @@ enum RichBridge {
             return NSAttributedString(string: String(localized: "［图片：\(alt.isEmpty ? (embedded ? "data:" : path) : alt)］"), attributes: a)
         }
         let attachment = NSTextAttachment()
-        attachment.image = loaded
         let scale = min(1, maxImageWidth / loaded.size.width)
-        attachment.bounds = CGRect(x: 0, y: 0, width: loaded.size.width * scale, height: loaded.size.height * scale)
+        let size = NSSize(width: loaded.size.width * scale, height: loaded.size.height * scale)
+        let cell = ImageAttachmentCell(image: loaded, size: size)
+        attachment.attachmentCell = cell
         let s = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
         s.addAttributes(marks, range: NSRange(location: 0, length: s.length))
         return s
@@ -681,5 +710,82 @@ enum RichBridge {
             }
         }
         return blocks
+    }
+}
+
+/// 单页中的图片（支持圆角、细边框以及 GIF 动图自动播放）
+final class ImageAttachmentCell: NSTextAttachmentCell {
+    private let displaySize: NSSize
+    private weak var layoutManager: NSLayoutManager?
+    private weak var bitmapRep: NSBitmapImageRep?
+    private var frameCount = 1
+    private var currentFrame = 0
+    private var timer: Timer?
+
+    init(image: NSImage, size: NSSize) {
+        self.displaySize = size
+        super.init(imageCell: image)
+        if let rep = image.representations.compactMap({ $0 as? NSBitmapImageRep }).first,
+           let count = rep.value(forProperty: .frameCount) as? Int, count > 1 {
+            bitmapRep = rep
+            frameCount = count
+            scheduleNextFrame()
+        }
+    }
+
+    required init(coder: NSCoder) { fatalError("不支持") }
+
+    deinit {
+        timer?.invalidate()
+    }
+
+    private func scheduleNextFrame() {
+        guard let rep = bitmapRep, frameCount > 1 else { return }
+        let rawDuration = (rep.value(forProperty: .currentFrameDuration) as? Double) ?? 0.1
+        let delay = rawDuration >= 0.02 ? rawDuration : 0.1
+        timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.advanceFrame() }
+        }
+    }
+
+    @MainActor private func advanceFrame() {
+        guard let rep = bitmapRep else { return }
+        currentFrame = (currentFrame + 1) % frameCount
+        rep.setProperty(.currentFrame, withValue: currentFrame)
+        refreshDisplay()
+        scheduleNextFrame()
+    }
+
+    @MainActor private func refreshDisplay() {
+        guard let lm = layoutManager, let storage = lm.textStorage, let attachment else { return }
+        storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, range, stop in
+            guard (value as? NSTextAttachment) === attachment else { return }
+            lm.invalidateDisplay(forCharacterRange: range)
+            stop.pointee = true
+        }
+    }
+
+    override func cellSize() -> NSSize {
+        NSSize(width: displaySize.width, height: displaySize.height + 8)
+    }
+
+    override func cellFrame(for textContainer: NSTextContainer, proposedLineFragment lineFrag: NSRect,
+                            glyphPosition position: NSPoint, characterIndex charIndex: Int) -> NSRect {
+        layoutManager = textContainer.layoutManager
+        return super.cellFrame(for: textContainer, proposedLineFragment: lineFrag, glyphPosition: position, characterIndex: charIndex)
+    }
+
+    override func draw(withFrame cellFrame: NSRect, in controlView: NSView?) {
+        guard let image else { return }
+        let rect = NSRect(x: cellFrame.minX, y: cellFrame.minY + 4, width: displaySize.width, height: displaySize.height)
+        NSGraphicsContext.saveGraphicsState()
+        let clip = NSBezierPath(roundedRect: rect, xRadius: 8, yRadius: 8)
+        clip.addClip()
+        image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0, respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
+        NSGraphicsContext.restoreGraphicsState()
+        let border = NSBezierPath(roundedRect: rect.insetBy(dx: 0.25, dy: 0.25), xRadius: 8, yRadius: 8)
+        RichStyle.codeBlockBorderColor.setStroke()
+        border.lineWidth = 0.5
+        border.stroke()
     }
 }

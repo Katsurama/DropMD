@@ -101,10 +101,11 @@ enum TextScale: String, CaseIterable, Identifiable {
         }
     }
 
-    /// 按当前设置放大编辑区所在的滚动区域
+    /// 按当前设置放大编辑区所在的滚动区域（自动字号按窗口宽度判断，单页/双页切换或开关格式面板时两边字号一致、不会忽大忽小）
     @MainActor static func apply(to scroll: NSScrollView?) {
         guard let scroll else { return }
-        let target = current.scale(screen: scroll.window?.screen, viewWidth: scroll.frame.width)
+        let width = scroll.window?.frame.width ?? scroll.frame.width
+        let target = current.scale(screen: scroll.window?.screen, viewWidth: width)
         guard abs(scroll.magnification - target) > 0.001 else { return }
         // 缩放后滚回原来的高度（默认按中心缩放，顶部几行和光标会被推出视野）；没有横向滚动，左边从 0 开始
         // 停在最顶上时（工具栏下面留的那段空，原点是负数）按屏幕上的距离换算，否则标题会钻到工具栏底下

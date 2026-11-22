@@ -308,7 +308,7 @@ final class EditorController: ObservableObject {
         guard let i = map.lastIndex(where: { $0.offset <= rich.selectedRange().location }) else { return clearSourceMark() }
         let ns = tv.string as NSString
         let start = Self.lineStart(map[i].line, in: ns)
-        var end = i + 1 < map.count ? Self.lineStart(map[i + 1].line, in: ns) : ns.length
+        var end = Self.lineStart(map[i].endLine, in: ns)
         while end > start, let u = Unicode.Scalar(ns.character(at: end - 1)), CharacterSet.whitespacesAndNewlines.contains(u) { end -= 1 }
         let range = NSRange(location: start, length: end - start)
         guard range != sourceMarkRange else { return }
@@ -378,7 +378,14 @@ final class EditorController: ObservableObject {
         let ns = tv.string as NSString
         let start = Self.lineStart(map[entry].line, in: ns)
         guard location >= start else { return range.location }
-        let prefix = ns.substring(with: NSRange(location: start, length: location - start))
+        var prefix = ns.substring(with: NSRange(location: start, length: location - start))
+        // 嵌套列表项单行去掉缩进再试排，避免单独排一行时 4 格以上缩进被当成缩进代码块
+        if !prefix.contains("\n") {
+            let trimmed = prefix.replacingOccurrences(of: #"^[ \t]+"#, with: "", options: .regularExpression)
+            if trimmed.range(of: #"^([-*+]|\d{1,9}[.)])(?:[ \t]|$)"#, options: .regularExpression) != nil {
+                prefix = trimmed
+            }
+        }
         var rendered = RichBridge.attributed(markdown: prefix, baseURL: nil).string
         while rendered.hasSuffix("\n") { rendered.removeLast() }
         // 光标在一行开头（前面是换行）：排出来的字后面本来就有分段
