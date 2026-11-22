@@ -28,8 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: pip install huggingface_hub==1.33.0
@@ -42,7 +42,7 @@ jobs:
     permissions:
       contents: write  # 仅用于填写了版本号时创建 Release 并上传 .dmg / .zip
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: 选择 Xcode（优先最新的 Xcode 27，以启用 Liquid Glass 与 macOS 27 SDK）
         run: |
@@ -61,7 +61,7 @@ jobs:
           tools/test_preview.sh
           tools/test_l10n.sh
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -84,7 +84,7 @@ jobs:
 
       # 小米官网在构建机上经常传到一半断开：下载成功一次后存进构建缓存，以后的构建直接用（脚本仍会校验 SHA-256）。
       # 缓存只有本仓库的构建能读，不是公开下载，字体文件仍不进仓库
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: build/fonts
           key: misans-${{ hashFiles('tools/fetch_fonts.sh') }}
@@ -159,7 +159,7 @@ jobs:
           unz=$(mktemp -d); ditto -x -k DropMD-macOS-AppleSilicon.zip "$unz"; codesign -v "$unz/DropMD.app"
           ls -la DropMD-*
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: DropMD-macOS-AppleSilicon
           path: DropMD-macOS-AppleSilicon.dmg
@@ -175,7 +175,7 @@ jobs:
           dist/dropmd-engine/dropmd-engine --selftest st_hq --hq
           du -sh "$DROPMD_DATA_DIR/models"/* || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: selftest-macOS
