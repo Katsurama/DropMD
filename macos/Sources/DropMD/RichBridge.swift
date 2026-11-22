@@ -85,6 +85,15 @@ enum RichBridge {
                     content = box
                 }
                 let p = NSMutableAttributedString(attributedString: paragraph(content, kind: kind))
+                // 整段只包含一张（或多张）真实图片且在正文里时：居中显示、上下留白，更美观
+                if kind == .body, line.runs.allSatisfy({ $0.image != nil || $0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }),
+                   p.containsAttachments,
+                   let style = (p.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle {
+                    style.alignment = .center
+                    style.paragraphSpacingBefore = 8
+                    style.paragraphSpacing = 12
+                    p.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: p.length))
+                }
                 if let start = line.start { p.addAttribute(DMKey.start, value: start, range: NSRange(location: 0, length: p.length)) }
                 if let quoteID { p.addAttribute(DMKey.quoteBlock, value: quoteID, range: NSRange(location: 0, length: p.length)) }
                 out.append(p)
@@ -713,9 +722,10 @@ enum RichBridge {
     }
 }
 
-/// 单页中的图片（支持圆角、细边框以及 GIF 动图自动播放）
+/// 单页中的图片（支持圆角、细边框、容器自适应缩放以及 GIF 动图自动播放）
 final class ImageAttachmentCell: NSTextAttachmentCell {
-    private let displaySize: NSSize
+    private let maxSize: NSSize
+    private var fittedSize: NSSize
     private weak var layoutManager: NSLayoutManager?
     private weak var bitmapRep: NSBitmapImageRep?
     private var frameCount = 1
@@ -723,7 +733,8 @@ final class ImageAttachmentCell: NSTextAttachmentCell {
     private var timer: Timer?
 
     init(image: NSImage, size: NSSize) {
-        self.displaySize = size
+        self.maxSize = size
+        self.fittedSize = size
         super.init(imageCell: image)
         if let rep = image.representations.compactMap({ $0 as? NSBitmapImageRep }).first,
            let count = rep.value(forProperty: .frameCount) as? Int, count > 1 {
@@ -766,18 +777,26 @@ final class ImageAttachmentCell: NSTextAttachmentCell {
     }
 
     override func cellSize() -> NSSize {
-        NSSize(width: displaySize.width, height: displaySize.height + 8)
+        NSSize(width: fittedSize.width, height: fittedSize.height + 8)
     }
 
     override func cellFrame(for textContainer: NSTextContainer, proposedLineFragment lineFrag: NSRect,
                             glyphPosition position: NSPoint, characterIndex charIndex: Int) -> NSRect {
         layoutManager = textContainer.layoutManager
+        let pad = textContainer.lineFragmentPadding * 2
+        let containerAvail = textContainer.size.width > 0 ? textContainer.size.width - pad : maxSize.width
+        let fragAvail = lineFrag.width > 0 ? lineFrag.width - pad : containerAvail
+        let avail = max(40, min(containerAvail, fragAvail))
+        let scale = min(1, avail / max(maxSize.width, 1))
+        fittedSize = NSSize(width: (maxSize.width * scale).rounded(), height: (maxSize.height * scale).rounded())
         return super.cellFrame(for: textContainer, proposedLineFragment: lineFrag, glyphPosition: position, characterIndex: charIndex)
     }
 
     override func draw(withFrame cellFrame: NSRect, in controlView: NSView?) {
         guard let image else { return }
-        let rect = NSRect(x: cellFrame.minX, y: cellFrame.minY + 4, width: displaySize.width, height: displaySize.height)
+        let drawW = max(1, cellFrame.width)
+        let drawH = max(1, cellFrame.height - 8)
+        let rect = NSRect(x: cellFrame.minX, y: cellFrame.minY + 4, width: drawW, height: drawH)
         NSGraphicsContext.saveGraphicsState()
         let clip = NSBezierPath(roundedRect: rect, xRadius: 8, yRadius: 8)
         clip.addClip()

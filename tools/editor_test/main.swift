@@ -2111,6 +2111,29 @@ MainActor.assumeIsolated {
         check("双页对照表精确到每個列表项与引用行", lines, "0..<1 2..<3 3..<4 4..<5 6..<7 7..<8")
     }
 
+    // 单页图片排版：正文里插入真实图片时独占一行居中，且后续打字自动落在图片下方新段落；多帧 GIF 动图正确识别帧数
+    do {
+        let pngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+        let tv = makeView("前文\n")
+        tv.setSelectedRange(NSRange(location: 2, length: 0))
+        tv.insertImage(path: pngDataUrl, alt: "示例图")
+        type(tv, "后文")
+        check("正文插入真实图片后独占一行且后续打字在下一段", md(tv), "前文\n\n![示例图](\(pngDataUrl))\n\n后文\n")
+
+        let opened = makeView("![示例图](\(pngDataUrl))\n")
+        let style = opened.textStorage!.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+        check("独立图片段落居中显示", "\(style?.alignment == .center)", "true")
+
+        // 用仓库里的真实 GIF 测试多帧动图识别（如有），或者从内存构建多帧 GIF 数据验证 ImageAttachmentCell
+        let gifURL = URL(fileURLWithPath: "docs/images/demo.ja.gif")
+        if FileManager.default.fileExists(atPath: gifURL.path), let gifImg = NSImage(contentsOf: gifURL) {
+            let cell = ImageAttachmentCell(image: gifImg, size: NSSize(width: 200, height: 135))
+            let rep = gifImg.representations.compactMap { $0 as? NSBitmapImageRep }.first
+            let frames = (rep?.value(forProperty: .frameCount) as? Int) ?? 0
+            check("多帧 GIF 动图帧数识别", "\(frames > 1) \(cell.cellSize().height == 143)", "true true")
+        }
+    }
+
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

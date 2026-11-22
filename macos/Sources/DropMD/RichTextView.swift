@@ -110,15 +110,17 @@ final class RichTextView: NSTextView {
         if abs(textContainerInset.width - inset.width) > 0.5 || textContainerInset.height != inset.height {
             textContainerInset = inset
         }
-        // 文字栏宽度变了（打开窗口、拉窗口、开关格式面板）：表格要重新排，否则还按旧宽度显示，要手动拉一下窗口才对
+        // 文字栏宽度变了（打开窗口、拉窗口、开关格式面板）：表格与图片附件要重新排，否则按旧宽度显示会被截断
         let width = textContainer?.size.width ?? 0
         if abs(width - laidOutWidth) > 0.5, let storage = textStorage, storage.length > 0 {
             laidOutWidth = width
-            var hasTable = false
-            storage.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: storage.length)) { value, _, stop in
-                if ((value as? NSParagraphStyle)?.textBlocks.isEmpty == false) { hasTable = true; stop.pointee = true }
+            var needsRelayout = storage.containsAttachments
+            if !needsRelayout {
+                storage.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: storage.length)) { value, _, stop in
+                    if ((value as? NSParagraphStyle)?.textBlocks.isEmpty == false) { needsRelayout = true; stop.pointee = true }
+                }
             }
-            if hasTable {
+            if needsRelayout {
                 layoutManager?.invalidateLayout(forCharacterRange: NSRange(location: 0, length: storage.length), actualCharacterRange: nil)
                 needsDisplay = true
             }
@@ -836,8 +838,23 @@ final class RichTextView: NSTextView {
     }
 
     func insertImage(path: String, alt: String) {
+        let sel = selectedRange()
+        let para = paragraphRange(at: sel.location)
+        let dest = paragraphAttributes(para)
         let image = RichBridge.imageString(path: Self.encodedImagePath(path), alt: alt, baseURL: baseURL)
-        replace(selectedRange(), with: fitted(image, to: paragraphAttributes(paragraphRange(at: selectedRange().location))))
+        // 在普通正文段落里插入真实图片时独占一行（上下自动分段），避免文字直接紧贴在图片后面
+        if RichBridge.kind(of: dest) == .body, RichBridge.tableBlock(of: dest) == nil, dest[DMKey.inDetails] == nil, image.containsAttachments {
+            let p = NSMutableAttributedString(attributedString: RichBridge.paragraph(image, kind: .body))
+            if let style = (p.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle {
+                style.alignment = .center
+                style.paragraphSpacingBefore = 8
+                style.paragraphSpacing = 12
+                p.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: p.length))
+            }
+            insertBlock(p, caretOffset: p.length)
+            return
+        }
+        replace(sel, with: fitted(image, to: dest))
     }
 
     /// 放进一段里的内容：去掉它自己的段落格式，换成这一段的（列表、表格、折叠块、缩进），否则这一段会被拆开。
