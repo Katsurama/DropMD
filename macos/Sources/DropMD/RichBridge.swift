@@ -727,6 +727,7 @@ final class ImageAttachmentCell: NSTextAttachmentCell {
     private let maxSize: NSSize
     private var fittedSize: NSSize
     private weak var layoutManager: NSLayoutManager?
+    private var lastCharIndex = 0
     private weak var bitmapRep: NSBitmapImageRep?
     private var frameCount = 1
     private var currentFrame = 0
@@ -761,6 +762,12 @@ final class ImageAttachmentCell: NSTextAttachmentCell {
 
     @MainActor private func advanceFrame() {
         guard let rep = bitmapRep else { return }
+        // 若附件已从活动窗口或排版器卸载（如窗口关闭、重排后旧副本退入 Undo 栈），停止动画定时器
+        if let lm = layoutManager, lm.textStorage == nil || (lm.firstTextView != nil && lm.firstTextView?.window == nil) {
+            timer?.invalidate()
+            timer = nil
+            return
+        }
         currentFrame = (currentFrame + 1) % frameCount
         rep.setProperty(.currentFrame, withValue: currentFrame)
         refreshDisplay()
@@ -769,8 +776,14 @@ final class ImageAttachmentCell: NSTextAttachmentCell {
 
     @MainActor private func refreshDisplay() {
         guard let lm = layoutManager, let storage = lm.textStorage, let attachment else { return }
+        if lastCharIndex >= 0, lastCharIndex < storage.length,
+           (storage.attribute(.attachment, at: lastCharIndex, effectiveRange: nil) as? NSTextAttachment) === attachment {
+            lm.invalidateDisplay(forCharacterRange: NSRange(location: lastCharIndex, length: 1))
+            return
+        }
         storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, range, stop in
             guard (value as? NSTextAttachment) === attachment else { return }
+            lastCharIndex = range.location
             lm.invalidateDisplay(forCharacterRange: range)
             stop.pointee = true
         }
@@ -783,6 +796,7 @@ final class ImageAttachmentCell: NSTextAttachmentCell {
     override func cellFrame(for textContainer: NSTextContainer, proposedLineFragment lineFrag: NSRect,
                             glyphPosition position: NSPoint, characterIndex charIndex: Int) -> NSRect {
         layoutManager = textContainer.layoutManager
+        lastCharIndex = charIndex
         let pad = textContainer.lineFragmentPadding * 2
         let containerAvail = textContainer.size.width > 0 ? textContainer.size.width - pad : maxSize.width
         let fragAvail = lineFrag.width > 0 ? lineFrag.width - pad : containerAvail

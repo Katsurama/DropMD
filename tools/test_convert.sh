@@ -153,6 +153,21 @@ for lang, want in [("zh", "找不到文件，可能已被移动或删除。"), (
     ok = got == want
     failed += not ok
     print("ok  " if ok else "FAIL", f"引擎提示 {lang}", "" if ok else f"\n     got:  {got!r}")
+# 同进程内动态切换 DROPMD_LANG 时，errors 与 models 也应即时切换语言
+from dropmd.models import COMPONENTS as _COMPS
+_orig_lang = os.environ.get("DROPMD_LANG")
+try:
+    os.environ["DROPMD_LANG"] = "en"
+    ok = describe(FileNotFoundError()).startswith("File not found") and _COMPS["layout"].title.startswith("Layout analysis")
+    os.environ["DROPMD_LANG"] = "zh-Hant"
+    ok = ok and "找不到檔案" in describe(FileNotFoundError()) and "辨識" in _COMPS["table"].title
+    failed += not ok
+    print("ok  " if ok else "FAIL", "同进程动态切换语言")
+finally:
+    if _orig_lang is None:
+        os.environ.pop("DROPMD_LANG", None)
+    else:
+        os.environ["DROPMD_LANG"] = _orig_lang
 # 转换中点“停止”（界面结束引擎的进程组）：正在跑的 Pandoc 要一起结束，不能事后在文件夹里留下 .md.part
 import json, signal, time
 with tempfile.TemporaryDirectory() as d:

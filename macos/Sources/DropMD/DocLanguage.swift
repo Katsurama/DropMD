@@ -79,6 +79,15 @@ enum DocLanguage: String, CaseIterable, Identifiable {
         let d = font.fontDescriptor.addingAttributes([.cascadeList: [target.fontDescriptor]])
         return NSFont(descriptor: d, size: font.pointSize) ?? font
     }
+
+    /// 屏幕点越密（笔记本）字越小，按每英寸的点数自动放大（最多 1.25 倍），编辑器与 Quick Look 共用
+    static func autoScreenScale(_ screen: NSScreen?) -> CGFloat {
+        guard let screen, let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else { return 1 }
+        let mm = CGDisplayScreenSize(id).width
+        guard mm > 0 else { return 1 }
+        let pointsPerInch = screen.frame.width / (mm / 25.4)
+        return (min(max(pointsPerInch / 110, 1), 1.25) * 20).rounded() / 20   // 取到 0.05，避免反复微调
+    }
 }
 
 /// 文字有改动时，把改动处的字体换成文档语言的字体（单页和双页的原文共用）

@@ -52,13 +52,6 @@ enum AppUpdateInstaller {
     }
 
     private static func run(_ path: String, _ args: [String]) throws {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: path)
-        p.arguments = args
-        p.standardOutput = FileHandle.nullDevice
-        p.standardError = FileHandle.nullDevice
-        try p.run()
-        p.waitUntilExit()
-        guard p.terminationStatus == 0 else { throw InstallError.badPackage }
+        guard Engine.runCommand(path, args) else { throw InstallError.badPackage }
     }
 }

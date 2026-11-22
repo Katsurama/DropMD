@@ -166,7 +166,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
 
     private func highlightCodeBlock(_ block: NSRange, in ns: NSString) {
         // 超长代码块不做语法着色，避免编辑大文件卡顿
-        guard block.length > 0, block.length <= 200_000 else { return }
+        guard block.length > 0, block.length <= 20_000 else { return }
         let text = ns.substring(with: block)
         let local = NSRange(location: 0, length: (text as NSString).length)
         func paint(_ re: NSRegularExpression, group: Int = 0, color: NSColor) {

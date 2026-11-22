@@ -61,20 +61,24 @@ enum WordExport {
         return nil
     }
 
-    /// 文件开头的 YAML 信息（--- … ---）转成 yaml 代码块：导出时不报错，也不当成 Word 居中封面或表格
-    private static func convertFrontMatter(_ text: String) -> String {
-        let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
-        let lines = normalized.components(separatedBy: "\n")
-        guard lines.first?.trimmingCharacters(in: .whitespaces) == "---",
-              let end = lines.dropFirst().firstIndex(where: { ["---", "..."].contains($0.trimmingCharacters(in: .whitespaces)) }) else {
-            return normalized
+    /// 预处理块：
+    /// 1. 文件开头的 YAML 信息（--- … ---）转为 yaml 代码块，避免 Pandoc 报错或当成居中封面/表格；
+    /// 2. 展开折叠块（保留粗体标题与内部内容），避免 Pandoc 把 <details>/<summary> 当作原始 HTML 块丢弃。
+    private static func prepareBlocks(_ blocks: [MDBlock]) -> [MDBlock] {
+        var prepared = blocks
+        if case .raw(let text)? = prepared.first {
+            let lines = text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
+            if lines.first?.trimmingCharacters(in: .whitespaces) == "---",
+               let end = lines.dropFirst().firstIndex(where: { ["---", "..."].contains($0.trimmingCharacters(in: .whitespaces)) }) {
+                var replacement: [MDBlock] = [.code(lang: "yaml", lines: Array(lines[1..<end]))]
+                let rest = lines[(end + 1)...].joined(separator: "\n").trimmingCharacters(in: .newlines)
+                if !rest.isEmpty { replacement.append(.raw(rest)) }
+                prepared.replaceSubrange(0..<1, with: replacement)
+            }
         }
-        let body = lines[1..<end].joined(separator: "\n")
-        let rest = lines[(end + 1)...].joined(separator: "\n")
-        return "```yaml\n" + (body.isEmpty ? "" : body + "\n") + "```\n" + rest
+        return flattenDetails(prepared)
     }
 
-    /// 展开折叠块：保留粗体标题与内部内容，避免 Pandoc 把 <details>/<summary> 当作原始 HTML 块丢弃
     private static func flattenDetails(_ blocks: [MDBlock]) -> [MDBlock] {
         blocks.flatMap { block -> [MDBlock] in
             guard case .details(let summary, let body, _) = block else { return [block] }
@@ -292,9 +296,9 @@ enum WordExport {
         let filterURL = tempDir.appendingPathComponent("docx_filter.lua")
         let dataDir = tempDir.appendingPathComponent("data", isDirectory: true)
         try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
-        // 不传 preserving，避免直接返回原文导致紧贴段落的表格缺少空行；同时展开折叠块
-        let normalized = MarkdownCodec.serialize(flattenDetails(MarkdownCodec.parse(markdown)))
-        try Data(convertFrontMatter(normalized).utf8).write(to: inputURL)
+        // 不传 preserving，避免直接返回原文导致紧贴段落的表格缺少空行；同时转换 Front Matter 与展开折叠块
+        let normalized = MarkdownCodec.serialize(prepareBlocks(MarkdownCodec.parse(markdown)))
+        try Data(normalized.utf8).write(to: inputURL)
         try Data(pandocLuaFilter.utf8).write(to: filterURL)
 
         let fromFormat = [
@@ -367,7 +371,7 @@ enum WordExport {
     private static func polishPandocStyles(at docxURL: URL, tempDir: URL) throws {
         let unpackDir = tempDir.appendingPathComponent("unpacked", isDirectory: true)
         try FileManager.default.createDirectory(at: unpackDir, withIntermediateDirectories: true)
-        guard runCommand("/usr/bin/ditto", ["-x", "-k", docxURL.path, unpackDir.path]) else { return }
+        guard Engine.runCommand("/usr/bin/ditto", ["-x", "-k", docxURL.path, unpackDir.path]) else { return }
 
         let stylesURL = unpackDir.appendingPathComponent("word/styles.xml")
         guard var xml = try? String(contentsOf: stylesURL, encoding: .utf8) else { return }
@@ -474,23 +478,8 @@ enum WordExport {
 
         try Data(xml.utf8).write(to: stylesURL)
         let repacked = tempDir.appendingPathComponent("repacked.docx")
-        if runCommand("/usr/bin/ditto", ["-c", "-k", "--norsrc", unpackDir.path, repacked.path]) {
+        if Engine.runCommand("/usr/bin/ditto", ["-c", "-k", "--norsrc", unpackDir.path, repacked.path]) {
             _ = try? FileManager.default.replaceItemAt(docxURL, withItemAt: repacked)
-        }
-    }
-
-    private static func runCommand(_ launchPath: String, _ arguments: [String]) -> Bool {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: launchPath)
-        p.arguments = arguments
-        p.standardOutput = FileHandle.nullDevice
-        p.standardError = FileHandle.nullDevice
-        do {
-            try p.run()
-            p.waitUntilExit()
-            return p.terminationStatus == 0
-        } catch {
-            return false
         }
     }
 }

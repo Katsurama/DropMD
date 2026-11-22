@@ -92,12 +92,8 @@ enum TextScale: String, CaseIterable, Identifiable {
         case .medium: return 1
         case .small: return 15 / 16
         case .auto:
-            guard viewWidth >= 760, let screen,
-                  let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else { return 1 }
-            let mm = CGDisplayScreenSize(id).width
-            guard mm > 0 else { return 1 }
-            let pointsPerInch = screen.frame.width / (mm / 25.4)
-            return (min(max(pointsPerInch / 110, 1), 1.25) * 20).rounded() / 20   // 取到 0.05，避免反复微调
+            guard viewWidth >= 760 else { return 1 }
+            return DocLanguage.autoScreenScale(screen)
         }
     }
 

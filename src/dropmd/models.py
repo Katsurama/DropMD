@@ -20,19 +20,25 @@ from .paths import models_dir
 @dataclass(frozen=True)
 class Component:
     key: str
-    title: str          # 中文名称
+    title_zh: str
+    title_en: str
+    title_hant: str
     source: str         # 显示给用户的下载来源
     size_mb: int        # 近似下载大小（MB）
     repo_id: str = ""
     revision: str | None = None
     marker: str = ""    # 下载完成后应存在的文件（相对 models_dir）
 
+    @property
+    def title(self) -> str:
+        return tr(self.title_zh, self.title_en, self.title_hant)
+
 
 COMPONENTS: dict[str, Component] = {
     c.key: c
     for c in [
         Component(
-            "layout", tr("版面分析模型（Docling Heron）", "Layout analysis model (Docling Heron)", "版面分析模型（Docling Heron）"),
+            "layout", "版面分析模型（Docling Heron）", "Layout analysis model (Docling Heron)", "版面分析模型（Docling Heron）",
             "https://huggingface.co/docling-project/docling-layout-heron",
             size_mb=172,
             repo_id="docling-project/docling-layout-heron",
@@ -40,7 +46,7 @@ COMPONENTS: dict[str, Component] = {
             marker="docling-project--docling-layout-heron/config.json",
         ),
         Component(
-            "table", tr("表格结构识别模型（TableFormer）", "Table structure model (TableFormer)", "表格結構辨識模型（TableFormer）"),
+            "table", "表格结构识别模型（TableFormer）", "Table structure model (TableFormer)", "表格結構辨識模型（TableFormer）",
             "https://huggingface.co/docling-project/docling-models",
             size_mb=358,
             repo_id="docling-project/docling-models",
@@ -48,7 +54,7 @@ COMPONENTS: dict[str, Component] = {
             marker="docling-project--docling-models/model_artifacts/tableformer/accurate/tm_config.json",
         ),
         Component(
-            "formula", tr("数学公式识别模型（CodeFormulaV2）", "Math formula model (CodeFormulaV2)", "數學公式辨識模型（CodeFormulaV2）"),
+            "formula", "数学公式识别模型（CodeFormulaV2）", "Math formula model (CodeFormulaV2)", "數學公式辨識模型（CodeFormulaV2）",
             "https://huggingface.co/docling-project/CodeFormulaV2",
             size_mb=640,
             repo_id="docling-project/CodeFormulaV2",
@@ -56,7 +62,7 @@ COMPONENTS: dict[str, Component] = {
             marker="docling-project--CodeFormulaV2/config.json",
         ),
         Component(
-            "xiaomi", tr("文档识别模型（Xiaomi-OCR-0）", "Document recognition model (Xiaomi-OCR-0)", "文件辨識模型（Xiaomi-OCR-0）"),
+            "xiaomi", "文档识别模型（Xiaomi-OCR-0）", "Document recognition model (Xiaomi-OCR-0)", "文件辨識模型（Xiaomi-OCR-0）",
             "https://huggingface.co/xiaomi-research/Xiaomi-OCR-0",
             size_mb=1767,
             repo_id="xiaomi-research/Xiaomi-OCR-0",

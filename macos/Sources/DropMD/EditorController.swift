@@ -668,9 +668,9 @@ final class EditorController: ObservableObject {
 
     /// 脚注：在光标处插入 [^n]，并在文末添加 [^n]: 说明
     func footnote() {
-        let text = currentMarkdown
+        flushPendingEdits()
         var n = 1
-        while text.contains("[^\(n)]") { n += 1 }
+        while pendingText.contains("[^\(n)]") { n += 1 }
         guard let note = askText(String(localized: "插入脚注"), info: String(localized: "说明文字放在文档末尾。"), placeholder: String(localized: "脚注说明")) else { return }
         if let r = rich {
             r.insertFootnote(label: "\(n)", note: note)
@@ -722,12 +722,6 @@ final class EditorController: ObservableObject {
         }
         // 和单页写法相同：只编码 % # ? 空格和不成对的括号，中文保持原样
         replaceSelection(with: "![\(alt)](\(MarkdownCodec.encodeURL(RichTextView.encodedImagePath(path))))")
-    }
-
-    /// 当前文档内容（Markdown）
-    private var currentMarkdown: String {
-        if let r = rich, let storage = r.textStorage { return RichBridge.markdown(from: storage) }
-        return textView?.string ?? pendingText
     }
 
     private func replaceSelection(with s: String) {
@@ -786,7 +780,8 @@ final class EditorController: ObservableObject {
 
     /// 导出为 Word（.docx，beta）
     func exportWord() {
-        let text = currentMarkdown
+        flushPendingEdits()
+        let text = pendingText
         let docxType = UTType(filenameExtension: "docx") ?? .data
         guard let url = savePanel(ext: "docx", type: docxType, title: String(localized: "导出为 Word")) else { return }
         let base = fileURL?.deletingLastPathComponent()
@@ -806,8 +801,8 @@ final class EditorController: ObservableObject {
 
     /// 用后台的预览页面（与公式共用）生成 HTML，样式与预览一致
     func exportHTML() {
-        // 单页的修改停顿片刻才写回文档，这里直接取编辑区当前的内容
-        let text = rich?.textStorage.map(RichBridge.markdown(from:)) ?? pendingText
+        flushPendingEdits()
+        let text = pendingText
         guard let url = savePanel(ext: "html", type: .html) else { return }
         let title = url.deletingPathExtension().lastPathComponent
         Task { @MainActor in
@@ -893,6 +888,7 @@ final class EditorController: ObservableObject {
     }
 
     func exportPDF() {
+        flushPendingEdits()
         // 单页、双页都按单页的排版打印（双页的右边就是单页），不管光标在哪边，结果都一样
         guard let r = richView, let storage = r.textStorage, let window = r.window else { return }
         guard let url = savePanel(ext: "pdf", type: .pdf) else { return }

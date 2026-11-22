@@ -7,12 +7,9 @@ import os
 import subprocess
 
 # 界面语言：App 启动引擎时设置 DROPMD_LANG（zh、zh-Hant、en），给用户看的文字跟着用简体、繁体或英文
-LANG = os.environ.get("DROPMD_LANG", "zh")
-ENGLISH = LANG == "en"
-
-
 def tr(zh: str, en: str, hant: str) -> str:
-    return en if ENGLISH else hant if LANG == "zh-Hant" else zh
+    lang = os.environ.get("DROPMD_LANG", "zh")
+    return en if lang == "en" else hant if lang == "zh-Hant" else zh
 
 
 class ConversionError(Exception):

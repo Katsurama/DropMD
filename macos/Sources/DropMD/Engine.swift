@@ -146,6 +146,22 @@ final class Engine: @unchecked Sendable {
             if kill(-p.processIdentifier, SIGTERM) != 0 { p.terminate() }
         }
     }
+
+    /// 同步执行外部命令（如 ditto 解压/打包），静默丢弃输出；成功返回 true
+    static func runCommand(_ path: String, _ arguments: [String]) -> Bool {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: path)
+        p.arguments = arguments
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        do {
+            try p.run()
+            p.waitUntilExit()
+            return p.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
 }
 
 final class Box<T>: @unchecked Sendable {
