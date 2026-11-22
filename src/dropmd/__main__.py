@@ -139,7 +139,8 @@ def _selftest(out_dir: str, hq: bool) -> int:
         run(samples / "sample_scanned.pdf", o, "pdf_scanned_rapidocr.md", "DropMD")
         run(samples / "sample_multilang.pdf", o, "pdf_multilang_rapidocr.md", MULTILANG_EXPECT)
         # Apple Vision：按所选主要语言识别该语言及英文
-        if hqmod.OCR_VISION in hqmod.available_ocr_engines():
+        # xcode-27 虚拟机缺少 Vision 硬件加速/后台服务会静默返回空结果，CI 通过环境变量跳过；真机仍照常测试（且 hq_imports 已校验 ocrmac 打包完整）
+        if hqmod.OCR_VISION in hqmod.available_ocr_engines() and os.environ.get("DROPMD_SKIP_VISION_SELFTEST") != "1":
             for lang, expect in [("zh-Hans", ["简体中文", "English"]), ("ja-JP", ["日本語", "English"]),
                                  ("zh-Hant", ["繁體中文", "English"])]:
                 o = Options(mode=MODE_HQ, ocr_engine=hqmod.OCR_VISION, vision_lang=lang)
