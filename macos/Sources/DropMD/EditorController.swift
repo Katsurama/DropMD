@@ -924,12 +924,51 @@ final class EditorController: ObservableObject {
                     return
                 }
                 guard let view = window.contentView else { return }
-                // 面板从工具栏右边（分享按钮下面）弹出。SwiftUI 窗口的坐标从上往下数，要分开算
                 let top = view.safeAreaInsets.top
-                let anchor = NSRect(x: view.bounds.maxX - 58, y: view.isFlipped ? top - 1 : view.bounds.maxY - top, width: 1, height: 1)
+                let shareX: CGFloat
+                if let shareView = Self.findToolbarControl(labeled: String(localized: "分享"), in: window) {
+                    shareX = shareView.convert(shareView.bounds, to: view).midX
+                } else {
+                    shareX = view.bounds.maxX - 58
+                }
+                let anchor = NSRect(x: shareX, y: view.isFlipped ? top - 1 : view.bounds.maxY - top, width: 1, height: 1)
                 NSSharingServicePicker(items: [url]).show(relativeTo: anchor, of: view, preferredEdge: view.isFlipped ? .maxY : .minY)
             }
         }
+    }
+
+    private static func findToolbarControl(labeled targetLabel: String, in window: NSWindow) -> NSView? {
+        guard let toolbar = window.toolbar else { return nil }
+        func search(in view: NSView) -> NSView? {
+            if view is NSControl,
+               view.accessibilityLabel() == targetLabel
+                || view.accessibilityTitle() == targetLabel
+                || (view as? NSButton)?.title == targetLabel {
+                return view
+            }
+            for sub in view.subviews {
+                if let hit = search(in: sub) { return hit }
+            }
+            return nil
+        }
+        func inspect(_ item: NSToolbarItem) -> NSView? {
+            if let group = item as? NSToolbarItemGroup {
+                for sub in group.subitems {
+                    if let hit = inspect(sub) { return hit }
+                }
+            }
+            if item.label == targetLabel, let v = item.view {
+                return search(in: v) ?? v
+            }
+            if let v = item.view, let hit = search(in: v) {
+                return hit
+            }
+            return nil
+        }
+        for item in toolbar.items {
+            if let hit = inspect(item) { return hit }
+        }
+        return nil
     }
 
     func exportPDF() {
