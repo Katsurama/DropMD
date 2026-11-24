@@ -39,7 +39,12 @@ struct CreateMarkdownDocumentIntent: AppIntent {
         if !initial.isEmpty {
             PendingDraftStore.store(initial.hasSuffix("\n") ? initial : initial + "\n")
         }
-        try NSDocumentController.shared.openUntitledDocumentAndDisplay(true)
+        do {
+            try NSDocumentController.shared.openUntitledDocumentAndDisplay(true)
+        } catch {
+            _ = PendingDraftStore.consume()
+            throw error
+        }
         return .result()
     }
 }

@@ -1019,21 +1019,25 @@ final class EditorController: ObservableObject {
     }
 
     func applyTranslationReplacement(_ translated: String) {
+        defer { translationTargetRange = nil }
         guard let target = translationTargetRange else { return }
-        if target.inRich, let r = rich, let storage = r.textStorage, NSMaxRange(target.range) <= storage.length {
+        if target.inRich {
+            guard let r = richView, let storage = r.textStorage,
+                  NSMaxRange(target.range) <= storage.length,
+                  (storage.string as NSString).substring(with: target.range) == translationSourceText else { return }
             let attrs = target.range.location < storage.length
                 ? storage.attributes(at: target.range.location, effectiveRange: nil)
                 : r.typingAttributes
             r.replace(target.range, with: NSAttributedString(string: translated, attributes: attrs),
                       caret: target.range.location + (translated as NSString).length)
             r.refreshTypingAttributes()
-        } else if let tv = textView {
+        } else {
+            guard let tv = textView else { return }
             let ns = tv.string as NSString
-            if NSMaxRange(target.range) <= ns.length {
-                replace(target.range, with: translated)
-            }
+            guard NSMaxRange(target.range) <= ns.length,
+                  ns.substring(with: target.range) == translationSourceText else { return }
+            replace(target.range, with: translated)
         }
-        translationTargetRange = nil
     }
 
     func smartFormatMarkdown() {
@@ -1088,12 +1092,12 @@ final class EditorController: ObservableObject {
             do {
                 let formatted = try await SiriAIManager.smartFormatMarkdown(sourceMarkdown)
                 guard !formatted.isEmpty else { return }
-                let currentSnapshot = self.rich?.textStorage?.string ?? self.textView?.string ?? ""
+                let currentSnapshot = (richSelection != nil ? self.richView?.textStorage?.string : self.textView?.string) ?? ""
                 guard self.editVersion == startVersion, currentSnapshot == startSnapshot else {
                     self.alert(String(localized: "智能整理排版已取消"), String(localized: "整理期间文档已修改，请重新选择后再试。"))
                     return
                 }
-                if let sel = richSelection, let r = self.rich, let storage = r.textStorage, NSMaxRange(sel) <= storage.length {
+                if let sel = richSelection, let r = self.richView, let storage = r.textStorage, NSMaxRange(sel) <= storage.length {
                     let isFull = sel.location == 0 && sel.length == storage.length
                     let rendered = NSMutableAttributedString(attributedString: RichBridge.attributed(markdown: formatted, baseURL: baseURL))
                     if !isFull, rendered.string.hasSuffix("\n") {
