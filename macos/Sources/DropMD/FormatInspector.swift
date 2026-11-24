@@ -258,7 +258,7 @@ private struct SummaryInspectorView: View {
     var body: some View {
         VStack(spacing: 0) {
             summarySection
-                .frame(minHeight: 130, maxHeight: 230)
+                .frame(minHeight: 140, maxHeight: 280)
             Divider().padding(.horizontal, 12)
             qaSection
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -269,7 +269,7 @@ private struct SummaryInspectorView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 Text("文章摘要")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.headline)
                     .foregroundStyle(.secondary)
                 if editor.summaryIsSelection {
                     Text("所选内容")
@@ -291,7 +291,7 @@ private struct SummaryInspectorView: View {
                     }
                 } label: {
                     Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                        .font(.caption)
+                        .font(.callout)
                 }
                 .buttonStyle(.borderless)
                 .disabled(editor.isSummarizing || editor.summaryBullets.isEmpty)
@@ -302,7 +302,7 @@ private struct SummaryInspectorView: View {
                     editor.generateDocumentSummary(force: true)
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.caption)
+                        .font(.callout)
                 }
                 .buttonStyle(.borderless)
                 .disabled(editor.isSummarizing)
@@ -325,7 +325,7 @@ private struct SummaryInspectorView: View {
                 ProgressView()
                     .controlSize(.small)
                 Text("正在生成文章摘要…")
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -333,10 +333,10 @@ private struct SummaryInspectorView: View {
         } else if let error = editor.summaryError {
             VStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle")
-                    .font(.callout)
+                    .font(.body)
                     .foregroundStyle(.secondary)
                 Text(error)
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .textSelection(.enabled)
@@ -349,19 +349,21 @@ private struct SummaryInspectorView: View {
             .padding(14)
         } else if editor.summaryBullets.isEmpty {
             Text("暂无摘要内容")
-                .font(.caption)
+                .font(.callout)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(14)
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 10) {
                     ForEach(Array(editor.summaryBullets.enumerated()), id: \.offset) { _, item in
                         HStack(alignment: .top, spacing: 6) {
                             Text(verbatim: "•")
+                                .font(.body)
                                 .foregroundStyle(.secondary)
                             Text(verbatim: item)
-                                .font(.callout)
+                                .font(.body)
+                                .lineSpacing(3)
                                 .textSelection(.enabled)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -369,7 +371,7 @@ private struct SummaryInspectorView: View {
                     }
                 }
                 .padding(.horizontal, 14)
-                .padding(.bottom, 10)
+                .padding(.bottom, 12)
             }
         }
     }
@@ -378,7 +380,7 @@ private struct SummaryInspectorView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 Text("提问")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.headline)
                     .foregroundStyle(.secondary)
                 Spacer()
                 if !editor.qaMessages.isEmpty {
@@ -386,7 +388,7 @@ private struct SummaryInspectorView: View {
                         editor.clearDocumentQA()
                     } label: {
                         Image(systemName: "trash")
-                            .font(.caption)
+                            .font(.callout)
                     }
                     .buttonStyle(.borderless)
                     .help("清空对话")
@@ -399,22 +401,22 @@ private struct SummaryInspectorView: View {
 
             if editor.qaMessages.isEmpty {
                 Text("可针对当前文档内容提问。")
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .padding(14)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 12) {
+                        LazyVStack(alignment: .leading, spacing: 14) {
                             ForEach(editor.qaMessages) { item in
-                                VStack(alignment: .leading, spacing: 6) {
+                                VStack(alignment: .leading, spacing: 8) {
                                     HStack {
                                         Spacer(minLength: 24)
                                         Text(verbatim: item.question)
-                                            .font(.callout)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 6)
+                                            .font(.body)
+                                            .padding(.horizontal, 11)
+                                            .padding(.vertical, 7)
                                             .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                                             .textSelection(.enabled)
                                     }
@@ -422,13 +424,14 @@ private struct SummaryInspectorView: View {
                                         HStack(spacing: 6) {
                                             ProgressView().controlSize(.small)
                                             Text("正在思考…")
-                                                .font(.caption)
+                                                .font(.callout)
                                                 .foregroundStyle(.secondary)
                                         }
                                         .padding(.top, 2)
                                     } else {
                                         Text(verbatim: item.answer)
-                                            .font(.callout)
+                                            .font(.body)
+                                            .lineSpacing(3)
                                             .foregroundStyle(item.isError ? Color.secondary : Color.primary)
                                             .textSelection(.enabled)
                                             .fixedSize(horizontal: false, vertical: true)
@@ -439,7 +442,7 @@ private struct SummaryInspectorView: View {
                             }
                         }
                         .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
+                        .padding(.vertical, 8)
                     }
                     .onChange(of: editor.qaMessages.last?.answer) { _, _ in
                         if let lastID = editor.qaMessages.last?.id {
@@ -451,16 +454,16 @@ private struct SummaryInspectorView: View {
                 }
             }
 
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 TextField("针对本文提问…", text: $questionText)
+                    .font(.body)
                     .textFieldStyle(.roundedBorder)
-                    .controlSize(.small)
                     .disabled(editor.isAnsweringQA)
                     .onSubmit(submitQuestion)
 
                 Button(action: submitQuestion) {
                     Image(systemName: "arrow.up.circle.fill")
-                        .font(.title3)
+                        .font(.title2)
                 }
                 .buttonStyle(.borderless)
                 .disabled(editor.isAnsweringQA || questionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

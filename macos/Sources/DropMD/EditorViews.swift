@@ -149,6 +149,7 @@ struct EditorView: View {
     @AppStorage("editorMode") private var mode: EditorMode = .rich
     @AppStorage("showInspector") private var showInspector = false
     @AppStorage("inspectorPane") private var inspectorPaneRaw = ""
+    @AppStorage("inspectorWidth") private var inspectorWidth: Double = 280
     @State private var stateBeforeVersionBrowser: (mode: EditorMode, showInspector: Bool)?
     /// 双页时左边原文占的比例：每次打开都从正中开始，拖动中间的分隔线调整
     @State private var splitFraction = 0.5
@@ -177,14 +178,24 @@ struct EditorView: View {
     var body: some View {
         // “格式”面板不用系统的 .inspector：它会让工具栏中间的按钮只按编辑区居中，打开面板时偏左
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                editorColumn
-                if activePane != .none {
-                    Rectangle()
-                        .fill(Color(nsColor: RichStyle.lineColor))
-                        .frame(width: 1)
-                    FormatInspector(pane: activePane, editor: editor, selection: editor.selection)
-                        .frame(width: 260)
+            GeometryReader { geo in
+                HStack(spacing: 0) {
+                    editorColumn
+                    if activePane != .none {
+                        Rectangle()
+                            .fill(Color(nsColor: RichStyle.lineColor))
+                            .frame(width: 1)
+                            .overlay(SplitHandle(
+                                onDrag: { x in
+                                    let right = geo.frame(in: .global).maxX
+                                    inspectorWidth = clampedInspectorWidth(right - x, totalWidth: geo.size.width)
+                                },
+                                onDoubleClick: { inspectorWidth = 280 }
+                            ).frame(width: 9))
+                            .zIndex(1)
+                        FormatInspector(pane: activePane, editor: editor, selection: editor.selection)
+                            .frame(width: clampedInspectorWidth(inspectorWidth, totalWidth: geo.size.width))
+                    }
                 }
             }
             statusBar
@@ -275,6 +286,12 @@ struct EditorView: View {
 
     private func sourceWidth(_ width: Double) -> Double {
         (width * clampedFraction(splitFraction, width: width)).rounded()
+    }
+
+    /// 右侧面板宽度范围：最窄 240，最宽 520 且保证编辑区至少留 320 点
+    private func clampedInspectorWidth(_ w: Double, totalWidth: Double) -> Double {
+        let maxW = max(240.0, min(520.0, totalWidth - 320.0))
+        return min(max(w.rounded(), 240.0), maxW)
     }
 
     /// 切换视图前，先把单页中尚未写回的修改写回文档
