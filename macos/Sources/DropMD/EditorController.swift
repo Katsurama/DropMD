@@ -2,6 +2,10 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+#if canImport(ImagePlayground)
+import ImagePlayground
+#endif
+
 /// 一个编辑器窗口的控制器：连接单页编辑区（RichTextView）、双页的原文编辑区（NSTextView）
 /// （双页时两边一起滚），并提供格式化和导出功能。
 /// 光标处的段落样式与文字样式
@@ -164,8 +168,7 @@ final class EditorController: ObservableObject {
     private var translationTargetRange: (inRich: Bool, range: NSRange)?
     @Published var documentTranslationRequest: DocumentTranslationRequest?
     private var isTranslatingDocument = false
-    @Published var imagePlaygroundPresented = false
-    @Published var imagePlaygroundConcept = ""
+    private var imagePlaygroundDelegate: AnyObject?
     private var spotlightWork: DispatchWorkItem?
     private var titleWork: DispatchWorkItem?
     private var aiTitleWork: DispatchWorkItem?
@@ -1230,7 +1233,10 @@ final class EditorController: ObservableObject {
     }
 
     func openImagePlayground() {
-        guard SiriAIManager.isImagePlaygroundAvailable else { return }
+        #if canImport(ImagePlayground)
+        guard #available(macOS 15.2, *),
+              SiriAIManager.isImagePlaygroundAvailable,
+              let presenter = (richView ?? textView)?.window?.contentViewController else { return }
         flushPendingEdits()
         var seed = ""
         if let r = rich, let storage = r.textStorage {
@@ -1246,8 +1252,23 @@ final class EditorController: ObservableObject {
                 seed = ns.substring(with: sel)
             }
         }
-        imagePlaygroundConcept = String(seed.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))
-        imagePlaygroundPresented = true
+        let concept = String(seed.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))
+        let vc = ImagePlaygroundViewController()
+        if !concept.isEmpty {
+            vc.concepts = [.text(concept)]
+        }
+        let proxy = ImagePlaygroundDelegateProxy(
+            onCreate: { [weak self] url in
+                self?.insertGeneratedImage(from: url, concept: concept)
+            },
+            onDone: { [weak self] in
+                self?.imagePlaygroundDelegate = nil
+            }
+        )
+        imagePlaygroundDelegate = proxy
+        vc.delegate = proxy
+        presenter.presentAsSheet(vc)
+        #endif
     }
 
     func insertGeneratedImage(from tempURL: URL, concept: String) {
@@ -1293,3 +1314,28 @@ private final class PrintCompletion: NSObject {
     init(_ done: @escaping () -> Void) { self.done = done }
     @objc func printOperationDidRun(_ op: NSPrintOperation, success: Bool, contextInfo: UnsafeMutableRawPointer?) { done() }
 }
+
+#if canImport(ImagePlayground)
+@available(macOS 15.2, *)
+@MainActor
+private final class ImagePlaygroundDelegateProxy: NSObject, ImagePlaygroundViewController.Delegate {
+    let onCreate: (URL) -> Void
+    let onDone: () -> Void
+
+    init(onCreate: @escaping (URL) -> Void, onDone: @escaping () -> Void) {
+        self.onCreate = onCreate
+        self.onDone = onDone
+    }
+
+    func imagePlaygroundViewController(_ imagePlaygroundViewController: ImagePlaygroundViewController, didCreateImageAt imageURL: URL) {
+        imagePlaygroundViewController.dismiss(nil)
+        onCreate(imageURL)
+        onDone()
+    }
+
+    func imagePlaygroundViewControllerDidCancel(_ imagePlaygroundViewController: ImagePlaygroundViewController) {
+        imagePlaygroundViewController.dismiss(nil)
+        onDone()
+    }
+}
+#endif

@@ -1,10 +1,6 @@
 import AppKit
 import SwiftUI
 
-#if canImport(ImagePlayground)
-import ImagePlayground
-#endif
-
 #if canImport(Translation)
 import Translation
 #endif
@@ -708,28 +704,13 @@ struct SplitHandle: NSViewRepresentable {
     }
 }
 
-/// 挂载系统原生翻译气泡、整篇文档翻译任务与图乐园配图面板（用 #available 兼容旧版 macOS）
+/// 挂载系统原生翻译气泡与整篇文档翻译任务（用 #available 兼容旧版 macOS）
 private struct EditorAIFeaturesModifier: ViewModifier {
     @ObservedObject var editor: EditorController
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(macOS 15.2, *) {
-            content
-                .translationPresentation(
-                    isPresented: $editor.translationPresented,
-                    text: editor.translationSourceText
-                ) { translated in
-                    editor.applyTranslationReplacement(translated)
-                }
-                .imagePlaygroundSheet(
-                    isPresented: $editor.imagePlaygroundPresented,
-                    concepts: editor.imagePlaygroundConcept.isEmpty ? [] : [.text(editor.imagePlaygroundConcept)]
-                ) { url in
-                    editor.insertGeneratedImage(from: url, concept: editor.imagePlaygroundConcept)
-                }
-                .modifier(DocumentTranslationModifier(editor: editor))
-        } else if #available(macOS 15.0, *) {
+        if #available(macOS 15.0, *) {
             content
                 .translationPresentation(
                     isPresented: $editor.translationPresented,
