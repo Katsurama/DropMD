@@ -373,11 +373,9 @@ struct EditorView: View {
                     ForEach(rest) { action in Button(action.menuTitle) { editor.perform(action) } }
                 }
             }
-            let aiInsertActions: [EditorAction] = (SiriAIManager.isLanguageModelAvailable ? [.insertSummary] : [])
-                + (SiriAIManager.isImagePlaygroundAvailable ? [.imagePlayground] : [])
-            if !aiInsertActions.isEmpty {
+            if SiriAIManager.isImagePlaygroundAvailable {
                 Divider()
-                ForEach(aiInsertActions) { action in Button(action.menuTitle) { editor.perform(action) } }
+                Button(EditorAction.imagePlayground.menuTitle) { editor.perform(.imagePlayground) }
             }
         } label: {
             Label("插入", systemImage: "plus")

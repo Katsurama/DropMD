@@ -300,9 +300,9 @@ struct FormatCommands: Commands {
                 }
                 ActionMenuItems(actions: group, editor: editor)
             }
-            if !aiInsertActions.isEmpty {
+            if SiriAIManager.isImagePlaygroundAvailable {
                 Divider()
-                ActionMenuItems(actions: aiInsertActions, editor: editor)
+                ActionMenuItems(actions: [.imagePlayground], editor: editor)
             }
         }
     }
@@ -310,11 +310,6 @@ struct FormatCommands: Commands {
     private var aiFormatActions: [EditorAction] {
         (SiriAIManager.isTranslationAvailable ? [.translateSelection] : [])
             + (SiriAIManager.isLanguageModelAvailable ? [.smartFormat] : [])
-    }
-
-    private var aiInsertActions: [EditorAction] {
-        (SiriAIManager.isLanguageModelAvailable ? [.insertSummary] : [])
-            + (SiriAIManager.isImagePlaygroundAvailable ? [.imagePlayground] : [])
     }
 
     private var documentTranslationMenu: some View {

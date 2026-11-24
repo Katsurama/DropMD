@@ -1,37 +1,45 @@
 import SwiftUI
 
-/// 右侧面板：可在“格式”（段落样式、文字样式、列表）与“目录”（文档标题大纲）间切换。
+/// 右侧面板：可在“格式”（段落样式、文字样式、列表）、“目录”（文档标题大纲）与“摘要”（整篇文档 AI 摘要）间切换。
 /// 插入类命令在工具栏和菜单“插入”中，这里不重复。
 struct FormatInspector: View {
     @ObservedObject var editor: EditorController
     @ObservedObject var selection: SelectionModel
     @State private var tab: InspectorTab = .format
 
-    private enum InspectorTab: String { case format, outline }
+    private enum InspectorTab: String { case format, outline, summary }
 
     var body: some View {
         VStack(spacing: 0) {
             Picker("格式", selection: $tab) {
                 Text("格式").tag(InspectorTab.format)
                 Text("目录").tag(InspectorTab.outline)
+                if SiriAIManager.isLanguageModelAvailable {
+                    Text("摘要").tag(InspectorTab.summary)
+                }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12)
             .padding(.top, 10)
             .padding(.bottom, 8)
             Divider()
-            if tab == .format {
+            switch tab {
+            case .format:
                 // 放得下时不用滚动区域：macOS 的滚动区域会在工具栏下方再多留一段工具栏高度，顶部空出一大块
                 ViewThatFits(in: .vertical) {
                     cards
                     ScrollView { cards }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            } else {
+            case .outline:
                 OutlineListView(editor: editor)   // 显示着才找标题
                     .onAppear { editor.outlineVisible = true }
                     .onDisappear { editor.outlineVisible = false }
+            case .summary:
+                SummaryInspectorView(editor: editor)
+                    .onAppear { editor.generateDocumentSummary(force: false) }
+                    .onDisappear { editor.cancelDocumentSummary() }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -242,5 +250,92 @@ struct ParagraphStyleMenu: View {
         guard selection.richFocused else { return String(localized: "样式") }
         if case .code = selection.state.kind { return EditorAction.codeBlock.title }
         return EditorAction.paragraphStyles.first { $0.paragraphKind == selection.state.kind }?.title ?? String(localized: "正文")
+    }
+}
+
+/// 侧边栏“摘要”标签页：本机 Siri AI 自动生成整篇文章的要点摘要
+private struct SummaryInspectorView: View {
+    @ObservedObject var editor: EditorController
+    @State private var copied = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            contentArea
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Divider()
+            HStack(spacing: 8) {
+                Button(copied ? String(localized: "已复制") : String(localized: "复制")) {
+                    let text = editor.summaryBullets.map { "- \($0)" }.joined(separator: "\n")
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                    copied = true
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        copied = false
+                    }
+                }
+                .disabled(editor.isSummarizing || editor.summaryBullets.isEmpty)
+
+                Spacer()
+
+                Button("重新生成") {
+                    editor.generateDocumentSummary(force: true)
+                }
+                .disabled(editor.isSummarizing)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+        }
+    }
+
+    @ViewBuilder
+    private var contentArea: some View {
+        if editor.isSummarizing {
+            VStack(spacing: 12) {
+                ProgressView()
+                    .controlSize(.regular)
+                Text("正在生成文章摘要…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(24)
+        } else if let error = editor.summaryError {
+            VStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                Text(error)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .textSelection(.enabled)
+                Button("重试") {
+                    editor.generateDocumentSummary(force: true)
+                }
+            }
+            .padding(20)
+        } else if editor.summaryBullets.isEmpty {
+            Text("暂无摘要内容")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .padding(24)
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(Array(editor.summaryBullets.enumerated()), id: \.offset) { _, item in
+                        HStack(alignment: .top, spacing: 6) {
+                            Text(verbatim: "•")
+                                .foregroundStyle(.secondary)
+                            Text(verbatim: item)
+                                .font(.callout)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+                .padding(14)
+            }
+        }
     }
 }

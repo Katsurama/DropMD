@@ -13,7 +13,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
     // 导出
     case exportPDF, exportWord, exportHTML
     // 系统智能
-    case translateSelection, smartFormat, insertSummary, imagePlayground
+    case translateSelection, smartFormat, imagePlayground
 
     var id: String { rawValue }
 
@@ -74,7 +74,6 @@ enum EditorAction: String, CaseIterable, Identifiable {
         case .exportHTML: return String(localized: "导出 HTML…")
         case .translateSelection: return String(localized: "翻译所选内容…")
         case .smartFormat: return String(localized: "智能整理排版")
-        case .insertSummary: return String(localized: "文章摘要")
         case .imagePlayground: return String(localized: "生成图像…")
         }
     }
@@ -82,7 +81,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
     /// 菜单中的标题（需要弹出对话框的命令加“…”）
     var menuTitle: String {
         switch self {
-        case .link, .image, .footnote, .inlineMath, .mathBlock, .emoji, .insertSummary: return title + "…"
+        case .link, .image, .footnote, .inlineMath, .mathBlock, .emoji: return title + "…"
         default: return title
         }
     }
@@ -123,7 +122,6 @@ enum EditorAction: String, CaseIterable, Identifiable {
         case .exportHTML: return "globe"
         case .translateSelection: return "character.bubble"
         case .smartFormat: return "sparkles"
-        case .insertSummary: return "doc.text.magnifyingglass"
         case .imagePlayground: return "wand.and.stars"
         }
     }
@@ -164,7 +162,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
         case .exportWord: return nil
         case .exportHTML: return KeyboardShortcut("e", modifiers: [.command, .shift])
         case .lineBreak: return KeyboardShortcut(.return, modifiers: .shift)
-        case .rule, .translateSelection, .smartFormat, .insertSummary, .imagePlayground: return nil
+        case .rule, .translateSelection, .smartFormat, .imagePlayground: return nil
         }
     }
 
