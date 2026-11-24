@@ -249,12 +249,13 @@ struct ParagraphStyleMenu: View {
     }
 }
 
-/// 侧边栏“摘要”标签页：上半区文章摘要（或所选内容摘要），下半区 Siri AI 问答（支持中间分隔线上下拖动）
+/// 侧边栏“摘要”标签页：上半区文章摘要（或所选内容摘要），下半区 Apple Intelligence 问答（支持中间分隔线上下拖动）
 private struct SummaryInspectorView: View {
     @ObservedObject var editor: EditorController
     @AppStorage("summaryTopFraction") private var topFraction: Double = 0.42
     @State private var copied = false
     @State private var questionText = ""
+    @State private var dividerHovered = false
 
     var body: some View {
         GeometryReader { geo in
@@ -263,19 +264,29 @@ private struct SummaryInspectorView: View {
             VStack(spacing: 0) {
                 summarySection
                     .frame(height: topH)
-                Rectangle()
-                    .fill(Color(nsColor: RichStyle.lineColor))
-                    .frame(height: 1)
-                    .overlay(VerticalSplitHandle(
-                        onDragDelta: { deltaY in
-                            let h = max(geo.size.height, 1)
-                            let cur = clampedTopHeight(h)
-                            let next = clampedTopHeight(h, proposed: cur + deltaY)
-                            topFraction = next / h
-                        },
-                        onDoubleClick: { topFraction = 0.42 }
-                    ).frame(height: 9))
-                    .zIndex(1)
+                ZStack {
+                    Rectangle()
+                        .fill(Color(nsColor: RichStyle.lineColor))
+                        .frame(height: 1)
+                    if dividerHovered {
+                        Capsule()
+                            .fill(Color.secondary.opacity(0.45))
+                            .frame(width: 28, height: 3)
+                    }
+                }
+                .frame(height: 9)
+                .contentShape(Rectangle())
+                .onHover { dividerHovered = $0 }
+                .overlay(VerticalSplitHandle(
+                    onDragDelta: { deltaY in
+                        let h = max(geo.size.height, 1)
+                        let cur = clampedTopHeight(h)
+                        let next = clampedTopHeight(h, proposed: cur + deltaY)
+                        topFraction = next / h
+                    },
+                    onDoubleClick: { topFraction = 0.42 }
+                ))
+                .zIndex(1)
                 qaSection
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -307,38 +318,34 @@ private struct SummaryInspectorView: View {
                         .background(Color.secondary.opacity(0.14), in: Capsule())
                 }
                 Spacer(minLength: 4)
-                Button {
-                    let text = editor.summaryBullets.map { "- \($0)" }.joined(separator: "\n")
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(text, forType: .string)
-                    copied = true
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 1_500_000_000)
-                        copied = false
+                HStack(spacing: 4) {
+                    InspectorIconButton(
+                        symbol: copied ? "checkmark" : "doc.on.doc",
+                        helpText: copied ? String(localized: "已复制") : String(localized: "复制"),
+                        disabled: editor.isSummarizing || editor.summaryBullets.isEmpty
+                    ) {
+                        let text = editor.summaryBullets.map { "- \($0)" }.joined(separator: "\n")
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(text, forType: .string)
+                        copied = true
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_500_000_000)
+                            copied = false
+                        }
                     }
-                } label: {
-                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                        .font(.callout)
-                }
-                .buttonStyle(.borderless)
-                .disabled(editor.isSummarizing || editor.summaryBullets.isEmpty)
-                .help(copied ? "已复制" : "复制")
-                .accessibilityLabel(copied ? "已复制" : "复制")
 
-                Button {
-                    editor.generateDocumentSummary(force: true)
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.callout)
+                    InspectorIconButton(
+                        symbol: "arrow.clockwise",
+                        helpText: String(localized: "重新生成"),
+                        disabled: editor.isSummarizing
+                    ) {
+                        editor.generateDocumentSummary(force: true)
+                    }
                 }
-                .buttonStyle(.borderless)
-                .disabled(editor.isSummarizing)
-                .help("重新生成")
-                .accessibilityLabel("重新生成")
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 6)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
 
             summaryContentArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -348,7 +355,7 @@ private struct SummaryInspectorView: View {
     @ViewBuilder
     private var summaryContentArea: some View {
         if editor.isSummarizing {
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
                 ProgressView()
                     .controlSize(.small)
                 Text("正在生成文章摘要…")
@@ -356,11 +363,11 @@ private struct SummaryInspectorView: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(14)
+            .padding(16)
         } else if let error = editor.summaryError {
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 15))
+                    .font(.system(size: 16))
                     .foregroundStyle(.secondary)
                 Text(error)
                     .font(.system(size: 13.5))
@@ -373,18 +380,18 @@ private struct SummaryInspectorView: View {
                 .controlSize(.small)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(14)
+            .padding(16)
         } else if editor.summaryBullets.isEmpty {
             Text("暂无摘要内容")
                 .font(.system(size: 13.5))
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(14)
+                .padding(16)
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 11) {
                     ForEach(Array(editor.summaryBullets.enumerated()), id: \.offset) { _, item in
-                        HStack(alignment: .top, spacing: 6) {
+                        HStack(alignment: .top, spacing: 7) {
                             Text(verbatim: "•")
                                 .font(.system(size: 14.5))
                                 .foregroundStyle(.secondary)
@@ -397,54 +404,61 @@ private struct SummaryInspectorView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.bottom, 12)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 14)
             }
         }
     }
 
     private var qaSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
-                Text(verbatim: "Siri AI")
+            HStack(spacing: 5) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                Text(verbatim: "Apple Intelligence")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.secondary)
-                Spacer()
+                Spacer(minLength: 4)
                 if !editor.qaMessages.isEmpty {
-                    Button {
+                    InspectorIconButton(
+                        symbol: "trash",
+                        helpText: String(localized: "清空对话"),
+                        disabled: false
+                    ) {
                         editor.clearDocumentQA()
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.callout)
                     }
-                    .buttonStyle(.borderless)
-                    .help("清空对话")
-                    .accessibilityLabel("清空对话")
                 }
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 16)
             .padding(.top, 10)
-            .padding(.bottom, 6)
+            .padding(.bottom, 8)
 
             if editor.qaMessages.isEmpty {
-                Text("可针对当前文档内容提问。")
-                    .font(.system(size: 13.5))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    .padding(14)
+                VStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.tertiary)
+                    Text("可针对当前文档内容提问。")
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .padding(16)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 14) {
+                        LazyVStack(alignment: .leading, spacing: 16) {
                             ForEach(editor.qaMessages) { item in
                                 VStack(alignment: .leading, spacing: 8) {
                                     HStack {
                                         Spacer(minLength: 24)
                                         Text(verbatim: item.question)
                                             .font(.system(size: 14.5))
-                                            .padding(.horizontal, 11)
-                                            .padding(.vertical, 7)
-                                            .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                            .background(Color.accentColor.opacity(0.16), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                                             .textSelection(.enabled)
                                     }
                                     if item.isLoading {
@@ -468,8 +482,8 @@ private struct SummaryInspectorView: View {
                                 .id(item.id)
                             }
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
                     }
                     .onChange(of: editor.qaMessages.last?.answer) { _, _ in
                         if let lastID = editor.qaMessages.last?.id {
@@ -481,24 +495,35 @@ private struct SummaryInspectorView: View {
                 }
             }
 
+            let canSend = !editor.isAnsweringQA && !questionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             HStack(spacing: 8) {
                 TextField("针对本文提问…", text: $questionText)
                     .font(.system(size: 14))
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
                     .disabled(editor.isAnsweringQA)
                     .onSubmit(submitQuestion)
 
                 Button(action: submitQuestion) {
                     Image(systemName: "arrow.up.circle.fill")
-                        .font(.title2)
+                        .font(.system(size: 20))
+                        .foregroundStyle(canSend ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.tertiary))
                 }
-                .buttonStyle(.borderless)
-                .disabled(editor.isAnsweringQA || questionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .buttonStyle(.plain)
+                .disabled(!canSend)
                 .help("发送")
                 .accessibilityLabel("发送")
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.leading, 12)
+            .padding(.trailing, 8)
+            .padding(.vertical, 7)
+            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.14), lineWidth: 1)
+            )
+            .padding(.horizontal, 14)
+            .padding(.top, 6)
+            .padding(.bottom, 14)
         }
     }
 
@@ -507,6 +532,32 @@ private struct SummaryInspectorView: View {
         guard !q.isEmpty, !editor.isAnsweringQA else { return }
         questionText = ""
         editor.askDocumentQuestion(q)
+    }
+}
+
+/// 侧边栏标题行右侧轻按钮（带悬停圆形底色）
+private struct InspectorIconButton: View {
+    let symbol: String
+    let helpText: String
+    let disabled: Bool
+    let action: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(disabled ? .quaternary : hovered ? .primary : .secondary)
+                .frame(width: 24, height: 24)
+                .background(hovered && !disabled ? Color.primary.opacity(0.08) : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .onHover { hovered = $0 }
+        .help(helpText)
+        .accessibilityLabel(helpText)
     }
 }
 

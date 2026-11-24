@@ -1216,12 +1216,13 @@ final class EditorController: ObservableObject {
     func showWritingTools() {
         guard SiriAIManager.isWritingToolsAvailable else { return }
         flushPendingEdits()
-        if let window = (richView ?? textView)?.window,
-           let target = isRichMode ? richView : (rich ?? textView),
+        guard let target = (isRichMode ? richView : (rich ?? textView)) else { return }
+        if let window = target.window,
            window.firstResponder !== richView && window.firstResponder !== textView {
             window.makeFirstResponder(target)
         }
-        NSApp.sendAction(NSSelectorFromString("showWritingTools:"), to: nil, from: nil)
+        let sender: Any = target.window.flatMap { Self.findToolbarControl(labeled: String(localized: "写作工具"), in: $0) } ?? target
+        NSApp.sendAction(NSSelectorFromString("showWritingTools:"), to: target, from: sender)
     }
 
     func smartFormatMarkdown() {
