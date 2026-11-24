@@ -235,7 +235,7 @@ struct ParagraphStyleMenu: View {
             Text(currentTitle)
         }
         .fixedSize()
-        .help("段落样式")
+        .help("设置段落样式")
     }
 
     private var currentTitle: String {

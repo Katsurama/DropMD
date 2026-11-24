@@ -357,7 +357,7 @@ struct EditorView: View {
         }
         ToolbarItemGroup(placement: .primaryAction) {
             Button { openWindow(id: "converter") } label: { Label("转换文件", systemImage: "arrow.down.doc") }
-                .help("转换为 Markdown")
+                .help("将文件转换为 Markdown")
             Menu {
                 Button(EditorAction.exportPDF.title) { editor.perform(.exportPDF) }
                 Button(EditorAction.exportWord.title) { editor.perform(.exportWord) }
@@ -366,24 +366,24 @@ struct EditorView: View {
                 // 不用“方框加向上箭头”：那是系统“分享”的图标，放在这里会被当成分享
                 Label("导出", systemImage: "doc.badge.arrow.up")
             }
-            .help("导出 PDF / Word / HTML")
+            .help("导出为 PDF、Word 或 HTML")
             // 苹果的分享面板（隔空投送、邮件、信息…）：分享这个 .md 文件；新文档还没存过、没有文件时不能分享
             Button { editor.share() } label: { Label("分享", systemImage: "square.and.arrow.up") }
                 .disabled(fileURL == nil)
-                .help(fileURL == nil ? "保存后才能分享" : "分享")
+                .help(fileURL == nil ? "保存文档后可分享" : "分享当前文档")
             Toggle(isOn: Binding(get: { activePane == .format }, set: { _ in togglePane(.format) })) {
                 Label("格式", systemImage: "paintbrush")
             }
-            .help("格式面板（⌥⌘I）")
+            .help("显示或隐藏格式面板（⌥⌘I）")
             Toggle(isOn: Binding(get: { activePane == .outline }, set: { _ in togglePane(.outline) })) {
                 Label("目录", systemImage: "list.bullet.indent")
             }
-            .help("目录")
+            .help("显示或隐藏文档目录")
             if SiriAIManager.isLanguageModelAvailable {
                 Toggle(isOn: Binding(get: { activePane == .summary }, set: { _ in togglePane(.summary) })) {
                     Label("摘要", systemImage: "sparkles")
                 }
-                .help("摘要")
+                .help("显示或隐藏文章摘要")
             }
         }
     }
@@ -426,7 +426,7 @@ struct EditorView: View {
         } label: {
             Label("插入", systemImage: "plus")
         }
-        .help("插入")
+        .help("插入更多元素")
     }
 }
 
@@ -500,7 +500,7 @@ private struct ToolbarListMenu: View {
         } label: {
             Label("列表", systemImage: currentIcon)
         }
-        .help("列表")
+        .help("设置列表样式")
     }
 }
 
@@ -556,6 +556,11 @@ struct WindowSizeKeeper: NSViewRepresentable {
     }
     func updateNSView(_ view: Probe, context: Context) {
         view.onVersionBrowserChange = onVersionBrowserChange
+        if let window = view.window {
+            DispatchQueue.main.async {
+                WindowSizeKeeper.applyToolbarToolTips(to: window)
+            }
+        }
     }
 
     final class Probe: NSView {
@@ -570,6 +575,7 @@ struct WindowSizeKeeper: NSViewRepresentable {
             if NSDocumentController.shared.document(for: window)?.isInViewingMode == true {
                 DispatchQueue.main.async { [weak self] in self?.onVersionBrowserChange?(true) }
             }
+            DispatchQueue.main.async { WindowSizeKeeper.applyToolbarToolTips(to: window) }
             guard observer == nil else { return }
             // 等系统恢复完窗口位置再改大小；全屏的窗口不动
             DispatchQueue.main.async { if !window.styleMask.contains(.fullScreen) { WindowSizeKeeper.apply(to: window) } }
@@ -589,6 +595,48 @@ struct WindowSizeKeeper: NSViewRepresentable {
             if let observer { NotificationCenter.default.removeObserver(observer) }
             if let versionEnterObserver { NotificationCenter.default.removeObserver(versionEnterObserver) }
             if let versionExitObserver { NotificationCenter.default.removeObserver(versionExitObserver) }
+        }
+    }
+
+    @MainActor
+    static func applyToolbarToolTips(to window: NSWindow) {
+        guard let toolbar = window.toolbar else { return }
+        let tips: [String: String] = [
+            String(localized: "转换文件"): String(localized: "将文件转换为 Markdown"),
+            String(localized: "导出"): String(localized: "导出为 PDF、Word 或 HTML"),
+            String(localized: "分享"): String(localized: "分享当前文档"),
+            String(localized: "格式"): String(localized: "显示或隐藏格式面板（⌥⌘I）"),
+            String(localized: "目录"): String(localized: "显示或隐藏文档目录"),
+            String(localized: "摘要"): String(localized: "显示或隐藏文章摘要"),
+            String(localized: "列表"): String(localized: "设置列表样式"),
+            String(localized: "插入"): String(localized: "插入更多元素"),
+            String(localized: "段落样式"): String(localized: "设置段落样式"),
+            String(localized: "显示方式"): String(localized: "切换单页或双页视图"),
+        ]
+
+        func applyItem(_ item: NSToolbarItem) {
+            if let group = item as? NSToolbarItemGroup {
+                for sub in group.subitems { applyItem(sub) }
+            }
+            if let seg = item.view as? NSSegmentedControl {
+                for i in 0..<seg.segmentCount {
+                    if (seg.toolTip(forSegment: i) ?? "").isEmpty,
+                       let segLabel = seg.label(forSegment: i), !segLabel.isEmpty {
+                        seg.setToolTip(tips[segLabel] ?? segLabel, forSegment: i)
+                    }
+                }
+            }
+            let fallback = tips[item.label] ?? (item.label.isEmpty ? nil : item.label)
+            if (item.toolTip ?? "").isEmpty, let tip = fallback {
+                item.toolTip = tip
+            }
+            if let view = item.view, (view.toolTip ?? "").isEmpty, let tip = item.toolTip ?? fallback {
+                view.toolTip = tip
+            }
+        }
+
+        for item in toolbar.items {
+            applyItem(item)
         }
     }
 

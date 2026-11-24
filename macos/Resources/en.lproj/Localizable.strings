@@ -210,8 +210,6 @@
 "语言" = "Language";
 "显示方式" = "View";
 "单页（⌘1） / 双页（⌘2）" = "Page (⌘1) / Split (⌘2)";
-"导出 PDF / Word / HTML" = "Export PDF / Word / HTML";
-"格式面板（⌥⌘I）" = "Format Panel (⌥⌘I)";
 "转换文件" = "Convert Files";
 "（%@）" = " (%@)";
 "纯文本" = "Plain Text";
@@ -354,7 +352,6 @@
 "微信" = "WeChat";
 "用微信扫一扫" = "Scan with WeChat";
 "分享" = "Share";
-"保存后才能分享" = "Save the document to share it";
 
 "DropMD 许可证" = "DropMD License";
 "使用了 markdown-it、KaTeX、MarkItDown、Docling、Pandoc 等开源组件，中文字体为小米 MiSans。" = "Built with markdown-it, KaTeX, MarkItDown, Docling, Pandoc and other open source components. Chinese font: Xiaomi MiSans.";
@@ -463,3 +460,13 @@
 "历史版本" = "Version History";
 "查看所有历史版本…" = "Browse All Versions…";
 "还原到上次保存" = "Revert to Last Saved";
+"保存文档后可分享" = "Save the document before sharing";
+"分享当前文档" = "Share current document";
+"切换单页或双页视图" = "Switch between Page and Split views";
+"导出为 PDF、Word 或 HTML" = "Export as PDF, Word, or HTML";
+"插入更多元素" = "Insert additional elements";
+"显示或隐藏文档目录" = "Show or hide document outline";
+"显示或隐藏文章摘要" = "Show or hide article summary";
+"显示或隐藏格式面板（⌥⌘I）" = "Show or hide format panel (⌥⌘I)";
+"设置列表样式" = "Set list style";
+"设置段落样式" = "Set paragraph style";
