@@ -202,6 +202,10 @@ final class EditorController: ObservableObject {
             guard let tv = self?.textView, let storage = tv.textStorage else { return }
             MarkdownHighlighter.highlight(storage)
             tv.typingAttributes = MarkdownHighlighter.baseAttributes
+            if (tv as? SourceTextView)?.markedLines != nil {
+                tv.needsDisplay = true
+                tv.enclosingScrollView?.verticalRulerView?.needsDisplay = true
+            }
         }
         highlightWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)

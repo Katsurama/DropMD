@@ -460,3 +460,6 @@
 "正在生成文章摘要…" = "Summarizing Document…";
 "重新生成" = "Regenerate";
 "重试" = "Try Again";
+"历史版本" = "Version History";
+"查看所有历史版本…" = "Browse All Versions…";
+"还原到上次保存" = "Revert to Last Saved";

@@ -38,7 +38,8 @@ It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all o
 - **Chinese, Japanese and Korean text**: choose the document language so characters use the right glyph shapes, on screen and in exported files
 - **A native Mac app**: built with SwiftUI, uses Liquid Glass on macOS 26 and later, with colors designed for both light and dark mode
 - **Quick Look**: select a .md file in Finder and press Space to see it formatted without opening it
-- **Export and share**: PDF and HTML, or send the file via AirDrop or Mail with the Share button; auto save and version history
+- **Export and share**: PDF, Word and HTML, or send the file via AirDrop or Mail with the Share button
+- **Auto save & version history**: changes are saved automatically; choose **File → Version History → Browse All Versions…** to open a Time Machine-style viewer to compare and restore any earlier version
 - **Software updates**: check for new versions in the app; downloads are checked for integrity, then click Restart to finish
 
 ## 📦 Install

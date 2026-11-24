@@ -1,30 +1,20 @@
 import SwiftUI
 
-/// 右侧面板：可在“格式”（段落样式、文字样式、列表）、“目录”（文档标题大纲）与“摘要”（整篇文档 AI 摘要）间切换。
+/// 右侧面板当前显示的独立栏目（同一时间只显示一个，互相替换）
+enum InspectorPane: String {
+    case none, format, outline, summary
+}
+
+/// 右侧独立面板：格式、目录或文章摘要（由工具栏各自独立按钮切换）。
 /// 插入类命令在工具栏和菜单“插入”中，这里不重复。
 struct FormatInspector: View {
+    let pane: InspectorPane
     @ObservedObject var editor: EditorController
     @ObservedObject var selection: SelectionModel
-    @State private var tab: InspectorTab = .format
-
-    private enum InspectorTab: String { case format, outline, summary }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Picker("格式", selection: $tab) {
-                Text("格式").tag(InspectorTab.format)
-                Text("目录").tag(InspectorTab.outline)
-                if SiriAIManager.isLanguageModelAvailable {
-                    Text("摘要").tag(InspectorTab.summary)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
-            .padding(.bottom, 8)
-            Divider()
-            switch tab {
+        Group {
+            switch pane {
             case .format:
                 // 放得下时不用滚动区域：macOS 的滚动区域会在工具栏下方再多留一段工具栏高度，顶部空出一大块
                 ViewThatFits(in: .vertical) {
@@ -40,6 +30,8 @@ struct FormatInspector: View {
                 SummaryInspectorView(editor: editor)
                     .onAppear { editor.generateDocumentSummary(force: false) }
                     .onDisappear { editor.cancelDocumentSummary() }
+            case .none:
+                EmptyView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

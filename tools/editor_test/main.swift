@@ -2101,6 +2101,14 @@ MainActor.assumeIsolated {
         UserDefaults.standard.set(false, forKey: "showSourceMark")
         let rectOff = tv.markedLinesRect()
         check("关掉显示对应位置标记后高亮立即消失", "\(!rectOn.isEmpty) \(rectOff.isEmpty)", "true true")
+
+        // 文本刚替换（尚未显式 ensureLayout）时，markedLinesRect 仍能按折行算完整矩形
+        UserDefaults.standard.set(true, forKey: "showSourceMark")
+        let wrapped = String(repeating: "这是一段用来触发折行的长文字 ", count: 6) + "\n"
+        tv.string = wrapped
+        tv.markedLines = NSRange(location: 0, length: (wrapped as NSString).length - 1)
+        let wrappedRect = tv.markedLinesRect()
+        check("双页长行未预先排版时黄色高亮仍完整覆盖折行", "\(wrappedRect.height > 28)", "true")
     }
 
     // 双页对照表（LineMap）：无序列表（含 -）、有序列表、待办列表每一项各自对应原文行，不把整段列表并成一项

@@ -136,6 +136,7 @@ final class SourceTextView: NSTextView {
     func markedLinesRect() -> NSRect {
         guard SourceMarkStyle.isOn, let r = markedLines, r.length > 0, let lm = layoutManager, let tc = textContainer,
               tc.containerSize.width > 0, lm.numberOfGlyphs > 0, NSMaxRange(r) <= (string as NSString).length else { return .zero }
+        lm.ensureLayout(forCharacterRange: r)
         let glyphs = lm.glyphRange(forCharacterRange: r, actualCharacterRange: nil)
         guard glyphs.length > 0 else { return .zero }
         let first = lm.lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)

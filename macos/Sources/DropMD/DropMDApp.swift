@@ -192,17 +192,63 @@ struct SourceMarkMenu: View {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var menuObserver: NSObjectProtocol?
+
     func applicationWillFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated { AppAppearance.apply(UserDefaults.standard.string(forKey: "appearance")) }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            renameVersionHistoryMenuItems()
+            menuObserver = NotificationCenter.default.addObserver(
+                forName: NSMenu.didBeginTrackingNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.renameVersionHistoryMenuItems() }
+            }
+        }
         // 等文档窗口出现后再询问、检查，避免与“打开文件”面板同时弹出
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             MainActor.assumeIsolated {
                 DefaultApp.askOnFirstLaunch()
                 HelpDocs.openGuideOnFirstLaunch()
                 UpdateChecker.shared.launchCheck()
+            }
+        }
+    }
+
+    deinit {
+        if let menuObserver { NotificationCenter.default.removeObserver(menuObserver) }
+    }
+
+    /// 将系统默认较生硬的“复原到 → 浏览所有版本”改为更易理解的表述
+    @MainActor
+    private func renameVersionHistoryMenuItems() {
+        guard let mainMenu = NSApp.mainMenu else { return }
+        let browseSel = NSSelectorFromString("browseDocumentVersions:")
+        let revertSel = NSSelectorFromString("revertDocumentToSaved:")
+        for topItem in mainMenu.items {
+            guard let sub = topItem.submenu else { continue }
+            for item in sub.items {
+                if let nested = item.submenu,
+                   nested.items.contains(where: { $0.action == browseSel || $0.action == revertSel }) {
+                    let parentTitle = String(localized: "历史版本")
+                    item.title = parentTitle
+                    nested.title = parentTitle
+                    for child in nested.items {
+                        if child.action == browseSel {
+                            child.title = String(localized: "查看所有历史版本…")
+                        } else if child.action == revertSel {
+                            child.title = String(localized: "还原到上次保存")
+                        }
+                    }
+                } else if item.action == browseSel {
+                    item.title = String(localized: "查看所有历史版本…")
+                } else if item.action == revertSel {
+                    item.title = String(localized: "还原到上次保存")
+                }
             }
         }
     }
@@ -262,9 +308,15 @@ struct FormatCommands: Commands {
             Button("双页", systemImage: "rectangle.split.2x1") { switchMode?(.source) }
                 .keyboardShortcut("2")
                 .disabled(switchMode == nil)
-            Button("格式面板", systemImage: "paintbrush") { toggleInspector?() }
+            Button("格式面板", systemImage: "paintbrush") { toggleInspector?(.format) }
                 .keyboardShortcut("i", modifiers: [.command, .option])
                 .disabled(toggleInspector == nil)
+            Button("目录", systemImage: "list.bullet.indent") { toggleInspector?(.outline) }
+                .disabled(toggleInspector == nil)
+            if SiriAIManager.isLanguageModelAvailable {
+                Button("摘要", systemImage: "sparkles") { toggleInspector?(.summary) }
+                    .disabled(toggleInspector == nil)
+            }
             AppearanceMenu()
             PageMarginMenu()
             TextScaleMenu()

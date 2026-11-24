@@ -152,6 +152,8 @@ struct EditorView: View {
     @StateObject private var editor = EditorController()
     @AppStorage("editorMode") private var mode: EditorMode = .rich
     @AppStorage("showInspector") private var showInspector = false
+    @AppStorage("inspectorPane") private var inspectorPaneRaw = ""
+    @State private var stateBeforeVersionBrowser: (mode: EditorMode, showInspector: Bool)?
     /// 双页时左边原文占的比例：每次打开都从正中开始，拖动中间的分隔线调整
     @State private var splitFraction = 0.5
     /// 双页在窗口打开后于后台预先加载，第一次切换也不卡
@@ -159,16 +161,33 @@ struct EditorView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
 
+    private var activePane: InspectorPane {
+        guard showInspector else { return .none }
+        let parsed = InspectorPane(rawValue: inspectorPaneRaw) ?? .format
+        if parsed == .none { return .format }
+        if parsed == .summary, !SiriAIManager.isLanguageModelAvailable { return .format }
+        return parsed
+    }
+
+    private func togglePane(_ pane: InspectorPane) {
+        if activePane == pane {
+            showInspector = false
+        } else {
+            inspectorPaneRaw = pane.rawValue
+            showInspector = true
+        }
+    }
+
     var body: some View {
         // “格式”面板不用系统的 .inspector：它会让工具栏中间的按钮只按编辑区居中，打开面板时偏左
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 editorColumn
-                if showInspector {
+                if activePane != .none {
                     Rectangle()
                         .fill(Color(nsColor: RichStyle.lineColor))
                         .frame(width: 1)
-                    FormatInspector(editor: editor, selection: editor.selection)
+                    FormatInspector(pane: activePane, editor: editor, selection: editor.selection)
                         .frame(width: 260)
                 }
             }
@@ -195,11 +214,26 @@ struct EditorView: View {
         }
         .focusedSceneObject(editor)
         .focusedSceneValue(\.editorModeSwitch, { newValue in modeBinding.wrappedValue = newValue })
-        .focusedSceneValue(\.inspectorToggle, { showInspector.toggle() })
+        .focusedSceneValue(\.inspectorToggle, { pane in togglePane(pane) })
         .toolbar { toolbarContent }
         .hidesToolbarTitle()
         .onReceive(NotificationCenter.default.publisher(for: .showUpdates)) { _ in SettingsPage.open(.updates, openSettings) }
-        .background(WindowSizeKeeper())
+        .background(WindowSizeKeeper { entering in
+            if entering {
+                if stateBeforeVersionBrowser == nil {
+                    stateBeforeVersionBrowser = (mode, showInspector)
+                }
+                showInspector = false
+                if mode != .rich {
+                    editor.flushPendingEdits()
+                    mode = .rich
+                }
+            } else if let saved = stateBeforeVersionBrowser {
+                stateBeforeVersionBrowser = nil
+                showInspector = saved.showInspector
+                mode = saved.mode
+            }
+        })
         .modifier(EditorAIFeaturesModifier(editor: editor))
     }
 
@@ -337,8 +371,20 @@ struct EditorView: View {
             Button { editor.share() } label: { Label("分享", systemImage: "square.and.arrow.up") }
                 .disabled(fileURL == nil)
                 .help(fileURL == nil ? "保存后才能分享" : "分享")
-            Toggle(isOn: $showInspector) { Label("格式", systemImage: "paintbrush") }
-                .help("格式面板（⌥⌘I）")
+            Toggle(isOn: Binding(get: { activePane == .format }, set: { _ in togglePane(.format) })) {
+                Label("格式", systemImage: "paintbrush")
+            }
+            .help("格式面板（⌥⌘I）")
+            Toggle(isOn: Binding(get: { activePane == .outline }, set: { _ in togglePane(.outline) })) {
+                Label("目录", systemImage: "list.bullet.indent")
+            }
+            .help("目录")
+            if SiriAIManager.isLanguageModelAvailable {
+                Toggle(isOn: Binding(get: { activePane == .summary }, set: { _ in togglePane(.summary) })) {
+                    Label("摘要", systemImage: "sparkles")
+                }
+                .help("摘要")
+            }
         }
     }
 
@@ -479,9 +525,9 @@ struct EditorModeSwitchKey: FocusedValueKey {
     typealias Value = (EditorMode) -> Void
 }
 
-/// 菜单栏“显示 → 显示/隐藏格式面板”
+/// 菜单栏“显示 → 显示/隐藏右侧面板”
 struct InspectorToggleKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = (InspectorPane) -> Void
 }
 
 extension FocusedValues {
@@ -490,7 +536,7 @@ extension FocusedValues {
         set { self[EditorModeSwitchKey.self] = newValue }
     }
 
-    var inspectorToggle: (() -> Void)? {
+    var inspectorToggle: ((InspectorPane) -> Void)? {
         get { self[InspectorToggleKey.self] }
         set { self[InspectorToggleKey.self] = newValue }
     }
@@ -498,28 +544,52 @@ extension FocusedValues {
 
 /// 文档窗口用你最后一次拉好的大小打开（第一次用 980 × 660）。
 /// 系统重新打开上次的窗口时会沿用当时的大小（比如铺满屏幕），这里统一改回记住的大小，只用调一次。
+/// 同时监听系统“历史版本”浏览界面进入与退出，自动切为单页并收起右侧面板。
 struct WindowSizeKeeper: NSViewRepresentable {
     static let key = "editorWindowSize"
+    var onVersionBrowserChange: ((Bool) -> Void)?
 
-    func makeNSView(context: Context) -> NSView { Probe() }
-    func updateNSView(_ view: NSView, context: Context) {}
+    func makeNSView(context: Context) -> Probe {
+        let p = Probe()
+        p.onVersionBrowserChange = onVersionBrowserChange
+        return p
+    }
+    func updateNSView(_ view: Probe, context: Context) {
+        view.onVersionBrowserChange = onVersionBrowserChange
+    }
 
     final class Probe: NSView {
+        var onVersionBrowserChange: ((Bool) -> Void)?
         private var observer: NSObjectProtocol?
+        private var versionEnterObserver: NSObjectProtocol?
+        private var versionExitObserver: NSObjectProtocol?
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            guard let window, observer == nil else { return }
-            // 等系统恢复完窗口位置再改大小
+            guard let window else { return }
+            if NSDocumentController.shared.document(for: window)?.isInViewingMode == true {
+                DispatchQueue.main.async { [weak self] in self?.onVersionBrowserChange?(true) }
+            }
+            guard observer == nil else { return }
             // 等系统恢复完窗口位置再改大小；全屏的窗口不动
             DispatchQueue.main.async { if !window.styleMask.contains(.fullScreen) { WindowSizeKeeper.apply(to: window) } }
             observer = NotificationCenter.default.addObserver(forName: NSWindow.didEndLiveResizeNotification, object: window, queue: .main) { note in
                 guard let w = note.object as? NSWindow else { return }
                 UserDefaults.standard.set(NSStringFromSize(w.frame.size), forKey: WindowSizeKeeper.key)
             }
+            versionEnterObserver = NotificationCenter.default.addObserver(forName: NSWindow.willEnterVersionBrowserNotification, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.onVersionBrowserChange?(true) }
+            }
+            versionExitObserver = NotificationCenter.default.addObserver(forName: NSWindow.didExitVersionBrowserNotification, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.onVersionBrowserChange?(false) }
+            }
         }
 
-        deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
+        deinit {
+            if let observer { NotificationCenter.default.removeObserver(observer) }
+            if let versionEnterObserver { NotificationCenter.default.removeObserver(versionEnterObserver) }
+            if let versionExitObserver { NotificationCenter.default.removeObserver(versionExitObserver) }
+        }
     }
 
     @MainActor static func apply(to window: NSWindow) {

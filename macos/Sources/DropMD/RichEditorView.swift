@@ -244,6 +244,7 @@ struct RichTextEditor: NSViewRepresentable {
             MainActor.assumeIsolated {
                 parent.controller.richTextEdited = false
                 parent.controller.richMarkdown = md
+                parent.controller.syncSourceMark()
             }
         }
 
