@@ -2184,6 +2184,59 @@ MainActor.assumeIsolated {
             let ocrText = ImageTextExtractor.recognizeText(at: samplePDF) ?? ""
             check("Vision 图片文字提取", "\(ocrText.contains("DropMD"))", "true")
         }
+
+        // 本机摘要分段与插入位置：跳过 YAML 头部与一级标题
+        let shortChunks = SiriAIManager.splitIntoChunks("第一段\n\n第二段", maxChars: 2400)
+        check("摘要分段：短文合并为单块", "\(shortChunks.count)", "1")
+        let longChunks = SiriAIManager.splitIntoChunks((1...8).map { "第\($0)段内容：" + String(repeating: "测", count: 800) }.joined(separator: "\n\n"), maxChars: 1000)
+        check("摘要分段：长文拆成多块且不丢段落", "\(longChunks.count > 1) \(longChunks.joined(separator: "\n\n").contains("第8段内容"))", "true true")
+
+        let summaryCallout = SiriAIManager.formatSummaryCallout(from: "1. 要点一\n- 要点二")
+        check("摘要格式：标准化为 NOTE 提示框", summaryCallout, "> [!NOTE]\n> - 要点一\n> - 要点二")
+        let withH1 = "---\ntitle: demo\n---\n\n# 主标题\n\n正文开始。\n"
+        check("摘要插入：落在 YAML 与一级标题正下方",
+              SiriAIManager.insertSummaryCallout(summaryCallout, into: withH1),
+              "---\ntitle: demo\n---\n\n# 主标题\n\n> [!NOTE]\n> - 要点一\n> - 要点二\n\n正文开始。\n")
+
+        // 保格式整篇翻译：只翻自然语言，代码、公式、YAML、链接地址、图片路径完全保留
+        let transSrc = """
+        ---
+        title: Keep
+        ---
+
+        # 原标题
+
+        你好 `keepCode()` 和 [链接](https://example.com)
+
+        | 表头 | 列 |
+        | --- | --- |
+        | 单元格 | $x^2$ |
+
+        ```swift
+        let unchanged = true
+        ```
+
+        ![图](img/a.png)
+        """
+        let segs = MarkdownTranslator.extractSegments(from: transSrc)
+        check("整篇翻译：排除代码、公式与 YAML",
+              "\(!segs.contains { $0.text.contains("keepCode") }) \(!segs.contains { $0.text.contains("unchanged") }) \(!segs.contains { $0.text.contains("Keep") })",
+              "true true true")
+        var transMap: [String: String] = [:]
+        for s in segs {
+            switch s.text {
+            case "原标题": transMap[s.id] = "Translated Heading"
+            case "你好": transMap[s.id] = "Hello"
+            case "链接": transMap[s.id] = "Link"
+            case "表头": transMap[s.id] = "Header"
+            case "单元格": transMap[s.id] = "Cell"
+            default: break
+            }
+        }
+        let transOut = MarkdownTranslator.applyTranslations(transMap, to: transSrc)
+        check("整篇翻译：替换文字并保留所有格式与链接路径",
+              "\(transOut.contains("# Translated Heading")) \(transOut.contains("Hello `keepCode()`")) \(transOut.contains("[Link](https://example.com)")) \(transOut.contains("| Header |")) \(transOut.contains("| Cell | $x^2$ |")) \(transOut.contains("let unchanged = true")) \(transOut.contains("![图](img/a.png)"))",
+              "true true true true true true true")
     }
 
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")

@@ -449,3 +449,12 @@
 "需要在支持 Apple 智能的 macOS 26 及以上系统中开启该功能。" = "Requires Apple Intelligence on macOS 26 or later.";
 "智能整理排版已取消" = "Smart Format Canceled";
 "整理期间文档已修改，请重新选择后再试。" = "The document was modified while formatting. Select again and retry.";
+"当前文档中没有可翻译的自然语言内容。" = "There is no translatable text in this document.";
+"文章摘要" = "Article Summary";
+"文章摘要不可用" = "Article Summary Unavailable";
+"没有可翻译的正文" = "No Translatable Text";
+"生成文章摘要失败" = "Failed to Create Article Summary";
+"生成文章摘要已取消" = "Article Summary Canceled";
+"生成期间文档已修改，请重试。" = "The document was modified while summarizing. Please try again.";
+"翻译整篇文档" = "Translate Document";
+"翻译整篇文档失败" = "Failed to Translate Document";

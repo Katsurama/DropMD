@@ -569,7 +569,7 @@ struct SplitHandle: NSViewRepresentable {
     }
 }
 
-/// 挂载系统原生翻译气泡与图乐园配图面板（用 #available 兼容旧版 macOS）
+/// 挂载系统原生翻译气泡、整篇文档翻译任务与图乐园配图面板（用 #available 兼容旧版 macOS）
 private struct EditorAIFeaturesModifier: ViewModifier {
     @ObservedObject var editor: EditorController
 
@@ -589,6 +589,16 @@ private struct EditorAIFeaturesModifier: ViewModifier {
                 ) { url in
                     editor.insertGeneratedImage(from: url, concept: editor.imagePlaygroundConcept)
                 }
+                .modifier(DocumentTranslationModifier(editor: editor))
+        } else if #available(macOS 15.0, *) {
+            content
+                .translationPresentation(
+                    isPresented: $editor.translationPresented,
+                    text: editor.translationSourceText
+                ) { translated in
+                    editor.applyTranslationReplacement(translated)
+                }
+                .modifier(DocumentTranslationModifier(editor: editor))
         } else if #available(macOS 14.4, *) {
             content
                 .translationPresentation(
@@ -600,5 +610,56 @@ private struct EditorAIFeaturesModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+@available(macOS 15.0, *)
+private struct DocumentTranslationModifier: ViewModifier {
+    @ObservedObject var editor: EditorController
+    @State private var config: TranslationSession.Configuration?
+    @State private var activeRequestID: UUID?
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: editor.documentTranslationRequest) { _, req in
+                guard let req else { return }
+                activeRequestID = req.id
+                let target = Locale.Language(identifier: req.targetLanguage)
+                if config == nil {
+                    config = TranslationSession.Configuration(source: nil, target: target)
+                } else {
+                    config?.target = target
+                    config?.invalidate()
+                }
+            }
+            .translationTask(config) { session in
+                guard let req = editor.documentTranslationRequest, req.id == activeRequestID else { return }
+                do {
+                    var map: [String: String] = [:]
+                    let batchSize = 40
+                    var idx = 0
+                    while idx < req.segments.count {
+                        let end = min(idx + batchSize, req.segments.count)
+                        let batch = req.segments[idx..<end].map {
+                            TranslationSession.Request(sourceText: $0.text, clientIdentifier: $0.id)
+                        }
+                        let responses = try await session.translations(from: batch)
+                        for res in responses {
+                            if let id = res.clientIdentifier {
+                                map[id] = res.targetText
+                            }
+                        }
+                        idx = end
+                    }
+                    let translated = MarkdownTranslator.applyTranslations(map, to: req.sourceMarkdown)
+                    await MainActor.run {
+                        editor.finishDocumentTranslation(translated)
+                    }
+                } catch {
+                    await MainActor.run {
+                        editor.failDocumentTranslation(error)
+                    }
+                }
+            }
     }
 }

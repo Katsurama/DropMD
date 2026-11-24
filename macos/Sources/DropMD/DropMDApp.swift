@@ -283,9 +283,12 @@ struct FormatCommands: Commands {
             codeBlockMenu
             Divider()
             ActionMenuItems(actions: EditorAction.lists, editor: editor)
-            if !aiFormatActions.isEmpty {
+            if !aiFormatActions.isEmpty || SiriAIManager.isDocumentTranslationAvailable {
                 Divider()
                 ActionMenuItems(actions: aiFormatActions, editor: editor)
+                if SiriAIManager.isDocumentTranslationAvailable {
+                    documentTranslationMenu
+                }
             }
         }
         CommandMenu("插入") {
@@ -297,9 +300,9 @@ struct FormatCommands: Commands {
                 }
                 ActionMenuItems(actions: group, editor: editor)
             }
-            if SiriAIManager.isImagePlaygroundAvailable {
+            if !aiInsertActions.isEmpty {
                 Divider()
-                ActionMenuItems(actions: [.imagePlayground], editor: editor)
+                ActionMenuItems(actions: aiInsertActions, editor: editor)
             }
         }
     }
@@ -307,6 +310,30 @@ struct FormatCommands: Commands {
     private var aiFormatActions: [EditorAction] {
         (SiriAIManager.isTranslationAvailable ? [.translateSelection] : [])
             + (SiriAIManager.isLanguageModelAvailable ? [.smartFormat] : [])
+    }
+
+    private var aiInsertActions: [EditorAction] {
+        (SiriAIManager.isLanguageModelAvailable ? [.insertSummary] : [])
+            + (SiriAIManager.isImagePlaygroundAvailable ? [.imagePlayground] : [])
+    }
+
+    private var documentTranslationMenu: some View {
+        Menu("翻译整篇文档", systemImage: "globe") {
+            ForEach([
+                ("简体中文", "zh-Hans"),
+                ("繁體中文", "zh-Hant"),
+                ("English", "en"),
+                ("日本語", "ja"),
+                ("한국어", "ko"),
+            ], id: \.1) { name, code in
+                Button {
+                    editor?.translateDocument(to: code)
+                } label: {
+                    Text(verbatim: name)
+                }
+                .disabled(editor == nil)
+            }
+        }
     }
 
     private var calloutMenu: some View {

@@ -20,6 +20,12 @@ enum SiriAIManager {
         return false
     }
 
+    /// 是否支持系统原生离线整篇文档翻译（macOS 15.0+）
+    static var isDocumentTranslationAvailable: Bool {
+        if #available(macOS 15.0, *) { return true }
+        return false
+    }
+
     /// 是否支持系统内置大模型（macOS 26+ 且已开启可用）
     static var isLanguageModelAvailable: Bool {
         #if canImport(FoundationModels)
@@ -70,6 +76,235 @@ enum SiriAIManager {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return text
+    }
+
+    /// 按段落切分为不超过 maxChars 的块（用于长文档本机端侧大模型分段摘要）
+    static func splitIntoChunks(_ text: String, maxChars: Int = 2400) -> [String] {
+        let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return [] }
+        let limit = max(200, maxChars)
+        let paragraphs = normalized.components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var chunks: [String] = []
+        var current = ""
+        for para in paragraphs {
+            if para.count > limit {
+                if !current.isEmpty {
+                    chunks.append(current)
+                    current = ""
+                }
+                var idx = para.startIndex
+                while idx < para.endIndex {
+                    let next = para.index(idx, offsetBy: limit, limitedBy: para.endIndex) ?? para.endIndex
+                    let slice = String(para[idx..<next]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !slice.isEmpty { chunks.append(slice) }
+                    idx = next
+                }
+                continue
+            }
+            let candidate = current.isEmpty ? para : "\(current)\n\n\(para)"
+            if candidate.count <= limit {
+                current = candidate
+            } else {
+                if !current.isEmpty { chunks.append(current) }
+                current = para
+            }
+        }
+        if !current.isEmpty { chunks.append(current) }
+        return chunks
+    }
+
+    /// 100% 使用系统本机 Siri AI 模型生成文章摘要（短文直出、长文分段汇总，返回 > [!NOTE] 提示框）
+    @available(macOS 26.0, *)
+    static func summarizeMarkdown(_ input: String) async throws -> String {
+        #if canImport(FoundationModels)
+        let chunks = Array(splitIntoChunks(input, maxChars: 2400).prefix(12))
+        guard !chunks.isEmpty else { return "" }
+
+        let rawBullets: String
+        if chunks.count == 1 {
+            let instructions = """
+            Summarize the user's document into 3 to 5 concise bullet points in the exact same language as the document.
+            Each line must start with "- ".
+            Output only the bullet list without any heading, intro, or code fence.
+            """
+            let session = LanguageModelSession(instructions: instructions)
+            rawBullets = try await session.respond(to: chunks[0]).content
+        } else {
+            // 长文分段提炼要点，再合并由新会话汇总（纯本机离线运行，避免超出上下文上限）
+            var partials: [String] = []
+            let chunkInstructions = """
+            Extract 2 to 3 key bullet points from this excerpt in the exact same language as the excerpt.
+            Each line must start with "- ".
+            Output only the bullet points.
+            """
+            for (i, chunk) in chunks.enumerated() {
+                let s = LanguageModelSession(instructions: chunkInstructions)
+                let part = try await s.respond(to: "Part \(i + 1):\n\n\(chunk)").content
+                let clean = stripOuterMarkdownFence(part)
+                if !clean.isEmpty { partials.append(clean) }
+            }
+            let combineInstructions = """
+            Synthesize the following excerpt summaries into 3 to 5 concise, non-redundant overall bullet points in the exact same language.
+            Each line must start with "- ".
+            Output only the final bullet list without any heading, intro, or code fence.
+            """
+            let finalSession = LanguageModelSession(instructions: combineInstructions)
+            rawBullets = try await finalSession.respond(to: partials.joined(separator: "\n\n")).content
+        }
+        return formatSummaryCallout(from: rawBullets)
+        #else
+        return ""
+        #endif
+    }
+
+    static func formatSummaryCallout(from raw: String) -> String {
+        let stripped = stripOuterMarkdownFence(raw)
+        let bullets = stripped.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map { line -> String in
+                if line.hasPrefix("- ") || line.hasPrefix("* ") {
+                    return "- " + line.dropFirst(2).trimmingCharacters(in: .whitespaces)
+                }
+                if let r = line.range(of: #"^\d+[.)]\s+"#, options: .regularExpression) {
+                    return "- " + line[r.upperBound...].trimmingCharacters(in: .whitespaces)
+                }
+                return "- \(line)"
+            }
+        guard !bullets.isEmpty else { return "" }
+        return (["> [!NOTE]"] + bullets.map { "> \($0)" }).joined(separator: "\n")
+    }
+
+    /// 将摘要提示框插入 YAML 之后，若紧随其后为一级标题（# ...）则插在一级标题正下方
+    static func insertSummaryCallout(_ callout: String, into markdown: String) -> String {
+        let cleanCallout = callout.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanCallout.isEmpty else { return markdown }
+
+        let normalized = markdown.replacingOccurrences(of: "\r\n", with: "\n")
+        let (blocks, groups, lines) = MarkdownCodec.parseWithSource(normalized)
+
+        var insertLine = 0
+        var groupIndex = 0
+        if let first = groups.first,
+           case .raw(let rawText) = blocks[first.blocks.lowerBound],
+           rawText.trimmingCharacters(in: .whitespaces).hasPrefix("---") {
+            insertLine = first.lines.upperBound
+            groupIndex = 1
+        }
+        if groupIndex < groups.count {
+            let g = groups[groupIndex]
+            if g.blocks.lowerBound < blocks.count,
+               case .line(let line) = blocks[g.blocks.lowerBound],
+               case .heading(1) = line.kind {
+                insertLine = g.lines.upperBound
+            }
+        }
+
+        let before = lines[..<min(insertLine, lines.count)]
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .newlines)
+        let after = lines[min(insertLine, lines.count)...]
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .newlines)
+
+        let parts = [before, cleanCallout, after].filter { !$0.isEmpty }
+        return parts.joined(separator: "\n\n") + "\n"
+    }
+}
+
+/// 保格式整篇 Markdown 翻译核心（跳过代码块、行内代码、数学公式、YAML/HTML、图片与链接地址）
+enum MarkdownTranslator {
+    struct Segment: Sendable {
+        let id: String
+        let text: String
+    }
+
+    static func extractSegments(from markdown: String) -> [Segment] {
+        var blocks = MarkdownCodec.parse(markdown)
+        var segments: [Segment] = []
+        var nextID = 0
+        visitTranslatableStrings(&blocks) { raw in
+            let (_, core, _) = splitEdgeWhitespace(raw)
+            guard !core.isEmpty else { return }
+            segments.append(Segment(id: "\(nextID)", text: core))
+            nextID += 1
+        }
+        return segments
+    }
+
+    static func applyTranslations(_ translations: [String: String], to markdown: String) -> String {
+        var blocks = MarkdownCodec.parse(markdown)
+        var nextID = 0
+        visitTranslatableStrings(&blocks) { raw in
+            let (leading, core, trailing) = splitEdgeWhitespace(raw)
+            guard !core.isEmpty else { return }
+            let id = "\(nextID)"
+            nextID += 1
+            if let translated = translations[id]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !translated.isEmpty {
+                raw = leading + translated + trailing
+            }
+        }
+        return MarkdownCodec.serialize(blocks)
+    }
+
+    private static func visitTranslatableStrings(_ blocks: inout [MDBlock], _ visit: (inout String) -> Void) {
+        for i in blocks.indices {
+            switch blocks[i] {
+            case .line(var line):
+                visitRuns(&line.runs, visit)
+                blocks[i] = .line(line)
+            case .table(var rows, let align):
+                for r in rows.indices {
+                    for c in rows[r].indices {
+                        visitRuns(&rows[r][c], visit)
+                    }
+                }
+                blocks[i] = .table(rows, align: align)
+            case .details(var summary, var body, let open):
+                visit(&summary)
+                visitTranslatableStrings(&body, visit)
+                blocks[i] = .details(summary: summary, body: body, open: open)
+            case .code, .rule, .raw:
+                break
+            }
+        }
+    }
+
+    private static func visitRuns(_ runs: inout [MDRun], _ visit: (inout String) -> Void) {
+        for i in runs.indices {
+            if runs[i].code || runs[i].kbd || runs[i].literal || runs[i].image != nil {
+                continue
+            }
+            visit(&runs[i].text)
+        }
+    }
+
+    private static func splitEdgeWhitespace(_ s: String) -> (leading: String, core: String, trailing: String) {
+        guard !s.isEmpty else { return ("", "", "") }
+        let scalars = s.unicodeScalars
+        var start = scalars.startIndex
+        while start < scalars.endIndex, scalars[start].properties.isWhitespace {
+            start = scalars.index(after: start)
+        }
+        guard start < scalars.endIndex else { return (s, "", "") }
+        var end = scalars.endIndex
+        while end > start {
+            let prev = scalars.index(before: end)
+            if scalars[prev].properties.isWhitespace {
+                end = prev
+            } else {
+                break
+            }
+        }
+        let leading = String(scalars[..<start])
+        let core = String(scalars[start..<end])
+        let trailing = String(scalars[end...])
+        return (leading, core, trailing)
     }
 }
 

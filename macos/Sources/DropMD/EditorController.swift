@@ -148,9 +148,22 @@ final class EditorController: ObservableObject {
 
     // MARK: - Siri AI / 翻译 / 配图 / 命名状态
 
+    struct DocumentTranslationRequest: Equatable {
+        let id = UUID()
+        let targetLanguage: String
+        let sourceMarkdown: String
+        let segments: [MarkdownTranslator.Segment]
+
+        static func == (lhs: DocumentTranslationRequest, rhs: DocumentTranslationRequest) -> Bool {
+            lhs.id == rhs.id
+        }
+    }
+
     @Published var translationPresented = false
     @Published var translationSourceText = ""
     private var translationTargetRange: (inRich: Bool, range: NSRange)?
+    @Published var documentTranslationRequest: DocumentTranslationRequest?
+    private var isTranslatingDocument = false
     @Published var imagePlaygroundPresented = false
     @Published var imagePlaygroundConcept = ""
     private var spotlightWork: DispatchWorkItem?
@@ -542,6 +555,7 @@ final class EditorController: ObservableObject {
         case .exportHTML: exportHTML()
         case .translateSelection: translateSelection()
         case .smartFormat: smartFormatMarkdown()
+        case .insertSummary: insertArticleSummary()
         case .imagePlayground: openImagePlayground()
         }
         selectionChanged()
@@ -1115,6 +1129,142 @@ final class EditorController: ObservableObject {
                 self.alert(String(localized: "智能整理排版失败"), error.localizedDescription)
             }
         }
+    }
+
+    func insertArticleSummary() {
+        guard !isAIFormatting else { return }
+        guard #available(macOS 26.0, *), SiriAIManager.isLanguageModelAvailable else {
+            alert(String(localized: "文章摘要不可用"), String(localized: "需要在支持 Apple 智能的 macOS 26 及以上系统中开启该功能。"))
+            return
+        }
+        flushPendingEdits()
+
+        let sourceMarkdown: String
+        let hasSelection: Bool
+        let richParaEnd: Int?
+        let sourceParaEnd: Int?
+        let startSnapshot: String
+        let fromRich: Bool
+
+        if let r = rich, let storage = r.textStorage {
+            fromRich = true
+            startSnapshot = storage.string
+            let sel = r.selectedRange()
+            if sel.length > 0, NSMaxRange(sel) <= storage.length {
+                hasSelection = true
+                let sub = storage.attributedSubstring(from: sel)
+                sourceMarkdown = MarkdownCodec.serialize(RichBridge.blocks(from: sub))
+                richParaEnd = NSMaxRange((storage.string as NSString).paragraphRange(for: sel))
+                sourceParaEnd = nil
+            } else {
+                hasSelection = false
+                sourceMarkdown = richMarkdown ?? pendingText
+                richParaEnd = nil
+                sourceParaEnd = nil
+            }
+        } else if let tv = textView {
+            fromRich = false
+            startSnapshot = tv.string
+            let sel = tv.selectedRange()
+            let ns = tv.string as NSString
+            if sel.length > 0, NSMaxRange(sel) <= ns.length {
+                hasSelection = true
+                sourceMarkdown = ns.substring(with: sel)
+                sourceParaEnd = NSMaxRange(ns.paragraphRange(for: sel))
+                richParaEnd = nil
+            } else {
+                hasSelection = false
+                sourceMarkdown = tv.string
+                sourceParaEnd = nil
+                richParaEnd = nil
+            }
+        } else {
+            return
+        }
+
+        guard !sourceMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let baseURL = fileURL?.deletingLastPathComponent()
+        let startVersion = editVersion
+        isAIFormatting = true
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isAIFormatting = false }
+            do {
+                let callout = try await SiriAIManager.summarizeMarkdown(sourceMarkdown)
+                guard !callout.isEmpty else { return }
+                let currentSnapshot = (fromRich ? self.richView?.textStorage?.string : self.textView?.string) ?? ""
+                guard self.editVersion == startVersion, currentSnapshot == startSnapshot else {
+                    self.alert(String(localized: "生成文章摘要已取消"), String(localized: "生成期间文档已修改，请重试。"))
+                    return
+                }
+                if fromRich, let r = self.richView, let storage = r.textStorage {
+                    if hasSelection, let insertAt = richParaEnd, insertAt <= storage.length {
+                        let ns = storage.string as NSString
+                        let needsNewline = insertAt > 0 && ns.character(at: insertAt - 1) != 10
+                        let rendered = NSMutableAttributedString()
+                        if needsNewline {
+                            rendered.append(NSAttributedString(string: "\n", attributes: RichStyle.typingAttributes(for: .body)))
+                        }
+                        rendered.append(RichBridge.attributed(markdown: callout, baseURL: baseURL))
+                        r.replace(NSRange(location: insertAt, length: 0), with: rendered, caret: insertAt + rendered.length)
+                    } else {
+                        let updated = SiriAIManager.insertSummaryCallout(callout, into: sourceMarkdown)
+                        let rendered = RichBridge.attributed(markdown: updated, baseURL: baseURL)
+                        r.replace(NSRange(location: 0, length: storage.length), with: rendered, caret: 0)
+                    }
+                    r.refreshTypingAttributes()
+                    self.flushPendingEdits()
+                } else if !fromRich, let tv = self.textView {
+                    let ns = tv.string as NSString
+                    if hasSelection, let insertAt = sourceParaEnd, insertAt <= ns.length {
+                        let prefix = (insertAt > 0 && ns.character(at: insertAt - 1) != 10) ? "\n\n" : "\n"
+                        self.replace(NSRange(location: insertAt, length: 0), with: prefix + callout + "\n")
+                    } else {
+                        let updated = SiriAIManager.insertSummaryCallout(callout, into: sourceMarkdown)
+                        self.replace(NSRange(location: 0, length: ns.length), with: updated)
+                    }
+                }
+            } catch {
+                self.alert(String(localized: "生成文章摘要失败"), error.localizedDescription)
+            }
+        }
+    }
+
+    func translateDocument(to languageID: String) {
+        guard !isTranslatingDocument, SiriAIManager.isDocumentTranslationAvailable else { return }
+        flushPendingEdits()
+        let source = isRichMode ? (richMarkdown ?? pendingText) : (textView?.string ?? pendingText)
+        let segments = MarkdownTranslator.extractSegments(from: source)
+        guard !segments.isEmpty else {
+            alert(String(localized: "没有可翻译的正文"), String(localized: "当前文档中没有可翻译的自然语言内容。"))
+            return
+        }
+        isTranslatingDocument = true
+        documentTranslationRequest = DocumentTranslationRequest(
+            targetLanguage: languageID,
+            sourceMarkdown: source,
+            segments: segments
+        )
+    }
+
+    func finishDocumentTranslation(_ translatedMarkdown: String) {
+        isTranslatingDocument = false
+        documentTranslationRequest = nil
+        PendingDraftStore.store(translatedMarkdown)
+        do {
+            try NSDocumentController.shared.openUntitledDocumentAndDisplay(true)
+        } catch {
+            _ = PendingDraftStore.consume()
+            alert(String(localized: "翻译整篇文档失败"), error.localizedDescription)
+        }
+    }
+
+    func failDocumentTranslation(_ error: Error) {
+        isTranslatingDocument = false
+        documentTranslationRequest = nil
+        if error is CancellationError { return }
+        alert(String(localized: "翻译整篇文档失败"), error.localizedDescription)
     }
 
     func openImagePlayground() {
