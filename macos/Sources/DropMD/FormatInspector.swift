@@ -193,7 +193,7 @@ private struct OutlineRowView: View {
     var body: some View {
         Button(action: action) {
             Text(heading.title)
-                .font(heading.level == 1 ? .callout.weight(.semibold) : heading.level == 2 ? .callout.weight(.medium) : .callout)
+                .font(heading.level == 1 ? .system(size: 13.5, weight: .semibold) : heading.level == 2 ? .system(size: 13.5, weight: .medium) : .system(size: 13.5))
                 .foregroundStyle(heading.level <= 2 ? Color.primary : Color.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -296,7 +296,7 @@ private struct SummaryInspectorView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 Text("文章摘要")
-                    .font(.headline)
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.secondary)
                 if editor.summaryIsSelection {
                     Text("所选内容")
@@ -352,7 +352,7 @@ private struct SummaryInspectorView: View {
                 ProgressView()
                     .controlSize(.small)
                 Text("正在生成文章摘要…")
-                    .font(.callout)
+                    .font(.system(size: 13.5))
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -360,10 +360,10 @@ private struct SummaryInspectorView: View {
         } else if let error = editor.summaryError {
             VStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle")
-                    .font(.body)
+                    .font(.system(size: 15))
                     .foregroundStyle(.secondary)
                 Text(error)
-                    .font(.callout)
+                    .font(.system(size: 13.5))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .textSelection(.enabled)
@@ -376,7 +376,7 @@ private struct SummaryInspectorView: View {
             .padding(14)
         } else if editor.summaryBullets.isEmpty {
             Text("暂无摘要内容")
-                .font(.callout)
+                .font(.system(size: 13.5))
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(14)
@@ -386,11 +386,11 @@ private struct SummaryInspectorView: View {
                     ForEach(Array(editor.summaryBullets.enumerated()), id: \.offset) { _, item in
                         HStack(alignment: .top, spacing: 6) {
                             Text(verbatim: "•")
-                                .font(.body)
+                                .font(.system(size: 14.5))
                                 .foregroundStyle(.secondary)
                             Text(verbatim: item)
-                                .font(.body)
-                                .lineSpacing(3)
+                                .font(.system(size: 14.5))
+                                .lineSpacing(4)
                                 .textSelection(.enabled)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -407,7 +407,7 @@ private struct SummaryInspectorView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 Text(verbatim: "Siri AI")
-                    .font(.headline)
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
                 if !editor.qaMessages.isEmpty {
@@ -428,7 +428,7 @@ private struct SummaryInspectorView: View {
 
             if editor.qaMessages.isEmpty {
                 Text("可针对当前文档内容提问。")
-                    .font(.callout)
+                    .font(.system(size: 13.5))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .padding(14)
@@ -441,7 +441,7 @@ private struct SummaryInspectorView: View {
                                     HStack {
                                         Spacer(minLength: 24)
                                         Text(verbatim: item.question)
-                                            .font(.body)
+                                            .font(.system(size: 14.5))
                                             .padding(.horizontal, 11)
                                             .padding(.vertical, 7)
                                             .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -451,14 +451,14 @@ private struct SummaryInspectorView: View {
                                         HStack(spacing: 6) {
                                             ProgressView().controlSize(.small)
                                             Text("正在思考…")
-                                                .font(.callout)
+                                                .font(.system(size: 13.5))
                                                 .foregroundStyle(.secondary)
                                         }
                                         .padding(.top, 2)
                                     } else {
                                         Text(verbatim: item.answer)
-                                            .font(.body)
-                                            .lineSpacing(3)
+                                            .font(.system(size: 14.5))
+                                            .lineSpacing(4)
                                             .foregroundStyle(item.isError ? Color.secondary : Color.primary)
                                             .textSelection(.enabled)
                                             .fixedSize(horizontal: false, vertical: true)
@@ -483,7 +483,7 @@ private struct SummaryInspectorView: View {
 
             HStack(spacing: 8) {
                 TextField("针对本文提问…", text: $questionText)
-                    .font(.body)
+                    .font(.system(size: 14))
                     .textFieldStyle(.roundedBorder)
                     .disabled(editor.isAnsweringQA)
                     .onSubmit(submitQuestion)

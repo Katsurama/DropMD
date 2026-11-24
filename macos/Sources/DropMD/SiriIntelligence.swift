@@ -626,10 +626,7 @@ enum SiriAIManager {
         let maxChars = useCloud ? 20000 : 5500
         let context = prepareContextForQA(document: document, question: question, maxChars: maxChars)
         let instructions = """
-        You are a helpful document Q&A assistant.
-        Answer the user's question accurately based ONLY on the provided document content.
-        Respond concisely in the same language as the user's question.
-        If the document does not mention the answer, state that clearly without guessing.
+        Answer concisely in the same language as the user's message, using the provided document when relevant. If the document does not mention the requested information, say so clearly.
         """
         var promptParts = ["Document content:\n\n\(context)"]
         let recent = history.suffix(3).filter { !$0.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
