@@ -2193,6 +2193,9 @@ MainActor.assumeIsolated {
 
         let summaryCallout = SiriAIManager.formatSummaryCallout(from: "1. 要点一\n- 要点二")
         check("摘要格式：标准化为 NOTE 提示框", summaryCallout, "> [!NOTE]\n> - 要点一\n> - 要点二")
+        check("摘要解析：剥离重复列表前缀",
+              SiriAIManager.parseSummaryBullets(from: "- - 要点一\n* • 要点二").joined(separator: "|"),
+              "要点一|要点二")
         let withH1 = "---\ntitle: demo\n---\n\n# 主标题\n\n正文开始。\n"
         check("摘要插入：落在 YAML 与一级标题正下方",
               SiriAIManager.insertSummaryCallout(summaryCallout, into: withH1),

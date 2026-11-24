@@ -117,12 +117,12 @@ enum SiriAIManager {
         return chunks
     }
 
-    /// 100% 使用系统本机 Siri AI 模型生成文章摘要（短文直出、长文分段汇总，返回 > [!NOTE] 提示框）
+    /// 100% 使用系统本机 Siri AI 模型生成文章摘要要点列表（短文直出、长文分段汇总）
     @available(macOS 26.0, *)
-    static func summarizeMarkdown(_ input: String) async throws -> String {
+    static func summarizeBullets(_ input: String) async throws -> [String] {
         #if canImport(FoundationModels)
         let chunks = Array(splitIntoChunks(input, maxChars: 2400).prefix(12))
-        guard !chunks.isEmpty else { return "" }
+        guard !chunks.isEmpty else { return [] }
 
         let rawBullets: String
         if chunks.count == 1 {
@@ -142,11 +142,13 @@ enum SiriAIManager {
             Output only the bullet points.
             """
             for (i, chunk) in chunks.enumerated() {
+                try Task.checkCancellation()
                 let s = LanguageModelSession(instructions: chunkInstructions)
                 let part = try await s.respond(to: "Part \(i + 1):\n\n\(chunk)").content
                 let clean = stripOuterMarkdownFence(part)
                 if !clean.isEmpty { partials.append(clean) }
             }
+            try Task.checkCancellation()
             let combineInstructions = """
             Synthesize the following excerpt summaries into 3 to 5 concise, non-redundant overall bullet points in the exact same language.
             Each line must start with "- ".
@@ -155,28 +157,40 @@ enum SiriAIManager {
             let finalSession = LanguageModelSession(instructions: combineInstructions)
             rawBullets = try await finalSession.respond(to: partials.joined(separator: "\n\n")).content
         }
-        return formatSummaryCallout(from: rawBullets)
+        return parseSummaryBullets(from: rawBullets)
         #else
-        return ""
+        return []
         #endif
     }
 
-    static func formatSummaryCallout(from raw: String) -> String {
+    static func parseSummaryBullets(from raw: String) -> [String] {
         let stripped = stripOuterMarkdownFence(raw)
-        let bullets = stripped.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        return stripped.components(separatedBy: .newlines)
             .map { line -> String in
-                if line.hasPrefix("- ") || line.hasPrefix("* ") {
-                    return "- " + line.dropFirst(2).trimmingCharacters(in: .whitespaces)
+                var s = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                // 循环剥离重复的列表标记（如 "- - 正文" 或 "* • 正文"）
+                while true {
+                    if s.hasPrefix("- ") || s.hasPrefix("* ") || s.hasPrefix("• ") {
+                        s = String(s.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+                    } else if let r = s.range(of: #"^\d+[.)]\s+"#, options: .regularExpression) {
+                        s = String(s[r.upperBound...]).trimmingCharacters(in: .whitespaces)
+                    } else {
+                        break
+                    }
                 }
-                if let r = line.range(of: #"^\d+[.)]\s+"#, options: .regularExpression) {
-                    return "- " + line[r.upperBound...].trimmingCharacters(in: .whitespaces)
-                }
-                return "- \(line)"
+                return s
             }
-        guard !bullets.isEmpty else { return "" }
-        return (["> [!NOTE]"] + bullets.map { "> \($0)" }).joined(separator: "\n")
+            .filter { !$0.isEmpty }
+    }
+
+    static func formatSummaryCallout(bullets: [String]) -> String {
+        let clean = bullets.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        guard !clean.isEmpty else { return "" }
+        return (["> [!NOTE]"] + clean.map { "> - \($0)" }).joined(separator: "\n")
+    }
+
+    static func formatSummaryCallout(from raw: String) -> String {
+        formatSummaryCallout(bullets: parseSummaryBullets(from: raw))
     }
 
     /// 将摘要提示框插入 YAML 之后，若紧随其后为一级标题（# ...）则插在一级标题正下方

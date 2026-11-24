@@ -82,7 +82,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
     /// 菜单中的标题（需要弹出对话框的命令加“…”）
     var menuTitle: String {
         switch self {
-        case .link, .image, .footnote, .inlineMath, .mathBlock, .emoji: return title + "…"
+        case .link, .image, .footnote, .inlineMath, .mathBlock, .emoji, .insertSummary: return title + "…"
         default: return title
         }
     }

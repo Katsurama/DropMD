@@ -453,8 +453,13 @@
 "文章摘要" = "Article Summary";
 "文章摘要不可用" = "Article Summary Unavailable";
 "没有可翻译的正文" = "No Translatable Text";
-"生成文章摘要失败" = "Failed to Create Article Summary";
-"生成文章摘要已取消" = "Article Summary Canceled";
-"生成期间文档已修改，请重试。" = "The document was modified while summarizing. Please try again.";
 "翻译整篇文档" = "Translate Document";
 "翻译整篇文档失败" = "Failed to Translate Document";
+"关闭" = "Close";
+"复制" = "Copy";
+"插入到文档" = "Insert into Document";
+"暂无摘要内容" = "No Summary Available";
+"未能提取到有效摘要要点。" = "Could not extract summary points.";
+"正在生成文章摘要…" = "Summarizing Document…";
+"重新生成" = "Regenerate";
+"重试" = "Try Again";

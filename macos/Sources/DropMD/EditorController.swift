@@ -171,6 +171,8 @@ final class EditorController: ObservableObject {
     private var aiTitleWork: DispatchWorkItem?
     private var editVersion: Int = 0
     private var isAIFormatting = false
+    private var summaryWindow: ArticleSummaryWindowController?
+    private var summaryTask: Task<Void, Never>?
 
     // MARK: - 文本变化
 
@@ -555,7 +557,7 @@ final class EditorController: ObservableObject {
         case .exportHTML: exportHTML()
         case .translateSelection: translateSelection()
         case .smartFormat: smartFormatMarkdown()
-        case .insertSummary: insertArticleSummary()
+        case .insertSummary: showArticleSummary()
         case .imagePlayground: openImagePlayground()
         }
         selectionChanged()
@@ -1131,103 +1133,109 @@ final class EditorController: ObservableObject {
         }
     }
 
-    func insertArticleSummary() {
-        guard !isAIFormatting else { return }
+    func showArticleSummary() {
         guard #available(macOS 26.0, *), SiriAIManager.isLanguageModelAvailable else {
             alert(String(localized: "文章摘要不可用"), String(localized: "需要在支持 Apple 智能的 macOS 26 及以上系统中开启该功能。"))
             return
         }
         flushPendingEdits()
+        let docTitle = fileURL?.lastPathComponent
+            ?? DocumentTitleSuggester.fallbackTitle(from: pendingText)
+            ?? String(localized: "未命名")
 
-        let sourceMarkdown: String
-        let hasSelection: Bool
-        let richParaEnd: Int?
-        let sourceParaEnd: Int?
-        let startSnapshot: String
-        let fromRich: Bool
+        let controller = summaryWindow ?? ArticleSummaryWindowController()
+        summaryWindow = controller
+        controller.show(
+            title: docTitle,
+            relativeTo: (richView ?? textView)?.window,
+            onRegenerate: { [weak self] in self?.runArticleSummary(preferSelection: false) },
+            onInsert: { [weak self] bullets in self?.insertSummaryBulletsIntoDocument(bullets) },
+            onWindowClose: { [weak self] in
+                self?.summaryTask?.cancel()
+                self?.summaryTask = nil
+            }
+        )
+        runArticleSummary(preferSelection: true)
+    }
 
-        if let r = rich, let storage = r.textStorage {
-            fromRich = true
-            startSnapshot = storage.string
-            let sel = r.selectedRange()
-            if sel.length > 0, NSMaxRange(sel) <= storage.length {
-                hasSelection = true
-                let sub = storage.attributedSubstring(from: sel)
-                sourceMarkdown = MarkdownCodec.serialize(RichBridge.blocks(from: sub))
-                richParaEnd = NSMaxRange((storage.string as NSString).paragraphRange(for: sel))
-                sourceParaEnd = nil
-            } else {
-                hasSelection = false
-                sourceMarkdown = richMarkdown ?? pendingText
-                richParaEnd = nil
-                sourceParaEnd = nil
+    private func runArticleSummary(preferSelection: Bool) {
+        guard #available(macOS 26.0, *), let controller = summaryWindow else { return }
+        summaryTask?.cancel()
+        flushPendingEdits()
+
+        var sourceMarkdown = ""
+        if preferSelection {
+            if let r = rich, let storage = r.textStorage {
+                let sel = r.selectedRange()
+                if sel.length > 0, NSMaxRange(sel) <= storage.length {
+                    sourceMarkdown = MarkdownCodec.serialize(RichBridge.blocks(from: storage.attributedSubstring(from: sel)))
+                }
+            } else if let tv = textView {
+                let sel = tv.selectedRange()
+                let ns = tv.string as NSString
+                if sel.length > 0, NSMaxRange(sel) <= ns.length {
+                    sourceMarkdown = ns.substring(with: sel)
+                }
             }
-        } else if let tv = textView {
-            fromRich = false
-            startSnapshot = tv.string
-            let sel = tv.selectedRange()
-            let ns = tv.string as NSString
-            if sel.length > 0, NSMaxRange(sel) <= ns.length {
-                hasSelection = true
-                sourceMarkdown = ns.substring(with: sel)
-                sourceParaEnd = NSMaxRange(ns.paragraphRange(for: sel))
-                richParaEnd = nil
-            } else {
-                hasSelection = false
-                sourceMarkdown = tv.string
-                sourceParaEnd = nil
-                richParaEnd = nil
-            }
-        } else {
+        }
+        if sourceMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            sourceMarkdown = isRichMode ? (richMarkdown ?? pendingText) : (textView?.string ?? pendingText)
+        }
+
+        let model = controller.model
+        guard !sourceMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            model.isLoading = false
+            model.bullets = []
+            model.errorMessage = nil
             return
         }
 
-        guard !sourceMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        let baseURL = fileURL?.deletingLastPathComponent()
-        let startVersion = editVersion
-        isAIFormatting = true
+        model.isLoading = true
+        model.errorMessage = nil
+        model.copied = false
 
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            defer { self.isAIFormatting = false }
+        let text = sourceMarkdown
+        summaryTask = Task { @MainActor [weak self, weak model] in
             do {
-                let callout = try await SiriAIManager.summarizeMarkdown(sourceMarkdown)
-                guard !callout.isEmpty else { return }
-                let currentSnapshot = (fromRich ? self.richView?.textStorage?.string : self.textView?.string) ?? ""
-                guard self.editVersion == startVersion, currentSnapshot == startSnapshot else {
-                    self.alert(String(localized: "生成文章摘要已取消"), String(localized: "生成期间文档已修改，请重试。"))
-                    return
+                let bullets = try await SiriAIManager.summarizeBullets(text)
+                guard !Task.isCancelled, let model else { return }
+                model.bullets = bullets
+                model.isLoading = false
+                if bullets.isEmpty {
+                    model.errorMessage = String(localized: "未能提取到有效摘要要点。")
                 }
-                if fromRich, let r = self.richView, let storage = r.textStorage {
-                    if hasSelection, let insertAt = richParaEnd, insertAt <= storage.length {
-                        let ns = storage.string as NSString
-                        let needsNewline = insertAt > 0 && ns.character(at: insertAt - 1) != 10
-                        let rendered = NSMutableAttributedString()
-                        if needsNewline {
-                            rendered.append(NSAttributedString(string: "\n", attributes: RichStyle.typingAttributes(for: .body)))
-                        }
-                        rendered.append(RichBridge.attributed(markdown: callout, baseURL: baseURL))
-                        r.replace(NSRange(location: insertAt, length: 0), with: rendered, caret: insertAt + rendered.length)
-                    } else {
-                        let updated = SiriAIManager.insertSummaryCallout(callout, into: sourceMarkdown)
-                        let rendered = RichBridge.attributed(markdown: updated, baseURL: baseURL)
-                        r.replace(NSRange(location: 0, length: storage.length), with: rendered, caret: 0)
-                    }
-                    r.refreshTypingAttributes()
-                    self.flushPendingEdits()
-                } else if !fromRich, let tv = self.textView {
-                    let ns = tv.string as NSString
-                    if hasSelection, let insertAt = sourceParaEnd, insertAt <= ns.length {
-                        let prefix = (insertAt > 0 && ns.character(at: insertAt - 1) != 10) ? "\n\n" : "\n"
-                        self.replace(NSRange(location: insertAt, length: 0), with: prefix + callout + "\n")
-                    } else {
-                        let updated = SiriAIManager.insertSummaryCallout(callout, into: sourceMarkdown)
-                        self.replace(NSRange(location: 0, length: ns.length), with: updated)
-                    }
-                }
+            } catch is CancellationError {
+                model?.isLoading = false
             } catch {
-                self.alert(String(localized: "生成文章摘要失败"), error.localizedDescription)
+                guard !Task.isCancelled, let model else { return }
+                model.isLoading = false
+                model.errorMessage = error.localizedDescription
             }
+            self?.summaryTask = nil
+        }
+    }
+
+    private func insertSummaryBulletsIntoDocument(_ bullets: [String]) {
+        let callout = SiriAIManager.formatSummaryCallout(bullets: bullets)
+        guard !callout.isEmpty else { return }
+        flushPendingEdits()
+        let baseURL = fileURL?.deletingLastPathComponent()
+        let current = isRichMode ? (richMarkdown ?? pendingText) : (textView?.string ?? pendingText)
+        let updated = SiriAIManager.insertSummaryCallout(callout, into: current)
+
+        if isRichMode, let r = richView, let storage = r.textStorage {
+            let rendered = RichBridge.attributed(markdown: updated, baseURL: baseURL)
+            r.replace(NSRange(location: 0, length: storage.length), with: rendered, caret: 0)
+            r.refreshTypingAttributes()
+            flushPendingEdits()
+        } else if let tv = textView {
+            let ns = tv.string as NSString
+            replace(NSRange(location: 0, length: ns.length), with: updated)
+        } else if let r = richView, let storage = r.textStorage {
+            let rendered = RichBridge.attributed(markdown: updated, baseURL: baseURL)
+            r.replace(NSRange(location: 0, length: storage.length), with: rendered, caret: 0)
+            r.refreshTypingAttributes()
+            flushPendingEdits()
         }
     }
 
