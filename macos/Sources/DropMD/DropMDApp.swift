@@ -283,6 +283,11 @@ struct FormatCommands: Commands {
             codeBlockMenu
             Divider()
             ActionMenuItems(actions: EditorAction.lists, editor: editor)
+            Divider()
+            ActionMenuItems(
+                actions: [.translateSelection] + (SiriAIManager.isLanguageModelAvailable ? [.smartFormat] : []),
+                editor: editor
+            )
         }
         CommandMenu("插入") {
             ForEach(Array(EditorAction.insertGroups.enumerated()), id: \.offset) { i, group in
@@ -292,6 +297,10 @@ struct FormatCommands: Commands {
                     codeBlockMenu
                 }
                 ActionMenuItems(actions: group, editor: editor)
+            }
+            if SiriAIManager.isImagePlaygroundAvailable {
+                Divider()
+                ActionMenuItems(actions: [.imagePlayground], editor: editor)
             }
         }
     }

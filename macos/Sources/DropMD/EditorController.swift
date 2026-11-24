@@ -146,6 +146,16 @@ final class EditorController: ObservableObject {
     private var highlightWork: DispatchWorkItem?
     private var lastScrollLine = -1
 
+    // MARK: - Siri AI / 翻译 / 配图 / 命名状态
+
+    @Published var translationPresented = false
+    @Published var translationSourceText = ""
+    private var translationTargetRange: (inRich: Bool, range: NSRange)?
+    @Published var imagePlaygroundPresented = false
+    @Published var imagePlaygroundConcept = ""
+    private var spotlightWork: DispatchWorkItem?
+    private var aiTitleWork: DispatchWorkItem?
+
     // MARK: - 文本变化
 
     func textChanged(_ text: String) {
@@ -160,6 +170,7 @@ final class EditorController: ObservableObject {
         if language == .auto { updateLanguage() }
         // 单页打的字停一下才交给文档：文件恰好在这之前被删时，监视那一刻还看不出改过，这里补上
         if let url = fileURL, !FileManager.default.fileExists(atPath: url.path) { fileWentAway() }
+        scheduleTitleAndMetadataUpdate(text)
     }
 
     func scheduleHighlight() {
@@ -525,6 +536,9 @@ final class EditorController: ObservableObject {
         case .exportPDF: exportPDF()
         case .exportWord: exportWord()
         case .exportHTML: exportHTML()
+        case .translateSelection: translateSelection()
+        case .smartFormat: smartFormatMarkdown()
+        case .imagePlayground: openImagePlayground()
         }
         selectionChanged()
     }
@@ -765,7 +779,9 @@ final class EditorController: ObservableObject {
         p.prompt = String(localized: "导出")
         p.allowedContentTypes = [type]
         p.canCreateDirectories = true
-        let base = fileURL?.deletingPathExtension().lastPathComponent ?? String(localized: "未命名")
+        let base = fileURL?.deletingPathExtension().lastPathComponent
+            ?? DocumentTitleSuggester.fallbackTitle(from: pendingText)
+            ?? String(localized: "未命名")
         p.nameFieldStringValue = "\(base).\(ext)"
         if let dir = fileURL?.deletingLastPathComponent() { p.directoryURL = dir }
         return p.runModal() == .OK ? p.url : nil
@@ -913,6 +929,224 @@ final class EditorController: ObservableObject {
         }
         printCompletion = done
         op.runModal(for: window, delegate: done, didRun: #selector(PrintCompletion.printOperationDidRun(_:success:contextInfo:)), contextInfo: nil)
+    }
+
+    // MARK: - 系统智能：全语言命名 / Spotlight / 翻译 / 智能排版 / 图乐园
+
+    private func scheduleTitleAndMetadataUpdate(_ text: String) {
+        if fileURL == nil,
+           let window = (richView ?? textView)?.window,
+           let doc = NSDocumentController.shared.document(for: window),
+           doc.fileURL == nil {
+            doc.displayName = DocumentTitleSuggester.fallbackTitle(from: text)
+        }
+
+        aiTitleWork?.cancel()
+        if #available(macOS 26.0, *), fileURL == nil, extractHeadings(text).isEmpty, SiriAIManager.isLanguageModelAvailable {
+            let work = DispatchWorkItem { [weak self] in
+                Task { @MainActor [weak self] in
+                    guard let self, self.fileURL == nil, self.pendingText == text else { return }
+                    guard let generated = await DocumentTitleSuggester.aiTitle(from: text) else { return }
+                    guard self.fileURL == nil, self.pendingText == text,
+                          let window = (self.richView ?? self.textView)?.window,
+                          let doc = NSDocumentController.shared.document(for: window),
+                          doc.fileURL == nil else { return }
+                    doc.displayName = generated
+                }
+            }
+            aiTitleWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+        }
+
+        spotlightWork?.cancel()
+        let sw = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let h = self.headings.isEmpty ? extractHeadings(self.pendingText) : self.headings
+                let window = (self.richView ?? self.textView)?.window
+                SpotlightAndActivity.updateWindowActivity(window: window, url: self.fileURL, text: self.pendingText, headings: h)
+                if let url = self.fileURL {
+                    SpotlightAndActivity.indexDocument(url: url, text: self.pendingText, headings: h)
+                }
+            }
+        }
+        spotlightWork = sw
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: sw)
+    }
+
+    func translateSelection() {
+        flushPendingEdits()
+        if let r = rich {
+            let sel = r.selectedRange()
+            guard sel.length > 0, let storage = r.textStorage, NSMaxRange(sel) <= storage.length else {
+                alert(String(localized: "请先选择要翻译的文字"), String(localized: "在文档中选中一段文字后，再选择“翻译所选内容…”。"))
+                return
+            }
+            let text = (storage.string as NSString).substring(with: sel)
+            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            translationTargetRange = (inRich: true, range: sel)
+            translationSourceText = text
+            translationPresented = true
+            return
+        }
+        guard let tv = textView else { return }
+        let sel = tv.selectedRange()
+        let ns = tv.string as NSString
+        guard sel.length > 0, NSMaxRange(sel) <= ns.length else {
+            alert(String(localized: "请先选择要翻译的文字"), String(localized: "在文档中选中一段文字后，再选择“翻译所选内容…”。"))
+            return
+        }
+        let text = ns.substring(with: sel)
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        translationTargetRange = (inRich: false, range: sel)
+        translationSourceText = text
+        translationPresented = true
+    }
+
+    func applyTranslationReplacement(_ translated: String) {
+        guard let target = translationTargetRange else { return }
+        if target.inRich, let r = rich, let storage = r.textStorage, NSMaxRange(target.range) <= storage.length {
+            let attrs = target.range.location < storage.length
+                ? storage.attributes(at: target.range.location, effectiveRange: nil)
+                : r.typingAttributes
+            r.replace(target.range, with: NSAttributedString(string: translated, attributes: attrs),
+                      caret: target.range.location + (translated as NSString).length)
+            r.refreshTypingAttributes()
+        } else if let tv = textView {
+            let ns = tv.string as NSString
+            if NSMaxRange(target.range) <= ns.length {
+                replace(target.range, with: translated)
+            }
+        }
+        translationTargetRange = nil
+    }
+
+    func smartFormatMarkdown() {
+        guard #available(macOS 26.0, *), SiriAIManager.isLanguageModelAvailable else {
+            alert(String(localized: "智能整理排版不可用"), String(localized: "需要在支持 Apple 智能的 macOS 26 及以上系统中开启该功能。"))
+            return
+        }
+        flushPendingEdits()
+
+        let sourceMarkdown: String
+        let richSelection: NSRange?
+        let sourceSelection: NSRange?
+        if let r = rich, let storage = r.textStorage {
+            let sel = r.selectedRange()
+            if sel.length > 0, NSMaxRange(sel) <= storage.length {
+                let sub = storage.attributedSubstring(from: sel)
+                sourceMarkdown = MarkdownCodec.serialize(RichBridge.blocks(from: sub))
+                richSelection = sel
+                sourceSelection = nil
+            } else {
+                sourceMarkdown = pendingText
+                richSelection = NSRange(location: 0, length: storage.length)
+                sourceSelection = nil
+            }
+        } else if let tv = textView {
+            let sel = tv.selectedRange()
+            let ns = tv.string as NSString
+            if sel.length > 0, NSMaxRange(sel) <= ns.length {
+                sourceMarkdown = ns.substring(with: sel)
+                sourceSelection = sel
+            } else {
+                sourceMarkdown = tv.string
+                sourceSelection = NSRange(location: 0, length: ns.length)
+            }
+            richSelection = nil
+        } else {
+            return
+        }
+
+        guard !sourceMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let baseURL = fileURL?.deletingLastPathComponent()
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let formatted = try await SiriAIManager.smartFormatMarkdown(sourceMarkdown)
+                guard !formatted.isEmpty else { return }
+                if let sel = richSelection, let r = self.rich, let storage = r.textStorage, NSMaxRange(sel) <= storage.length {
+                    let isFull = sel.location == 0 && sel.length == storage.length
+                    let rendered = NSMutableAttributedString(attributedString: RichBridge.attributed(markdown: formatted, baseURL: baseURL))
+                    if !isFull, rendered.string.hasSuffix("\n") {
+                        rendered.deleteCharacters(in: NSRange(location: rendered.length - 1, length: 1))
+                    }
+                    r.replace(sel, with: rendered, caret: sel.location + rendered.length)
+                    r.refreshTypingAttributes()
+                    self.flushPendingEdits()
+                } else if let sel = sourceSelection, let tv = self.textView, NSMaxRange(sel) <= (tv.string as NSString).length {
+                    let isFull = sel.location == 0 && sel.length == (tv.string as NSString).length
+                    let output = (isFull && !formatted.hasSuffix("\n")) ? formatted + "\n" : formatted
+                    self.replace(sel, with: output)
+                }
+            } catch {
+                self.alert(String(localized: "智能整理排版失败"), error.localizedDescription)
+            }
+        }
+    }
+
+    func openImagePlayground() {
+        guard SiriAIManager.isImagePlaygroundAvailable else { return }
+        flushPendingEdits()
+        var seed = ""
+        if let r = rich, let storage = r.textStorage {
+            let sel = r.selectedRange()
+            let ns = storage.string as NSString
+            if sel.length > 0, NSMaxRange(sel) <= ns.length {
+                seed = ns.substring(with: sel)
+            } else if ns.length > 0 {
+                let para = ns.paragraphRange(for: NSRange(location: min(sel.location, ns.length), length: 0))
+                seed = ns.substring(with: para)
+            }
+        } else if let tv = textView {
+            let sel = tv.selectedRange()
+            let ns = tv.string as NSString
+            if sel.length > 0, NSMaxRange(sel) <= ns.length {
+                seed = ns.substring(with: sel)
+            } else if ns.length > 0 {
+                let para = ns.paragraphRange(for: NSRange(location: min(sel.location, ns.length), length: 0))
+                seed = ns.substring(with: para)
+            }
+        }
+        imagePlaygroundConcept = String(seed.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))
+        imagePlaygroundPresented = true
+    }
+
+    func insertGeneratedImage(from tempURL: URL, concept: String) {
+        let fm = FileManager.default
+        let ext = tempURL.pathExtension.isEmpty ? "png" : tempURL.pathExtension
+        let fileName = "image-\(UUID().uuidString.prefix(8)).\(ext)"
+
+        let targetDir: URL
+        let markdownPath: String
+        if let docURL = fileURL {
+            let baseDir = docURL.deletingLastPathComponent()
+            let folderName = "\(docURL.deletingPathExtension().lastPathComponent)_images"
+            targetDir = baseDir.appendingPathComponent(folderName, isDirectory: true)
+            markdownPath = "\(folderName)/\(fileName)"
+        } else {
+            let pictures = fm.urls(for: .picturesDirectory, in: .userDomainMask).first ?? fm.temporaryDirectory
+            targetDir = pictures.appendingPathComponent("DropMD", isDirectory: true)
+            markdownPath = targetDir.appendingPathComponent(fileName).path
+        }
+
+        do {
+            try fm.createDirectory(at: targetDir, withIntermediateDirectories: true)
+            let destURL = targetDir.appendingPathComponent(fileName)
+            if fm.fileExists(atPath: destURL.path) { try fm.removeItem(at: destURL) }
+            try fm.copyItem(at: tempURL, to: destURL)
+        } catch {
+            alert(String(localized: "保存生成的图片失败"), error.localizedDescription)
+            return
+        }
+
+        let alt = DocumentTitleSuggester.sanitizeFileName(concept, maxLength: 30) ?? String(localized: "生成图像")
+        if let r = rich {
+            r.insertImage(path: markdownPath, alt: alt)
+        } else {
+            replaceSelection(with: "![\(alt)](\(MarkdownCodec.encodeURL(RichTextView.encodedImagePath(markdownPath))))")
+        }
     }
 }
 

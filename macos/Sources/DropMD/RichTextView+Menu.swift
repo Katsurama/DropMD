@@ -95,7 +95,8 @@ extension RichTextView {
             let active = selectionState.active
             groups.append([actionItem(.strike, on: active.contains(.strike)), actionItem(.highlight, on: active.contains(.highlight)),
                            actionItem(.inlineCode, on: active.contains(.inlineCode)),
-                           menuItem(String(localized: "清除格式"), #selector(clearFormatting(_:)))])
+                           menuItem(String(localized: "清除格式"), #selector(clearFormatting(_:))),
+                           menuItem(String(localized: "翻译所选内容…"), #selector(translateSelectedText(_:)))])
         }
         if hit < storage.length {
             let a = storage.attributes(at: hit, effectiveRange: nil)
@@ -104,6 +105,7 @@ extension RichTextView {
                 let path = a[DMKey.image] as? String ?? ""
                 let file = imageFile(path)
                 groups.append([menuItem(String(localized: "编辑替代文本…"), #selector(editImageAlt(_:)), NSValue(range: r)),
+                               menuItem(String(localized: "提取图片中的文字"), file == nil ? nil : #selector(extractImageText(_:)), NSValue(range: r)),
                                menuItem(String(localized: "在访达中显示"), file == nil ? nil : #selector(revealImage(_:)), file),
                                menuItem(String(localized: "删除图片"), #selector(deleteImage(_:)), NSValue(range: r))])
             } else if let url = a[DMKey.link] as? String {
@@ -238,13 +240,51 @@ extension RichTextView {
         alert.messageText = String(localized: "编辑替代文本")
         alert.informativeText = String(localized: "图片无法显示时显示此文本，读屏软件也会朗读。")
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
-        field.stringValue = storage.attribute(DMKey.alt, at: r.location, effectiveRange: nil) as? String ?? ""
+        var initial = storage.attribute(DMKey.alt, at: r.location, effectiveRange: nil) as? String ?? ""
+        if initial.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let path = storage.attribute(DMKey.image, at: r.location, effectiveRange: nil) as? String,
+           let file = imageFile(path),
+           let ocr = ImageTextExtractor.recognizeText(at: file),
+           let firstLine = ocr.components(separatedBy: .newlines).first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) {
+            initial = String(firstLine.trimmingCharacters(in: .whitespaces).prefix(60))
+        }
+        field.stringValue = initial
         alert.accessoryView = field
         alert.addButton(withTitle: String(localized: "好"))
         alert.addButton(withTitle: String(localized: "取消"))
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         setImageAlt(field.stringValue, in: r)
+    }
+
+    @objc func extractImageText(_ sender: Any?) {
+        guard let storage = textStorage, let r = ((sender as? NSMenuItem)?.representedObject as? NSValue)?.rangeValue,
+              NSMaxRange(r) <= storage.length,
+              let path = storage.attribute(DMKey.image, at: r.location, effectiveRange: nil) as? String,
+              let file = imageFile(path) else { return }
+        guard let extracted = ImageTextExtractor.recognizeText(at: file) else {
+            let alert = NSAlert()
+            alert.messageText = String(localized: "未在图片中识别到文字")
+            alert.addButton(withTitle: String(localized: "好"))
+            if let window { alert.beginSheetModal(for: window) } else { alert.runModal() }
+            return
+        }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(extracted, forType: .string)
+
+        let ns = storage.string as NSString
+        let para = ns.paragraphRange(for: r)
+        let hasTrailingNewline = para.length > 0 && ns.character(at: NSMaxRange(para) - 1) == 10
+        let insertAt = NSMaxRange(para)
+        let prefix = hasTrailingNewline ? "" : "\n"
+        let bodyAttrs = RichStyle.typingAttributes(for: .body)
+        let insertion = NSMutableAttributedString(string: prefix + extracted + "\n", attributes: bodyAttrs)
+        replace(NSRange(location: insertAt, length: 0), with: insertion, caret: insertAt + insertion.length)
+        refreshTypingAttributes()
+    }
+
+    @objc func translateSelectedText(_ sender: Any?) {
+        onAction?(.translateSelection)
     }
 
     /// 改图片说明：用原来的地址、标题、链接重新生成图片

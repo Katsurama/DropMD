@@ -43,6 +43,10 @@ struct RichTextEditor: NSViewRepresentable {
         tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         tv.linkTextAttributes = [.foregroundColor: NSColor.linkColor, .cursor: NSCursor.pointingHand]
         tv.typingAttributes = RichStyle.typingAttributes(for: .body)
+        if #available(macOS 15.2, *) {
+            tv.writingToolsBehavior = .complete
+            tv.allowedWritingToolsResultOptions = [.plainText, .richText, .list, .table]
+        }
         tv.baseURL = baseURL
         tv.delegate = context.coordinator
 
@@ -196,6 +200,29 @@ struct RichTextEditor: NSViewRepresentable {
                 parent.controller.selectionChanged()
                 parent.controller.syncSourceMark()
             }
+        }
+
+        @available(macOS 15.0, *)
+        func textViewWritingToolsWillBegin(_ textView: NSTextView) {
+            work?.cancel()
+            reloadWork?.cancel()
+        }
+
+        @available(macOS 15.0, *)
+        func textViewWritingToolsDidEnd(_ textView: NSTextView) {
+            flush()
+            if let tv = textView as? RichTextView {
+                MainActor.assumeIsolated {
+                    self.lastMarkdown = nil
+                    self.reload(tv)
+                }
+            }
+        }
+
+        @available(macOS 15.0, *)
+        func textView(_ textView: NSTextView, writingToolsIgnoredRangesInEnclosingRange enclosingRange: NSRange) -> [NSValue] {
+            guard let storage = textView.textStorage else { return [] }
+            return WritingToolsGuard.ignoredRanges(in: storage, enclosingRange: enclosingRange)
         }
 
         /// 把编辑区内容转换为 Markdown 写回文档

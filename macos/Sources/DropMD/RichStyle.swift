@@ -529,6 +529,9 @@ enum RichStyle {
             a[.underlineColor] = linkUnderlineColor
             if let u = URL(string: url) { a[.link] = u }
         }
+        if r.code || r.kbd || r.literal || kind.isMonospaced || kind == .rule {
+            if #available(macOS 15.2, *) { a[.writingToolsExclusion] = true }
+        }
         return a
     }
 

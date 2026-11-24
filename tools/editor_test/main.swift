@@ -1169,14 +1169,14 @@ MainActor.assumeIsolated {
         check("右键：去掉链接", md(tv), "前 链接 后\n")
         tv = at("![旧说明](a.png)\n", "旧")
         let img = NSRange(location: 0, length: (tv.string as NSString).length - 1)
-        check("右键：图片上的操作", "\(titles(tv, hit: 0).hasPrefix("编辑替代文本…|在访达中显示|删除图片"))", "true")
+        check("右键：图片上的操作", "\(titles(tv, hit: 0).hasPrefix("编辑替代文本…|提取图片中的文字|在访达中显示|删除图片"))", "true")
         tv.setImageAlt("新说明", in: img)
         check("右键：修改图片说明", md(tv), "![新说明](a.png)\n")
         // 正常显示的图片（一个附件字符）也有图片菜单
         let png = FileManager.default.temporaryDirectory.appendingPathComponent("dropmd-menu-\(ProcessInfo.processInfo.processIdentifier).png")
         try? Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!.write(to: png)
         tv = makeView("![图](\(png.path))\n")
-        check("右键：显示出来的图片也有图片菜单", "\(titles(tv, hit: 0).hasPrefix("编辑替代文本…|在访达中显示|删除图片"))", "true")
+        check("右键：显示出来的图片也有图片菜单", "\(titles(tv, hit: 0).hasPrefix("编辑替代文本…|提取图片中的文字|在访达中显示|删除图片"))", "true")
         try? FileManager.default.removeItem(at: png)
         // 列表项开头、表格里的图片改说明：列表、表格还在
         for (src, want) in [("- ![旧](a.png) 后\n", "- ![新](a.png) 后\n"),
@@ -2131,6 +2131,45 @@ MainActor.assumeIsolated {
             let rep = gifImg.representations.compactMap { $0 as? NSBitmapImageRep }.first
             let frames = (rep?.value(forProperty: .frameCount) as? Int) ?? 0
             check("多帧 GIF 动图帧数识别", "\(frames > 1) \(cell.cellSize().height == 143)", "true true")
+        }
+    }
+
+    // 系统智能集成：全语言默认标题提取、Writing Tools 代码/公式保护、图片文字提取
+    do {
+        check("全语言命名：提取首个 Markdown 标题",
+              DocumentTitleSuggester.fallbackTitle(from: "---\ntitle: ignore\n---\n\n# Weekly Summary / Week 12\n\nBody text.") ?? "",
+              "Weekly Summary Week 12")
+        check("全语言命名：无标题时取首行正文且跳过代码块",
+              DocumentTitleSuggester.fallbackTitle(from: "```swift\nlet a = 1\n```\n\nこれは日本語の最初の段落です。") ?? "",
+              "これは日本語の最初の段落です")
+        check("全语言命名：过滤非法文件名字符",
+              DocumentTitleSuggester.sanitizeFileName("  .a/b:c?d*  。") ?? "",
+              "a b c d")
+
+        // 单页 Writing Tools 忽略范围：跳过代码块、行内代码、公式原文；普通正文不跳过
+        let wtDoc = "普通正文 `code()` 结束\n\n```swift\nlet x = 1\n```\n\n$E=mc^2$\n"
+        let tvWT = makeView(wtDoc)
+        let storageWT = tvWT.textStorage!
+        let ignoredRich = WritingToolsGuard.ignoredRanges(in: storageWT, enclosingRange: NSRange(location: 0, length: storageWT.length))
+            .map { (storageWT.string as NSString).substring(with: $0.rangeValue) }
+        check("WritingTools：单页排除代码块与行内代码",
+              "\(ignoredRich.contains { $0.contains("code()") }) \(ignoredRich.contains { $0.contains("let x = 1") }) \(!ignoredRich.contains { $0.contains("普通正文") })",
+              "true true true")
+
+        // 双页源码 Writing Tools 忽略范围：YAML、围栏代码块、数学公式、行内代码均排除
+        let srcWT = "---\nk: v\n---\n正文 `x` 结尾\n\n```py\nprint(1)\n```\n\n$$a+b$$\n"
+        let nsWT = srcWT as NSString
+        let ignoredSrc = WritingToolsGuard.ignoredRanges(inSource: srcWT, enclosingRange: NSRange(location: 0, length: nsWT.length))
+            .map { nsWT.substring(with: $0.rangeValue) }
+        check("WritingTools：双页排除 YAML、代码块、公式与行内代码",
+              "\(ignoredSrc.contains { $0.contains("k: v") }) \(ignoredSrc.contains { $0.contains("print(1)") }) \(ignoredSrc.contains { $0.contains("$$a+b$$") }) \(ignoredSrc.contains { $0.contains("`x`") })",
+              "true true true true")
+
+        // Vision 图片文字识别
+        let samplePDF = URL(fileURLWithPath: "packaging/samples/sample_scanned.pdf")
+        if FileManager.default.fileExists(atPath: samplePDF.path) {
+            let ocrText = ImageTextExtractor.recognizeText(at: samplePDF) ?? ""
+            check("Vision 图片文字提取", "\(ocrText.contains("DropMD"))", "true")
         }
     }
 

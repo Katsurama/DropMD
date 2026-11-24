@@ -1,6 +1,14 @@
 import AppKit
 import SwiftUI
 
+#if canImport(ImagePlayground)
+import ImagePlayground
+#endif
+
+#if canImport(Translation)
+import Translation
+#endif
+
 // MARK: - 双页：原文编辑区
 
 /// 基于 NSTextView（TextKit 1）的 Markdown 源码编辑区，带语法高亮。
@@ -39,6 +47,10 @@ struct MarkdownTextView: NSViewRepresentable {
         tv.minSize = NSSize(width: 0, height: 0)
         tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         tv.typingAttributes = MarkdownHighlighter.baseAttributes
+        if #available(macOS 15.2, *) {
+            tv.writingToolsBehavior = .complete
+            tv.allowedWritingToolsResultOptions = [.plainText]
+        }
         tv.string = text
         tv.delegate = context.coordinator
 
@@ -119,6 +131,11 @@ struct MarkdownTextView: NSViewRepresentable {
                 parent.controller.selectionChanged()
             }
         }
+
+        @available(macOS 15.0, *)
+        func textView(_ textView: NSTextView, writingToolsIgnoredRangesInEnclosingRange enclosingRange: NSRange) -> [NSValue] {
+            WritingToolsGuard.ignoredRanges(inSource: textView.string, enclosingRange: enclosingRange)
+        }
     }
 }
 
@@ -183,6 +200,7 @@ struct EditorView: View {
         .hidesToolbarTitle()
         .onReceive(NotificationCenter.default.publisher(for: .showUpdates)) { _ in SettingsPage.open(.updates, openSettings) }
         .background(WindowSizeKeeper())
+        .modifier(EditorAIFeaturesModifier(editor: editor))
     }
 
     private var editorColumn: some View {
@@ -548,5 +566,38 @@ struct SplitHandle: NSViewRepresentable {
             NSCursor.resizeLeftRight.set()
             onDrag?(event.locationInWindow.x)
         }
+    }
+}
+
+/// 挂载系统原生翻译气泡与图乐园配图面板（用 #available 兼容旧版 macOS）
+private struct EditorAIFeaturesModifier: ViewModifier {
+    @ObservedObject var editor: EditorController
+
+    func body(content: Content) -> some View {
+        let withTranslation: AnyView = {
+            #if canImport(Translation)
+            if #available(macOS 14.4, *) {
+                return AnyView(content.translationPresentation(
+                    isPresented: $editor.translationPresented,
+                    text: editor.translationSourceText
+                ) { translated in
+                    editor.applyTranslationReplacement(translated)
+                })
+            }
+            #endif
+            return AnyView(content)
+        }()
+
+        #if canImport(ImagePlayground)
+        if #available(macOS 15.2, *) {
+            return AnyView(withTranslation.imagePlaygroundSheet(
+                isPresented: $editor.imagePlaygroundPresented,
+                concept: editor.imagePlaygroundConcept
+            ) { url in
+                editor.insertGeneratedImage(from: url, concept: editor.imagePlaygroundConcept)
+            })
+        }
+        #endif
+        return withTranslation
     }
 }
