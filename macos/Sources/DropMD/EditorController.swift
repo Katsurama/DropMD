@@ -1236,7 +1236,9 @@ final class EditorController: ObservableObject {
         #if canImport(ImagePlayground)
         guard #available(macOS 15.2, *),
               SiriAIManager.isImagePlaygroundAvailable,
-              let presenter = (richView ?? textView)?.window?.contentViewController else { return }
+              let window = (richView ?? textView)?.window,
+              let presenter = window.contentViewController,
+              let view = window.contentView else { return }
         flushPendingEdits()
         var seed = ""
         if let r = rich, let storage = r.textStorage {
@@ -1267,7 +1269,9 @@ final class EditorController: ObservableObject {
         )
         imagePlaygroundDelegate = proxy
         vc.delegate = proxy
-        presenter.presentAsSheet(vc)
+        let top = view.safeAreaInsets.top
+        let anchor = NSRect(x: view.bounds.midX, y: view.isFlipped ? top - 1 : view.bounds.maxY - top, width: 1, height: 1)
+        presenter.present(vc, asPopoverRelativeTo: anchor, of: view, preferredEdge: view.isFlipped ? .maxY : .minY, behavior: .semitransient)
         #endif
     }
 
