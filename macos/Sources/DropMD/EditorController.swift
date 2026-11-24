@@ -1238,18 +1238,12 @@ final class EditorController: ObservableObject {
             let ns = storage.string as NSString
             if sel.length > 0, NSMaxRange(sel) <= ns.length {
                 seed = ns.substring(with: sel)
-            } else if ns.length > 0 {
-                let para = ns.paragraphRange(for: NSRange(location: min(sel.location, ns.length), length: 0))
-                seed = ns.substring(with: para)
             }
         } else if let tv = textView {
             let sel = tv.selectedRange()
             let ns = tv.string as NSString
             if sel.length > 0, NSMaxRange(sel) <= ns.length {
                 seed = ns.substring(with: sel)
-            } else if ns.length > 0 {
-                let para = ns.paragraphRange(for: NSRange(location: min(sel.location, ns.length), length: 0))
-                seed = ns.substring(with: para)
             }
         }
         imagePlaygroundConcept = String(seed.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))

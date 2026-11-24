@@ -337,7 +337,7 @@ struct EditorView: View {
             .pickerStyle(.segmented)
             .labelStyle(.titleAndIcon)
             .fixedSize()
-            .help("单页（⌘1） / 双页（⌘2）")
+            .help("显示方式")
         }
         // 中间：段落样式 | 文字样式 + 列表 | 插入（3 组，避免过多胶囊挤占工具栏）
         ToolbarItem(placement: .principal) {
@@ -357,7 +357,8 @@ struct EditorView: View {
         }
         ToolbarItemGroup(placement: .primaryAction) {
             Button { openWindow(id: "converter") } label: { Label("转换文件", systemImage: "arrow.down.doc") }
-                .help("将文件转换为 Markdown")
+                .help("转换文件")
+                .accessibilityLabel("转换文件")
             Menu {
                 Button(EditorAction.exportPDF.title) { editor.perform(.exportPDF) }
                 Button(EditorAction.exportWord.title) { editor.perform(.exportWord) }
@@ -366,24 +367,29 @@ struct EditorView: View {
                 // 不用“方框加向上箭头”：那是系统“分享”的图标，放在这里会被当成分享
                 Label("导出", systemImage: "doc.badge.arrow.up")
             }
-            .help("导出为 PDF、Word 或 HTML")
+            .help("导出")
+            .accessibilityLabel("导出")
             // 苹果的分享面板（隔空投送、邮件、信息…）：分享这个 .md 文件；新文档还没存过、没有文件时不能分享
             Button { editor.share() } label: { Label("分享", systemImage: "square.and.arrow.up") }
                 .disabled(fileURL == nil)
-                .help(fileURL == nil ? "保存文档后可分享" : "分享当前文档")
+                .help("分享")
+                .accessibilityLabel("分享")
             Toggle(isOn: Binding(get: { activePane == .format }, set: { _ in togglePane(.format) })) {
                 Label("格式", systemImage: "paintbrush")
             }
-            .help("显示或隐藏格式面板（⌥⌘I）")
+            .help("格式")
+            .accessibilityLabel("格式")
             Toggle(isOn: Binding(get: { activePane == .outline }, set: { _ in togglePane(.outline) })) {
                 Label("目录", systemImage: "list.bullet.indent")
             }
-            .help("显示或隐藏文档目录")
+            .help("目录")
+            .accessibilityLabel("目录")
             if SiriAIManager.isLanguageModelAvailable {
                 Toggle(isOn: Binding(get: { activePane == .summary }, set: { _ in togglePane(.summary) })) {
                     Label("摘要", systemImage: "sparkles")
                 }
-                .help("显示或隐藏文章摘要")
+                .help("摘要")
+                .accessibilityLabel("摘要")
             }
         }
     }
@@ -393,7 +399,8 @@ struct EditorView: View {
         ControlGroup {
             ForEach(actions) { action in
                 Button { editor.perform(action) } label: { Label(action.title, systemImage: action.symbol) }
-                    .help(action.title + (action.shortcut.map { String(localized: "（\($0.displayText)）") } ?? ""))
+                    .help(action.title)
+                    .accessibilityLabel(action.title)
             }
         }
         .controlGroupStyle(.navigation)
@@ -426,7 +433,8 @@ struct EditorView: View {
         } label: {
             Label("插入", systemImage: "plus")
         }
-        .help("插入更多元素")
+        .help("插入")
+        .accessibilityLabel("插入")
     }
 }
 
@@ -461,7 +469,8 @@ private struct ToolbarFormatGroup: View {
                 )) {
                     Label(action.title, systemImage: action.symbol)
                 }
-                .help(action.title + (action.shortcut.map { String(localized: "（\($0.displayText)）") } ?? ""))
+                .help(action.title)
+                .accessibilityLabel(action.title)
             }
         }
         .controlGroupStyle(.navigation)
@@ -500,7 +509,8 @@ private struct ToolbarListMenu: View {
         } label: {
             Label("列表", systemImage: currentIcon)
         }
-        .help("设置列表样式")
+        .help("列表")
+        .accessibilityLabel("列表")
     }
 }
 
@@ -601,37 +611,44 @@ struct WindowSizeKeeper: NSViewRepresentable {
     @MainActor
     static func applyToolbarToolTips(to window: NSWindow) {
         guard let toolbar = window.toolbar else { return }
-        let tips: [String: String] = [
-            String(localized: "转换文件"): String(localized: "将文件转换为 Markdown"),
-            String(localized: "导出"): String(localized: "导出为 PDF、Word 或 HTML"),
-            String(localized: "分享"): String(localized: "分享当前文档"),
-            String(localized: "格式"): String(localized: "显示或隐藏格式面板（⌥⌘I）"),
-            String(localized: "目录"): String(localized: "显示或隐藏文档目录"),
-            String(localized: "摘要"): String(localized: "显示或隐藏文章摘要"),
-            String(localized: "列表"): String(localized: "设置列表样式"),
-            String(localized: "插入"): String(localized: "插入更多元素"),
-            String(localized: "段落样式"): String(localized: "设置段落样式"),
-            String(localized: "显示方式"): String(localized: "切换单页或双页视图"),
-        ]
+
+        func shortLabel(of view: NSView) -> String? {
+            if let label = view.accessibilityLabel(), !label.isEmpty { return label }
+            if let title = view.accessibilityTitle(), !title.isEmpty { return title }
+            if let btn = view as? NSButton, !btn.title.isEmpty { return btn.title }
+            return nil
+        }
+
+        func applyViewTree(_ view: NSView) {
+            if let seg = view as? NSSegmentedControl {
+                for i in 0..<seg.segmentCount {
+                    if (seg.toolTip(forSegment: i) ?? "").isEmpty,
+                       let segLabel = seg.label(forSegment: i), !segLabel.isEmpty {
+                        seg.setToolTip(segLabel, forSegment: i)
+                    }
+                }
+            } else if view is NSControl {
+                if let label = shortLabel(of: view) {
+                    view.toolTip = label
+                }
+            }
+            for sub in view.subviews {
+                applyViewTree(sub)
+            }
+        }
 
         func applyItem(_ item: NSToolbarItem) {
             if let group = item as? NSToolbarItemGroup {
                 for sub in group.subitems { applyItem(sub) }
             }
-            if let seg = item.view as? NSSegmentedControl {
-                for i in 0..<seg.segmentCount {
-                    if (seg.toolTip(forSegment: i) ?? "").isEmpty,
-                       let segLabel = seg.label(forSegment: i), !segLabel.isEmpty {
-                        seg.setToolTip(tips[segLabel] ?? segLabel, forSegment: i)
-                    }
+            if !item.label.isEmpty {
+                item.toolTip = item.label
+            }
+            if let view = item.view {
+                applyViewTree(view)
+                if (view.toolTip ?? "").isEmpty, !item.label.isEmpty {
+                    view.toolTip = item.label
                 }
-            }
-            let fallback = tips[item.label] ?? (item.label.isEmpty ? nil : item.label)
-            if (item.toolTip ?? "").isEmpty, let tip = fallback {
-                item.toolTip = tip
-            }
-            if let view = item.view, (view.toolTip ?? "").isEmpty, let tip = item.toolTip ?? fallback {
-                view.toolTip = tip
             }
         }
 
@@ -707,7 +724,7 @@ private struct EditorAIFeaturesModifier: ViewModifier {
                 }
                 .imagePlaygroundSheet(
                     isPresented: $editor.imagePlaygroundPresented,
-                    concept: editor.imagePlaygroundConcept
+                    concepts: editor.imagePlaygroundConcept.isEmpty ? [] : [.text(editor.imagePlaygroundConcept)]
                 ) { url in
                     editor.insertGeneratedImage(from: url, concept: editor.imagePlaygroundConcept)
                 }

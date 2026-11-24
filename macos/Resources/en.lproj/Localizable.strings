@@ -209,7 +209,6 @@
 "文档语言：决定汉字用中文、日文还是韩文的写法" = "Document language: decides whether Chinese characters use Chinese, Japanese or Korean glyph shapes";
 "语言" = "Language";
 "显示方式" = "View";
-"单页（⌘1） / 双页（⌘2）" = "Page (⌘1) / Split (⌘2)";
 "转换文件" = "Convert Files";
 "（%@）" = " (%@)";
 "纯文本" = "Plain Text";
@@ -460,13 +459,3 @@
 "历史版本" = "Version History";
 "查看所有历史版本…" = "Browse All Versions…";
 "还原到上次保存" = "Revert to Last Saved";
-"保存文档后可分享" = "Save the document before sharing";
-"分享当前文档" = "Share current document";
-"切换单页或双页视图" = "Switch between Page and Split views";
-"导出为 PDF、Word 或 HTML" = "Export as PDF, Word, or HTML";
-"插入更多元素" = "Insert additional elements";
-"显示或隐藏文档目录" = "Show or hide document outline";
-"显示或隐藏文章摘要" = "Show or hide article summary";
-"显示或隐藏格式面板（⌥⌘I）" = "Show or hide format panel (⌥⌘I)";
-"设置列表样式" = "Set list style";
-"设置段落样式" = "Set paragraph style";
