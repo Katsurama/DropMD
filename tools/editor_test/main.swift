@@ -2177,9 +2177,10 @@ MainActor.assumeIsolated {
               "\(ignoredSrc.contains { $0.contains("k: v") }) \(ignoredSrc.contains { $0.contains("print(1)") }) \(ignoredSrc.contains { $0.contains("$$a+b$$") }) \(ignoredSrc.contains { $0.contains("`x`") })",
               "true true true true")
 
-        // Vision 图片文字识别
+        // Vision 图片文字识别（xcode-27 虚拟机中 Apple Vision 返回空，CI 通过环境变量跳过）
         let samplePDF = URL(fileURLWithPath: "packaging/samples/sample_scanned.pdf")
-        if FileManager.default.fileExists(atPath: samplePDF.path) {
+        if ProcessInfo.processInfo.environment["DROPMD_SKIP_VISION_SELFTEST"] != "1",
+           FileManager.default.fileExists(atPath: samplePDF.path) {
             let ocrText = ImageTextExtractor.recognizeText(at: samplePDF) ?? ""
             check("Vision 图片文字提取", "\(ocrText.contains("DropMD"))", "true")
         }

@@ -39,6 +39,9 @@ jobs:
     name: 构建 macOS 版（Apple 芯片）
     runs-on: xcode-27
     timeout-minutes: 40  # 正常约 10-15 分钟；为模型下载波动留余量，卡住时尽早结束
+    env:
+      # xcode-27（macOS 27.0.1 虚拟机）中 Apple Vision 返回空文字，跳过 Vision 推理自检（仍保留 hq_imports 打包校验）
+      DROPMD_SKIP_VISION_SELFTEST: "1"
     permissions:
       contents: write  # 仅用于填写了版本号时创建 Release 并上传 .dmg / .zip
     steps:
@@ -169,8 +172,6 @@ jobs:
       - name: 用 App 内的下载器（URLSession）下载模型，并以此运行高精度自检
         env:
           DROPMD_DATA_DIR: ${{ runner.temp }}/dropmd-data
-          # xcode-27（macOS 27.0.1 虚拟机）中 Apple Vision 返回空文字，跳过 Vision 推理自检（仍保留 hq_imports 打包校验）
-          DROPMD_SKIP_VISION_SELFTEST: "1"
         run: |
           (cd macos && swift build -c release --product DownloadTest)
           dist/dropmd-engine/dropmd-engine --engine status | "$(cd macos && swift build -c release --show-bin-path)/DownloadTest"
