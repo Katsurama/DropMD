@@ -2248,6 +2248,90 @@ MainActor.assumeIsolated {
         check("整篇翻译：替换文字并保留所有格式与链接路径",
               "\(transOut.contains("# Translated Heading")) \(transOut.contains("Hello `keepCode()`")) \(transOut.contains("[Link](https://example.com)")) \(transOut.contains("| Header |")) \(transOut.contains("| Cell | $x^2$ |")) \(transOut.contains("let unchanged = true")) \(transOut.contains("![图](img/a.png)"))",
               "true true true true true true true")
+
+        // 模型偏好与私有云策略
+        check("模型策略：仅本机始终不用云", "\(SiriAIManager.shouldUsePrivateCloud(preference: .onDeviceOnly, contentLength: 50000))", "false")
+        check("模型策略：优先私有云短文也用云", "\(SiriAIManager.shouldUsePrivateCloud(preference: .preferCloud, contentLength: 20))", "true")
+        check("模型策略：自动短文用本机、长文用云",
+              "\(SiriAIManager.shouldUsePrivateCloud(preference: .auto, contentLength: 800)) \(SiriAIManager.shouldUsePrivateCloud(preference: .auto, contentLength: 4000))",
+              "false true")
+
+        // @Generable 结构化小工具格式化纯函数
+        let mdTable = SiriAIManager.formatMarkdownTable(
+            headers: ["项目", "负责|人"],
+            rows: [["发布", "张三", "多余列"], ["   ", "  "], ["测试"]]
+        )
+        check("表格转换格式化：转义竖线与对齐列数",
+              mdTable,
+              "| 项目 | 负责\\|人 |\n| --- | --- |\n| 发布 | 张三 |\n| 测试 |  |")
+        check("表格转换格式化：空表头返回空串",
+              SiriAIManager.formatMarkdownTable(headers: ["  "], rows: [["1"]]),
+              "")
+
+        let tasks = SiriAIManager.formatTaskList(["- [ ] 补写单测", "1. 补写单测", "* 整理发布说明", "  "])
+        check("待办提取格式化：去重去空并统一语法",
+              tasks,
+              "- [ ] 补写单测\n- [ ] 整理发布说明")
+
+        let yaml = SiriAIManager.formatYAMLFrontMatter(
+            title: "DropMD: \"Beta\" 计划",
+            date: "2026-11-24",
+            tags: ["macOS", "Markdown", "macOS"],
+            summary: "发布前\n最终检查"
+        )
+        check("文档属性格式化：安全转义引号与多行并去重标签",
+              yaml,
+              "---\ntitle: \"DropMD: \\\"Beta\\\" 计划\"\ndate: 2026-11-24\ntags:\n  - \"macOS\"\n  - \"Markdown\"\nsummary: \"发布前 最终检查\"\n---")
+
+        let docNoYAML = "# 标题\n\n正文内容。\n"
+        check("文档属性写入：无 YAML 时插入文档开头",
+              SiriAIManager.upsertYAMLFrontMatter(yaml, into: docNoYAML),
+              yaml + "\n\n# 标题\n\n正文内容。\n")
+
+        let docWithYAML = "---\ntitle: \"Old\"\n---\n\n# 标题\n\n正文内容。\n"
+        check("文档属性写入：已有 YAML 时替换不重复",
+              SiriAIManager.upsertYAMLFrontMatter(yaml, into: docWithYAML),
+              yaml + "\n\n# 标题\n\n正文内容。\n")
+
+        // 文档问答上下文筛选：优先保留匹配关键词段落
+        let qaParas = [
+            "# 概览\n这是文档第一段引言。",
+            "第二段讨论了颜色搭配与排版细节。",
+            "第三段详细记录了发布版本号与打包签名密钥管理流程。",
+            "第四段讨论了字体回退逻辑。",
+        ].joined(separator: "\n\n")
+        let qaCtx = SiriAIManager.prepareContextForQA(document: qaParas, question: "打包签名流程是什么？", maxChars: 65)
+        check("文档问答上下文：优先命中包含问题关键词的段落",
+              "\(qaCtx.contains("概览")) \(qaCtx.contains("打包签名"))",
+              "true true")
+
+        // IndexedDocumentStore 索引写入、搜索与去重
+        let storeKey = "dropmd.test.indexedDocuments.\(ProcessInfo.processInfo.processIdentifier)"
+        let tmpDocDir = FileManager.default.temporaryDirectory.appendingPathComponent("dropmd-index-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: tmpDocDir, withIntermediateDirectories: true)
+        let f1 = tmpDocDir.appendingPathComponent("plan.md")
+        let f2 = tmpDocDir.appendingPathComponent("notes.md")
+        try? Data("ok".utf8).write(to: f1)
+        try? Data("ok".utf8).write(to: f2)
+        IndexedDocumentStore.upsert(
+            IndexedDocumentRecord(path: f1.path, title: "发布计划", displayName: "plan.md", keywords: ["v1.1", "Beta"], excerpt: "下周发布 macOS 版本", updatedAt: Date()),
+            key: storeKey
+        )
+        IndexedDocumentStore.upsert(
+            IndexedDocumentRecord(path: f2.path, title: "随手记", displayName: "notes.md", keywords: ["想法"], excerpt: "记录界面细节", updatedAt: Date()),
+            key: storeKey
+        )
+        IndexedDocumentStore.upsert(
+            IndexedDocumentRecord(path: f1.path, title: "最新 Beta 发布计划", displayName: "plan.md", keywords: ["v1.1", "Beta"], excerpt: "确认发版清单", updatedAt: Date()),
+            key: storeKey
+        )
+        let allIndexed = IndexedDocumentStore.allRecords(key: storeKey)
+        let hitIndexed = IndexedDocumentStore.search("Beta 计划", key: storeKey)
+        check("语义文档索引：按路径去重并支持关键词检索",
+              "\(allIndexed.count) \(hitIndexed.count) \(hitIndexed.first?.title ?? "")",
+              "2 1 最新 Beta 发布计划")
+        UserDefaults.standard.removeObject(forKey: storeKey)
+        try? FileManager.default.removeItem(at: tmpDocDir)
     }
 
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")

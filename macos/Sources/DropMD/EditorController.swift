@@ -175,10 +175,14 @@ final class EditorController: ObservableObject {
     private var editVersion: Int = 0
     private var isAIFormatting = false
     @Published var summaryBullets: [String] = []
+    @Published var summaryIsSelection = false
     @Published var isSummarizing = false
     @Published var summaryError: String?
     private var summaryTask: Task<Void, Never>?
-    private var lastSummarizedText: String?
+    private var lastSummarizedKey: (isSelection: Bool, text: String)?
+    @Published var qaMessages: [DocumentQAItem] = []
+    @Published var isAnsweringQA = false
+    private var qaTask: Task<Void, Never>?
 
     // MARK: - 文本变化
 
@@ -565,8 +569,12 @@ final class EditorController: ObservableObject {
         case .exportPDF: exportPDF()
         case .exportWord: exportWord()
         case .exportHTML: exportHTML()
+        case .writingTools: showWritingTools()
         case .translateSelection: translateSelection()
         case .smartFormat: smartFormatMarkdown()
+        case .convertToTable: convertSelectionToTable()
+        case .extractTasks: extractTasksFromDocument()
+        case .generateFrontMatter: generateDocumentFrontMatter()
         case .imagePlayground: openImagePlayground()
         }
         selectionChanged()
@@ -1104,6 +1112,118 @@ final class EditorController: ObservableObject {
         }
     }
 
+    private struct AITextTarget {
+        let sourceMarkdown: String
+        let startSnapshot: String
+        let richSelection: NSRange?
+        let sourceSelection: NSRange?
+        let isFullDocument: Bool
+    }
+
+    /// 捕获当前选区（或全篇文档）及其字符快照，确保异步 AI 返回后可安全写回且不破坏撤销栈
+    private func captureAITextTarget(requireSelection: Bool, forceFullDocument: Bool = false) -> AITextTarget? {
+        if let r = rich, let storage = r.textStorage {
+            let sel = r.selectedRange()
+            let startSnapshot = storage.string
+            if !forceFullDocument, sel.length > 0, NSMaxRange(sel) <= storage.length {
+                let sub = storage.attributedSubstring(from: sel)
+                let md = MarkdownCodec.serialize(RichBridge.blocks(from: sub))
+                let isFull = sel.location == 0 && sel.length == storage.length
+                return AITextTarget(sourceMarkdown: md, startSnapshot: startSnapshot, richSelection: sel, sourceSelection: nil, isFullDocument: isFull)
+            }
+            if requireSelection { return nil }
+            let fullRange = NSRange(location: 0, length: storage.length)
+            return AITextTarget(sourceMarkdown: pendingText, startSnapshot: startSnapshot, richSelection: fullRange, sourceSelection: nil, isFullDocument: true)
+        } else if let tv = textView {
+            let sel = tv.selectedRange()
+            let ns = tv.string as NSString
+            let startSnapshot = tv.string
+            if !forceFullDocument, sel.length > 0, NSMaxRange(sel) <= ns.length {
+                let md = ns.substring(with: sel)
+                let isFull = sel.location == 0 && sel.length == ns.length
+                return AITextTarget(sourceMarkdown: md, startSnapshot: startSnapshot, richSelection: nil, sourceSelection: sel, isFullDocument: isFull)
+            }
+            if requireSelection { return nil }
+            let fullRange = NSRange(location: 0, length: ns.length)
+            return AITextTarget(sourceMarkdown: tv.string, startSnapshot: startSnapshot, richSelection: nil, sourceSelection: fullRange, isFullDocument: true)
+        }
+        return nil
+    }
+
+    /// 仅返回用户明确选中的局部文字（未选中或已全选整篇时返回 nil，默认按全文摘要，绝不抓取光标所在段落）
+    private func selectedTextForSummary() -> String? {
+        if let r = rich, let storage = r.textStorage {
+            let sel = r.selectedRange()
+            guard sel.length > 0, NSMaxRange(sel) <= storage.length else { return nil }
+            if sel.location == 0 && sel.length == storage.length { return nil }
+            let sub = storage.attributedSubstring(from: sel)
+            let md = MarkdownCodec.serialize(RichBridge.blocks(from: sub))
+            return md.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : md
+        } else if let tv = textView {
+            let sel = tv.selectedRange()
+            let ns = tv.string as NSString
+            guard sel.length > 0, NSMaxRange(sel) <= ns.length else { return nil }
+            if sel.location == 0 && sel.length == ns.length { return nil }
+            let sub = ns.substring(with: sel)
+            return sub.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : sub
+        }
+        return nil
+    }
+
+    private func applyAIReplacement(
+        _ markdown: String,
+        to target: AITextTarget,
+        insertionOnly: Bool = false,
+        startVersion: Int,
+        conflictTitle: String
+    ) {
+        let currentSnapshot = (target.richSelection != nil ? richView?.textStorage?.string : textView?.string) ?? ""
+        guard editVersion == startVersion, currentSnapshot == target.startSnapshot else {
+            alert(conflictTitle, String(localized: "处理期间文档已修改，请重新操作。"))
+            return
+        }
+        let baseURL = fileURL?.deletingLastPathComponent()
+        if let sel = target.richSelection, let r = richView, let storage = r.textStorage, NSMaxRange(sel) <= storage.length {
+            let writeRange = insertionOnly ? NSRange(location: NSMaxRange(sel), length: 0) : sel
+            let formattedText: String
+            if insertionOnly {
+                let prefix = writeRange.location > 0 && !(storage.string as NSString).substring(to: writeRange.location).hasSuffix("\n") ? "\n" : ""
+                formattedText = prefix + markdown
+            } else {
+                formattedText = markdown
+            }
+            let rendered = NSMutableAttributedString(attributedString: RichBridge.attributed(markdown: formattedText, baseURL: baseURL))
+            if !target.isFullDocument && !insertionOnly, rendered.string.hasSuffix("\n") {
+                rendered.deleteCharacters(in: NSRange(location: rendered.length - 1, length: 1))
+            }
+            r.replace(writeRange, with: rendered, caret: writeRange.location + rendered.length)
+            r.refreshTypingAttributes()
+            flushPendingEdits()
+        } else if let sel = target.sourceSelection, let tv = textView, NSMaxRange(sel) <= (tv.string as NSString).length {
+            let writeRange = insertionOnly ? NSRange(location: NSMaxRange(sel), length: 0) : sel
+            let output: String
+            if insertionOnly {
+                let before = (tv.string as NSString).substring(to: writeRange.location)
+                let prefix = before.isEmpty ? "" : before.hasSuffix("\n\n") ? "" : before.hasSuffix("\n") ? "\n" : "\n\n"
+                output = prefix + markdown + "\n"
+            } else {
+                output = (target.isFullDocument && !markdown.hasSuffix("\n")) ? markdown + "\n" : markdown
+            }
+            replace(writeRange, with: output)
+        }
+    }
+
+    func showWritingTools() {
+        guard SiriAIManager.isWritingToolsAvailable else { return }
+        flushPendingEdits()
+        if let window = (richView ?? textView)?.window,
+           let target = isRichMode ? richView : (rich ?? textView),
+           window.firstResponder !== richView && window.firstResponder !== textView {
+            window.makeFirstResponder(target)
+        }
+        NSApp.sendAction(NSSelectorFromString("showWritingTools:"), to: nil, from: nil)
+    }
+
     func smartFormatMarkdown() {
         guard !isAIFormatting else { return }
         guard #available(macOS 26.0, *), SiriAIManager.isLanguageModelAvailable else {
@@ -1111,42 +1231,8 @@ final class EditorController: ObservableObject {
             return
         }
         flushPendingEdits()
-
-        let sourceMarkdown: String
-        let richSelection: NSRange?
-        let sourceSelection: NSRange?
-        let startSnapshot: String
-        if let r = rich, let storage = r.textStorage {
-            let sel = r.selectedRange()
-            startSnapshot = storage.string
-            if sel.length > 0, NSMaxRange(sel) <= storage.length {
-                let sub = storage.attributedSubstring(from: sel)
-                sourceMarkdown = MarkdownCodec.serialize(RichBridge.blocks(from: sub))
-                richSelection = sel
-                sourceSelection = nil
-            } else {
-                sourceMarkdown = pendingText
-                richSelection = NSRange(location: 0, length: storage.length)
-                sourceSelection = nil
-            }
-        } else if let tv = textView {
-            let sel = tv.selectedRange()
-            let ns = tv.string as NSString
-            startSnapshot = tv.string
-            if sel.length > 0, NSMaxRange(sel) <= ns.length {
-                sourceMarkdown = ns.substring(with: sel)
-                sourceSelection = sel
-            } else {
-                sourceMarkdown = tv.string
-                sourceSelection = NSRange(location: 0, length: ns.length)
-            }
-            richSelection = nil
-        } else {
-            return
-        }
-
-        guard !sourceMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        let baseURL = fileURL?.deletingLastPathComponent()
+        guard let target = captureAITextTarget(requireSelection: false),
+              !target.sourceMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let startVersion = editVersion
         isAIFormatting = true
 
@@ -1154,29 +1240,117 @@ final class EditorController: ObservableObject {
             guard let self else { return }
             defer { self.isAIFormatting = false }
             do {
-                let formatted = try await SiriAIManager.smartFormatMarkdown(sourceMarkdown)
+                let formatted = try await SiriAIManager.smartFormatMarkdown(target.sourceMarkdown)
                 guard !formatted.isEmpty else { return }
-                let currentSnapshot = (richSelection != nil ? self.richView?.textStorage?.string : self.textView?.string) ?? ""
-                guard self.editVersion == startVersion, currentSnapshot == startSnapshot else {
-                    self.alert(String(localized: "智能整理排版已取消"), String(localized: "整理期间文档已修改，请重新选择后再试。"))
-                    return
-                }
-                if let sel = richSelection, let r = self.richView, let storage = r.textStorage, NSMaxRange(sel) <= storage.length {
-                    let isFull = sel.location == 0 && sel.length == storage.length
-                    let rendered = NSMutableAttributedString(attributedString: RichBridge.attributed(markdown: formatted, baseURL: baseURL))
-                    if !isFull, rendered.string.hasSuffix("\n") {
-                        rendered.deleteCharacters(in: NSRange(location: rendered.length - 1, length: 1))
-                    }
-                    r.replace(sel, with: rendered, caret: sel.location + rendered.length)
-                    r.refreshTypingAttributes()
-                    self.flushPendingEdits()
-                } else if let sel = sourceSelection, let tv = self.textView, NSMaxRange(sel) <= (tv.string as NSString).length {
-                    let isFull = sel.location == 0 && sel.length == (tv.string as NSString).length
-                    let output = (isFull && !formatted.hasSuffix("\n")) ? formatted + "\n" : formatted
-                    self.replace(sel, with: output)
-                }
+                self.applyAIReplacement(
+                    formatted,
+                    to: target,
+                    startVersion: startVersion,
+                    conflictTitle: String(localized: "智能整理排版已取消")
+                )
             } catch {
                 self.alert(String(localized: "智能整理排版失败"), error.localizedDescription)
+            }
+        }
+    }
+
+    func convertSelectionToTable() {
+        guard !isAIFormatting else { return }
+        guard #available(macOS 26.0, *), SiriAIManager.isLanguageModelAvailable else {
+            alert(String(localized: "转换为表格不可用"), String(localized: "需要在支持 Apple 智能的 macOS 26 及以上系统中开启该功能。"))
+            return
+        }
+        flushPendingEdits()
+        guard let target = captureAITextTarget(requireSelection: true),
+              !target.sourceMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            alert(String(localized: "请先选择要转换为表格的文字"), String(localized: "在文档中选中一段文字后，再选择“转换为表格”。"))
+            return
+        }
+        let startVersion = editVersion
+        isAIFormatting = true
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isAIFormatting = false }
+            do {
+                let tableMD = try await SiriAIManager.convertToMarkdownTable(target.sourceMarkdown)
+                guard !tableMD.isEmpty else {
+                    self.alert(String(localized: "未能生成表格"), String(localized: "所选文字中没有可整理为表格的内容。"))
+                    return
+                }
+                self.applyAIReplacement(
+                    tableMD,
+                    to: target,
+                    startVersion: startVersion,
+                    conflictTitle: String(localized: "转换为表格已取消")
+                )
+            } catch {
+                self.alert(String(localized: "转换为表格失败"), error.localizedDescription)
+            }
+        }
+    }
+
+    func extractTasksFromDocument() {
+        guard !isAIFormatting else { return }
+        guard #available(macOS 26.0, *), SiriAIManager.isLanguageModelAvailable else {
+            alert(String(localized: "提取待办清单不可用"), String(localized: "需要在支持 Apple 智能的 macOS 26 及以上系统中开启该功能。"))
+            return
+        }
+        flushPendingEdits()
+        guard let target = captureAITextTarget(requireSelection: false),
+              !target.sourceMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let startVersion = editVersion
+        isAIFormatting = true
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isAIFormatting = false }
+            do {
+                let tasksMD = try await SiriAIManager.extractTaskList(target.sourceMarkdown)
+                guard !tasksMD.isEmpty else {
+                    self.alert(String(localized: "未发现待办事项"), String(localized: "当前内容中没有可提取的待办任务。"))
+                    return
+                }
+                self.applyAIReplacement(
+                    tasksMD,
+                    to: target,
+                    insertionOnly: true,
+                    startVersion: startVersion,
+                    conflictTitle: String(localized: "提取待办清单已取消")
+                )
+            } catch {
+                self.alert(String(localized: "提取待办清单失败"), error.localizedDescription)
+            }
+        }
+    }
+
+    func generateDocumentFrontMatter() {
+        guard !isAIFormatting else { return }
+        guard #available(macOS 26.0, *), SiriAIManager.isLanguageModelAvailable else {
+            alert(String(localized: "生成文档属性不可用"), String(localized: "需要在支持 Apple 智能的 macOS 26 及以上系统中开启该功能。"))
+            return
+        }
+        flushPendingEdits()
+        guard let target = captureAITextTarget(requireSelection: false, forceFullDocument: true),
+              !target.sourceMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let startVersion = editVersion
+        isAIFormatting = true
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isAIFormatting = false }
+            do {
+                let yaml = try await SiriAIManager.generateFrontMatter(for: target.sourceMarkdown)
+                guard !yaml.isEmpty else { return }
+                let updated = SiriAIManager.upsertYAMLFrontMatter(yaml, into: target.sourceMarkdown)
+                self.applyAIReplacement(
+                    updated,
+                    to: target,
+                    startVersion: startVersion,
+                    conflictTitle: String(localized: "生成文档属性已取消")
+                )
+            } catch {
+                self.alert(String(localized: "生成文档属性失败"), error.localizedDescription)
             }
         }
     }
@@ -1188,32 +1362,38 @@ final class EditorController: ObservableObject {
             return
         }
         flushPendingEdits()
-        let source = isRichMode ? (richMarkdown ?? pendingText) : (textView?.string ?? pendingText)
+        let selected = selectedTextForSummary()
+        let isSelection = selected != nil
+        let fullText = isRichMode ? (pendingText.isEmpty ? (richMarkdown ?? "") : pendingText) : (textView?.string ?? pendingText)
+        let source = selected ?? fullText
         let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             summaryTask?.cancel()
             summaryTask = nil
             isSummarizing = false
             summaryBullets = []
+            summaryIsSelection = false
             summaryError = nil
-            lastSummarizedText = nil
+            lastSummarizedKey = nil
             return
         }
-        if !force, lastSummarizedText == source, !summaryBullets.isEmpty {
+        if !force, let last = lastSummarizedKey, last.isSelection == isSelection, last.text == source, !summaryBullets.isEmpty {
             return
         }
 
         summaryTask?.cancel()
+        summaryIsSelection = isSelection
         isSummarizing = true
         summaryError = nil
 
         summaryTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                let bullets = try await SiriAIManager.summarizeBullets(source)
+                let bullets = try await SiriAIManager.summarizeBullets(source, isSelection: isSelection)
                 guard !Task.isCancelled else { return }
                 self.summaryBullets = bullets
-                self.lastSummarizedText = source
+                self.summaryIsSelection = isSelection
+                self.lastSummarizedKey = (isSelection, source)
                 self.isSummarizing = false
                 if bullets.isEmpty {
                     self.summaryError = String(localized: "未能提取到有效摘要要点。")
@@ -1233,6 +1413,78 @@ final class EditorController: ObservableObject {
         summaryTask?.cancel()
         summaryTask = nil
         isSummarizing = false
+    }
+
+    func askDocumentQuestion(_ rawQuestion: String) {
+        let question = rawQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !question.isEmpty, !isAnsweringQA else { return }
+        guard #available(macOS 26.0, *), SiriAIManager.isLanguageModelAvailable else {
+            qaMessages.append(DocumentQAItem(
+                question: question,
+                answer: String(localized: "需要在支持 Apple 智能的 macOS 26 及以上系统中开启该功能。"),
+                isLoading: false,
+                isError: true
+            ))
+            return
+        }
+        flushPendingEdits()
+        let document = isRichMode ? (richMarkdown ?? pendingText) : (textView?.string ?? pendingText)
+        guard !document.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            qaMessages.append(DocumentQAItem(
+                question: question,
+                answer: String(localized: "当前文档为空，无法回答问题。"),
+                isLoading: false,
+                isError: true
+            ))
+            return
+        }
+
+        let history = qaMessages
+            .filter { !$0.isLoading && !$0.isError && !$0.answer.isEmpty }
+            .map { (question: $0.question, answer: $0.answer) }
+        let placeholder = DocumentQAItem(question: question, answer: "", isLoading: true, isError: false)
+        qaMessages.append(placeholder)
+        let targetID = placeholder.id
+        isAnsweringQA = true
+
+        qaTask?.cancel()
+        qaTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.isAnsweringQA = false
+                self.qaTask = nil
+            }
+            do {
+                let answer = try await SiriAIManager.answerQuestion(question, document: document, history: history)
+                guard !Task.isCancelled else { return }
+                if let idx = self.qaMessages.firstIndex(where: { $0.id == targetID }) {
+                    self.qaMessages[idx].answer = answer.isEmpty ? String(localized: "未能生成回答。") : answer
+                    self.qaMessages[idx].isLoading = false
+                    self.qaMessages[idx].isError = answer.isEmpty
+                }
+            } catch is CancellationError {
+                self.qaMessages.removeAll { $0.id == targetID && $0.isLoading }
+            } catch {
+                guard !Task.isCancelled else { return }
+                if let idx = self.qaMessages.firstIndex(where: { $0.id == targetID }) {
+                    self.qaMessages[idx].answer = error.localizedDescription
+                    self.qaMessages[idx].isLoading = false
+                    self.qaMessages[idx].isError = true
+                }
+            }
+        }
+    }
+
+    func clearDocumentQA() {
+        cancelDocumentQA()
+        qaMessages.removeAll()
+    }
+
+    func cancelDocumentQA() {
+        qaTask?.cancel()
+        qaTask = nil
+        isAnsweringQA = false
+        qaMessages.removeAll { $0.isLoading }
     }
 
     func translateDocument(to languageID: String) {

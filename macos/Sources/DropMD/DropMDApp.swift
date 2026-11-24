@@ -196,6 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated { AppAppearance.apply(UserDefaults.standard.string(forKey: "appearance")) }
+        DropMDEntityIndexer.registerHook()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -335,12 +336,9 @@ struct FormatCommands: Commands {
             codeBlockMenu
             Divider()
             ActionMenuItems(actions: EditorAction.lists, editor: editor)
-            if !aiFormatActions.isEmpty || SiriAIManager.isDocumentTranslationAvailable {
+            if hasSmartTools {
                 Divider()
-                ActionMenuItems(actions: aiFormatActions, editor: editor)
-                if SiriAIManager.isDocumentTranslationAvailable {
-                    documentTranslationMenu
-                }
+                smartToolsMenu
             }
         }
         CommandMenu("插入") {
@@ -359,9 +357,36 @@ struct FormatCommands: Commands {
         }
     }
 
-    private var aiFormatActions: [EditorAction] {
-        (SiriAIManager.isTranslationAvailable ? [.translateSelection] : [])
-            + (SiriAIManager.isLanguageModelAvailable ? [.smartFormat] : [])
+    private var hasSmartTools: Bool {
+        SiriAIManager.isWritingToolsAvailable
+            || SiriAIManager.isTranslationAvailable
+            || SiriAIManager.isDocumentTranslationAvailable
+            || SiriAIManager.isLanguageModelAvailable
+    }
+
+    private var smartToolsMenu: some View {
+        let hasTranslation = SiriAIManager.isTranslationAvailable || SiriAIManager.isDocumentTranslationAvailable
+        let hasLM = SiriAIManager.isLanguageModelAvailable
+        return Menu("智能工具", systemImage: "sparkles") {
+            if SiriAIManager.isWritingToolsAvailable {
+                ActionMenuItems(actions: [.writingTools], editor: editor)
+            }
+            if SiriAIManager.isWritingToolsAvailable && (hasTranslation || hasLM) {
+                Divider()
+            }
+            if SiriAIManager.isTranslationAvailable {
+                ActionMenuItems(actions: [.translateSelection], editor: editor)
+            }
+            if SiriAIManager.isDocumentTranslationAvailable {
+                documentTranslationMenu
+            }
+            if hasTranslation && hasLM {
+                Divider()
+            }
+            if hasLM {
+                ActionMenuItems(actions: [.smartFormat, .convertToTable, .extractTasks, .generateFrontMatter], editor: editor)
+            }
+        }
     }
 
     private var documentTranslationMenu: some View {

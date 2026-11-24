@@ -29,7 +29,10 @@ struct FormatInspector: View {
             case .summary:
                 SummaryInspectorView(editor: editor)
                     .onAppear { editor.generateDocumentSummary(force: false) }
-                    .onDisappear { editor.cancelDocumentSummary() }
+                    .onDisappear {
+                        editor.cancelDocumentSummary()
+                        editor.cancelDocumentQA()
+                    }
             case .none:
                 EmptyView()
             }
@@ -246,18 +249,38 @@ struct ParagraphStyleMenu: View {
     }
 }
 
-/// 侧边栏“摘要”标签页：本机 Siri AI 自动生成整篇文章的要点摘要
+/// 侧边栏“摘要”标签页：上半区文章摘要（或所选内容摘要），下半区针对本文提问
 private struct SummaryInspectorView: View {
     @ObservedObject var editor: EditorController
     @State private var copied = false
+    @State private var questionText = ""
 
     var body: some View {
         VStack(spacing: 0) {
-            contentArea
+            summarySection
+                .frame(minHeight: 130, maxHeight: 230)
+            Divider().padding(.horizontal, 12)
+            qaSection
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Divider()
-            HStack(spacing: 8) {
-                Button(copied ? String(localized: "已复制") : String(localized: "复制")) {
+        }
+    }
+
+    private var summarySection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Text("文章摘要")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                if editor.summaryIsSelection {
+                    Text("所选内容")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.14), in: Capsule())
+                }
+                Spacer(minLength: 4)
+                Button {
                     let text = editor.summaryBullets.map { "- \($0)" }.joined(separator: "\n")
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(text, forType: .string)
@@ -266,55 +289,73 @@ private struct SummaryInspectorView: View {
                         try? await Task.sleep(nanoseconds: 1_500_000_000)
                         copied = false
                     }
+                } label: {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        .font(.caption)
                 }
+                .buttonStyle(.borderless)
                 .disabled(editor.isSummarizing || editor.summaryBullets.isEmpty)
+                .help(copied ? "已复制" : "复制")
+                .accessibilityLabel(copied ? "已复制" : "复制")
 
-                Spacer()
-
-                Button("重新生成") {
+                Button {
                     editor.generateDocumentSummary(force: true)
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption)
                 }
+                .buttonStyle(.borderless)
                 .disabled(editor.isSummarizing)
+                .help("重新生成")
+                .accessibilityLabel("重新生成")
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
+
+            summaryContentArea
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
     @ViewBuilder
-    private var contentArea: some View {
+    private var summaryContentArea: some View {
         if editor.isSummarizing {
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 ProgressView()
-                    .controlSize(.regular)
+                    .controlSize(.small)
                 Text("正在生成文章摘要…")
-                    .font(.callout)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(14)
         } else if let error = editor.summaryError {
-            VStack(spacing: 10) {
+            VStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle")
-                    .font(.title3)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                 Text(error)
-                    .font(.callout)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .textSelection(.enabled)
                 Button("重试") {
                     editor.generateDocumentSummary(force: true)
                 }
+                .controlSize(.small)
             }
-            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(14)
         } else if editor.summaryBullets.isEmpty {
             Text("暂无摘要内容")
-                .font(.callout)
+                .font(.caption)
                 .foregroundStyle(.secondary)
-                .padding(24)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(14)
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(editor.summaryBullets.enumerated()), id: \.offset) { _, item in
                         HStack(alignment: .top, spacing: 6) {
                             Text(verbatim: "•")
@@ -327,8 +368,114 @@ private struct SummaryInspectorView: View {
                         }
                     }
                 }
-                .padding(14)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 10)
             }
         }
+    }
+
+    private var qaSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Text("提问")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if !editor.qaMessages.isEmpty {
+                    Button {
+                        editor.clearDocumentQA()
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("清空对话")
+                    .accessibilityLabel("清空对话")
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
+
+            if editor.qaMessages.isEmpty {
+                Text("可针对当前文档内容提问。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .padding(14)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 12) {
+                            ForEach(editor.qaMessages) { item in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Spacer(minLength: 24)
+                                        Text(verbatim: item.question)
+                                            .font(.callout)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                            .textSelection(.enabled)
+                                    }
+                                    if item.isLoading {
+                                        HStack(spacing: 6) {
+                                            ProgressView().controlSize(.small)
+                                            Text("正在思考…")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .padding(.top, 2)
+                                    } else {
+                                        Text(verbatim: item.answer)
+                                            .font(.callout)
+                                            .foregroundStyle(item.isError ? Color.secondary : Color.primary)
+                                            .textSelection(.enabled)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                }
+                                .id(item.id)
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                    }
+                    .onChange(of: editor.qaMessages.last?.answer) { _, _ in
+                        if let lastID = editor.qaMessages.last?.id {
+                            withAnimation(.easeOut(duration: 0.15)) {
+                                proxy.scrollTo(lastID, anchor: .bottom)
+                            }
+                        }
+                    }
+                }
+            }
+
+            HStack(spacing: 6) {
+                TextField("针对本文提问…", text: $questionText)
+                    .textFieldStyle(.roundedBorder)
+                    .controlSize(.small)
+                    .disabled(editor.isAnsweringQA)
+                    .onSubmit(submitQuestion)
+
+                Button(action: submitQuestion) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.title3)
+                }
+                .buttonStyle(.borderless)
+                .disabled(editor.isAnsweringQA || questionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .help("发送")
+                .accessibilityLabel("发送")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+        }
+    }
+
+    private func submitQuestion() {
+        let q = questionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty, !editor.isAnsweringQA else { return }
+        questionText = ""
+        editor.askDocumentQuestion(q)
     }
 }

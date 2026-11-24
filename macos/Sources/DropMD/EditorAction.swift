@@ -13,7 +13,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
     // 导出
     case exportPDF, exportWord, exportHTML
     // 系统智能
-    case translateSelection, smartFormat, imagePlayground
+    case writingTools, translateSelection, smartFormat, convertToTable, extractTasks, generateFrontMatter, imagePlayground
 
     var id: String { rawValue }
 
@@ -72,8 +72,12 @@ enum EditorAction: String, CaseIterable, Identifiable {
         case .exportPDF: return String(localized: "导出 PDF…")
         case .exportWord: return String(localized: "导出为 Word 文档（beta）…")
         case .exportHTML: return String(localized: "导出 HTML…")
+        case .writingTools: return String(localized: "写作工具…")
         case .translateSelection: return String(localized: "翻译所选内容…")
         case .smartFormat: return String(localized: "智能整理排版")
+        case .convertToTable: return String(localized: "转换为表格")
+        case .extractTasks: return String(localized: "提取待办清单")
+        case .generateFrontMatter: return String(localized: "生成文档属性")
         case .imagePlayground: return String(localized: "生成图像…")
         }
     }
@@ -120,8 +124,12 @@ enum EditorAction: String, CaseIterable, Identifiable {
         case .exportPDF: return "doc.richtext"
         case .exportWord: return "doc.text"
         case .exportHTML: return "globe"
+        case .writingTools: return "apple.writing.tools"
         case .translateSelection: return "character.bubble"
         case .smartFormat: return "sparkles"
+        case .convertToTable: return "tablecells.badge.ellipsis"
+        case .extractTasks: return "checklist"
+        case .generateFrontMatter: return "list.bullet.rectangle"
         case .imagePlayground: return "wand.and.stars"
         }
     }
@@ -162,7 +170,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
         case .exportWord: return nil
         case .exportHTML: return KeyboardShortcut("e", modifiers: [.command, .shift])
         case .lineBreak: return KeyboardShortcut(.return, modifiers: .shift)
-        case .rule, .translateSelection, .smartFormat, .imagePlayground: return nil
+        case .rule, .writingTools, .translateSelection, .smartFormat, .convertToTable, .extractTasks, .generateFrontMatter, .imagePlayground: return nil
         }
     }
 

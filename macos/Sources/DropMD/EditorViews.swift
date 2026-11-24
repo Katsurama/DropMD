@@ -343,6 +343,13 @@ struct EditorView: View {
             HStack(spacing: 0) {
                 ToolbarFormatGroup(editor: editor, selection: editor.selection)
                 ToolbarListMenu(editor: editor, selection: editor.selection)
+                if SiriAIManager.isWritingToolsAvailable {
+                    Button { editor.perform(.writingTools) } label: {
+                        Label("写作工具", systemImage: "apple.writing.tools")
+                    }
+                    .help("写作工具")
+                    .accessibilityLabel("写作工具")
+                }
             }
         }
         ToolbarItem(placement: .principal) {

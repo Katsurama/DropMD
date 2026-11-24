@@ -1,5 +1,6 @@
 import AppKit
 import AppIntents
+import CoreSpotlight
 import Foundation
 import UniformTypeIdentifiers
 
@@ -188,5 +189,95 @@ struct DropMDShortcutsProvider: AppShortcutsProvider {
             shortTitle: "向 Markdown 文档追加文字",
             systemImageName: "text.append"
         )
+    }
+}
+
+/// 供 Siri 与系统聚焦搜索语义检索的 Markdown 文档实体（macOS 15+）
+@available(macOS 15.0, *)
+struct MarkdownDocumentEntity: IndexedEntity {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Markdown 文档")
+    static let defaultQuery = MarkdownDocumentQuery()
+
+    var id: String
+
+    @Property(title: "标题")
+    var title: String
+
+    @Property(title: "文件名")
+    var displayName: String
+
+    @Property(title: "关键词")
+    var keywords: [String]
+
+    @Property(title: "摘要片段")
+    var excerpt: String
+
+    init(record: IndexedDocumentRecord) {
+        self.id = record.path
+        self.title = record.title
+        self.displayName = record.displayName
+        self.keywords = record.keywords
+        self.excerpt = record.excerpt
+    }
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(
+            title: LocalizedStringResource(stringLiteral: title),
+            subtitle: LocalizedStringResource(stringLiteral: displayName)
+        )
+    }
+
+    var attributeSet: CSSearchableItemAttributeSet {
+        let attr = CSSearchableItemAttributeSet(contentType: .markdownText)
+        attr.title = title
+        attr.displayName = displayName
+        attr.contentURL = URL(fileURLWithPath: id)
+        attr.keywords = keywords
+        attr.textContent = excerpt
+        return attr
+    }
+}
+
+@available(macOS 15.0, *)
+struct MarkdownDocumentQuery: EntityStringQuery {
+    func entities(for identifiers: [String]) async throws -> [MarkdownDocumentEntity] {
+        IndexedDocumentStore.records(forPaths: identifiers).map(MarkdownDocumentEntity.init)
+    }
+
+    func entities(matching string: String) async throws -> [MarkdownDocumentEntity] {
+        IndexedDocumentStore.search(string).map(MarkdownDocumentEntity.init)
+    }
+
+    func suggestedEntities() async throws -> [MarkdownDocumentEntity] {
+        Array(IndexedDocumentStore.allRecords().prefix(10)).map(MarkdownDocumentEntity.init)
+    }
+}
+
+/// 通过 Siri 或聚焦搜索直接打开已索引的 Markdown 文档
+@available(macOS 15.0, *)
+struct OpenMarkdownDocumentIntent: OpenIntent {
+    static let title: LocalizedStringResource = "打开 Markdown 文档"
+
+    @Parameter(title: "文档")
+    var target: MarkdownDocumentEntity
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        let url = URL(fileURLWithPath: target.id)
+        try await NSDocumentController.shared.openDocument(withContentsOf: url, display: true)
+        return .result()
+    }
+}
+
+/// 将文档更新回调绑定到 AppIntents 语义实体索引
+enum DropMDEntityIndexer {
+    static func registerHook() {
+        guard #available(macOS 15.0, *) else { return }
+        SpotlightAndActivity.onIndexDocument = { record in
+            let entity = MarkdownDocumentEntity(record: record)
+            Task.detached(priority: .utility) {
+                try? await CSSearchableIndex.default().indexAppEntities([entity])
+            }
+        }
     }
 }

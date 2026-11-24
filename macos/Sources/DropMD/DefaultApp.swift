@@ -145,6 +145,11 @@ private struct GeneralSettings: View {
                 }
                 .onChange(of: language) { _, newValue in AppLanguage.set(newValue) }
             }
+            if SiriAIManager.isPrivateCloudAvailable {
+                Section("智能") {
+                    AIModelPicker()
+                }
+            }
             Section("Markdown 文件") {
                 LabeledContent {
                     if isDefault {
@@ -172,6 +177,20 @@ private struct GeneralSettings: View {
         // 用户可能在访达的“显示简介”里改了默认程序，回到 DropMD 时重新查看
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             isDefault = DefaultApp.isDefault
+        }
+    }
+}
+
+/// 设置 → 通用：Apple 私有云计算与本机模型调度策略（仅 macOS 27+ 显示）
+private struct AIModelPicker: View {
+    @AppStorage(AIModelPreference.storageKey) private var preference = AIModelPreference.auto.rawValue
+
+    var body: some View {
+        Picker(selection: $preference) {
+            ForEach(AIModelPreference.allCases) { Text($0.title).tag($0.rawValue) }
+        } label: {
+            Text("智能模型")
+            Text("长文档自动使用 Apple 私有云计算以获得更好效果；离线时自动改用本机模型。")
         }
     }
 }
