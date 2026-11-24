@@ -154,12 +154,16 @@ final class EditorController: ObservableObject {
     @Published var imagePlaygroundPresented = false
     @Published var imagePlaygroundConcept = ""
     private var spotlightWork: DispatchWorkItem?
+    private var titleWork: DispatchWorkItem?
     private var aiTitleWork: DispatchWorkItem?
+    private var editVersion: Int = 0
+    private var isAIFormatting = false
 
     // MARK: - 文本变化
 
     func textChanged(_ text: String) {
         pendingText = text
+        editVersion &+= 1
         updateStats(text)
         if outlineVisible {
             headingsWork?.cancel()
@@ -934,28 +938,39 @@ final class EditorController: ObservableObject {
     // MARK: - 系统智能：全语言命名 / Spotlight / 翻译 / 智能排版 / 图乐园
 
     private func scheduleTitleAndMetadataUpdate(_ text: String) {
-        if fileURL == nil,
-           let window = (richView ?? textView)?.window,
-           let doc = NSDocumentController.shared.document(for: window),
-           doc.fileURL == nil {
-            doc.displayName = DocumentTitleSuggester.fallbackTitle(from: text)
-        }
-
+        titleWork?.cancel()
         aiTitleWork?.cancel()
-        if #available(macOS 26.0, *), fileURL == nil, extractHeadings(text).isEmpty, SiriAIManager.isLanguageModelAvailable {
-            let work = DispatchWorkItem { [weak self] in
-                Task { @MainActor [weak self] in
-                    guard let self, self.fileURL == nil, self.pendingText == text else { return }
-                    guard let generated = await DocumentTitleSuggester.aiTitle(from: text) else { return }
-                    guard self.fileURL == nil, self.pendingText == text,
-                          let window = (self.richView ?? self.textView)?.window,
-                          let doc = NSDocumentController.shared.document(for: window),
-                          doc.fileURL == nil else { return }
-                    doc.displayName = generated
+
+        if fileURL == nil {
+            let capturedVersion = editVersion
+            let tw = DispatchWorkItem { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self, self.fileURL == nil, self.editVersion == capturedVersion else { return }
+                    let (fallback, hasHeading) = DocumentTitleSuggester.analyze(from: self.pendingText)
+                    if let window = (self.richView ?? self.textView)?.window,
+                       let doc = NSDocumentController.shared.document(for: window),
+                       doc.fileURL == nil {
+                        doc.displayName = fallback
+                    }
+                    if !hasHeading, #available(macOS 26.0, *), SiriAIManager.isLanguageModelAvailable {
+                        let work = DispatchWorkItem { [weak self] in
+                            Task { @MainActor [weak self] in
+                                guard let self, self.fileURL == nil, self.editVersion == capturedVersion else { return }
+                                guard let generated = await DocumentTitleSuggester.aiTitle(from: self.pendingText) else { return }
+                                guard self.fileURL == nil, self.editVersion == capturedVersion,
+                                      let window = (self.richView ?? self.textView)?.window,
+                                      let doc = NSDocumentController.shared.document(for: window),
+                                      doc.fileURL == nil else { return }
+                                doc.displayName = generated
+                            }
+                        }
+                        self.aiTitleWork = work
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1, execute: work)
+                    }
                 }
             }
-            aiTitleWork = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+            titleWork = tw
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: tw)
         }
 
         spotlightWork?.cancel()
@@ -1022,6 +1037,7 @@ final class EditorController: ObservableObject {
     }
 
     func smartFormatMarkdown() {
+        guard !isAIFormatting else { return }
         guard #available(macOS 26.0, *), SiriAIManager.isLanguageModelAvailable else {
             alert(String(localized: "智能整理排版不可用"), String(localized: "需要在支持 Apple 智能的 macOS 26 及以上系统中开启该功能。"))
             return
@@ -1031,8 +1047,10 @@ final class EditorController: ObservableObject {
         let sourceMarkdown: String
         let richSelection: NSRange?
         let sourceSelection: NSRange?
+        let startSnapshot: String
         if let r = rich, let storage = r.textStorage {
             let sel = r.selectedRange()
+            startSnapshot = storage.string
             if sel.length > 0, NSMaxRange(sel) <= storage.length {
                 let sub = storage.attributedSubstring(from: sel)
                 sourceMarkdown = MarkdownCodec.serialize(RichBridge.blocks(from: sub))
@@ -1046,6 +1064,7 @@ final class EditorController: ObservableObject {
         } else if let tv = textView {
             let sel = tv.selectedRange()
             let ns = tv.string as NSString
+            startSnapshot = tv.string
             if sel.length > 0, NSMaxRange(sel) <= ns.length {
                 sourceMarkdown = ns.substring(with: sel)
                 sourceSelection = sel
@@ -1060,12 +1079,20 @@ final class EditorController: ObservableObject {
 
         guard !sourceMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let baseURL = fileURL?.deletingLastPathComponent()
+        let startVersion = editVersion
+        isAIFormatting = true
 
         Task { @MainActor [weak self] in
             guard let self else { return }
+            defer { self.isAIFormatting = false }
             do {
                 let formatted = try await SiriAIManager.smartFormatMarkdown(sourceMarkdown)
                 guard !formatted.isEmpty else { return }
+                let currentSnapshot = self.rich?.textStorage?.string ?? self.textView?.string ?? ""
+                guard self.editVersion == startVersion, currentSnapshot == startSnapshot else {
+                    self.alert(String(localized: "智能整理排版已取消"), String(localized: "整理期间文档已修改，请重新选择后再试。"))
+                    return
+                }
                 if let sel = richSelection, let r = self.rich, let storage = r.textStorage, NSMaxRange(sel) <= storage.length {
                     let isFull = sel.location == 0 && sel.length == storage.length
                     let rendered = NSMutableAttributedString(attributedString: RichBridge.attributed(markdown: formatted, baseURL: baseURL))

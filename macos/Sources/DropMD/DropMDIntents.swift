@@ -36,19 +36,10 @@ struct CreateMarkdownDocumentIntent: AppIntent {
             parts.append(c)
         }
         let initial = parts.joined(separator: "\n\n")
-
-        try NSDocumentController.shared.openUntitledDocumentAndDisplay(true)
         if !initial.isEmpty {
-            // 等待新建窗口完成首帧挂载后再写入初始内容
-            try? await Task.sleep(nanoseconds: 150_000_000)
-            if let tv = NSApp.keyWindow?.firstResponder as? NSTextView, tv.string.isEmpty {
-                let text = initial.hasSuffix("\n") ? initial : initial + "\n"
-                if tv.shouldChangeText(in: NSRange(location: 0, length: 0), replacementString: text) {
-                    tv.textStorage?.replaceCharacters(in: NSRange(location: 0, length: 0), with: text)
-                    tv.didChangeText()
-                }
-            }
+            PendingDraftStore.store(initial.hasSuffix("\n") ? initial : initial + "\n")
         }
+        try NSDocumentController.shared.openUntitledDocumentAndDisplay(true)
         return .result()
     }
 }
@@ -68,16 +59,19 @@ struct AppendToMarkdownFileIntent: AppIntent {
     func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
         let addition = text.trimmingCharacters(in: .newlines)
         if let url = file.fileURL, FileManager.default.isWritableFile(atPath: url.path) {
-            let existing = (try? Data(contentsOf: url)).map(MarkdownDocument.decode) ?? ""
-            let updated = append(addition, to: existing)
-            try Data(updated.utf8).write(to: url, options: .atomic)
+            let rawData = try Data(contentsOf: url)
+            var doc = rawData.isEmpty ? MarkdownDocument(text: "") : try MarkdownDocument(data: rawData)
+            doc.text = append(addition, to: doc.text)
+            let outData = doc.data()
+            try outData.write(to: url, options: .atomic)
             let name = url.lastPathComponent
-            return .result(value: IntentFile(data: Data(updated.utf8), filename: name, type: .markdownText))
+            return .result(value: IntentFile(data: outData, filename: name, type: .markdownText))
         }
-        let existing = MarkdownDocument.decode(file.data)
-        let updated = append(addition, to: existing)
+        var doc = file.data.isEmpty ? MarkdownDocument(text: "") : try MarkdownDocument(data: file.data)
+        doc.text = append(addition, to: doc.text)
+        let outData = doc.data()
         let name = file.filename.isEmpty ? "document.md" : file.filename
-        return .result(value: IntentFile(data: Data(updated.utf8), filename: name, type: .markdownText))
+        return .result(value: IntentFile(data: outData, filename: name, type: .markdownText))
     }
 
     private func append(_ addition: String, to existing: String) -> String {
@@ -85,6 +79,20 @@ struct AppendToMarkdownFileIntent: AppIntent {
         if existing.isEmpty { return addition + "\n" }
         let separator = existing.hasSuffix("\n\n") ? "" : existing.hasSuffix("\n") ? "\n" : "\n\n"
         return existing + separator + addition + "\n"
+    }
+}
+
+private final class IntentErrorHolder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var message: String?
+
+    func record(_ info: String?) {
+        guard let info, !info.isEmpty else { return }
+        lock.withLock { message = info }
+    }
+
+    var latest: String? {
+        lock.withLock { message }
     }
 }
 
@@ -102,12 +110,13 @@ struct ConvertFileToMarkdownIntent: AppIntent {
         try fm.createDirectory(at: workDir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: workDir) }
 
-        let inputName = file.filename.isEmpty ? "input" : file.filename
+        let rawLast = (file.filename as NSString).lastPathComponent
+        let safeName = (rawLast.isEmpty || rawLast == "." || rawLast == "..") ? "input" : rawLast
         let srcURL: URL
         if let original = file.fileURL, fm.fileExists(atPath: original.path) {
             srcURL = original
         } else {
-            let localCopy = workDir.appendingPathComponent(inputName)
+            let localCopy = workDir.appendingPathComponent(safeName)
             try file.data.write(to: localCopy)
             srcURL = localCopy
         }
@@ -126,10 +135,19 @@ struct ConvertFileToMarkdownIntent: AppIntent {
             ],
         ]
         let reqData = try JSONSerialization.data(withJSONObject: payload)
-        let status = try await Engine().run(["convert"], input: reqData) { _ in }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let errorHolder = IntentErrorHolder()
+        let status = try await Engine().run(["convert"], input: reqData) { lineData in
+            if let ev = try? decoder.decode(Engine.Event.self, from: lineData),
+               ev.event == "result", ev.ok == false {
+                errorHolder.record(ev.info)
+            }
+        }
         guard status == 0, fm.fileExists(atPath: dstURL.path),
               let mdData = try? Data(contentsOf: dstURL) else {
-            throw DropMDIntentError.conversionFailed(String(localized: "转换失败，请检查文件格式是否受支持。"))
+            let reason = errorHolder.latest ?? String(localized: "转换失败，请检查文件格式是否受支持。")
+            throw DropMDIntentError.conversionFailed(reason)
         }
         return .result(value: IntentFile(data: mdData, filename: "\(baseName).md", type: .markdownText))
     }

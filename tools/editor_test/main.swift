@@ -2146,6 +2146,18 @@ MainActor.assumeIsolated {
               DocumentTitleSuggester.sanitizeFileName("  .a/b:c?d*  。") ?? "",
               "a b c d")
 
+        // analyze 区分显式标题与正文首行，并只截取前段处理超长文档
+        let analyzedHeading = DocumentTitleSuggester.analyze(from: "# 标题\n\n正文")
+        check("全语言命名：analyze 识别显式标题", "\(analyzedHeading.title ?? "") \(analyzedHeading.hasHeading)", "标题 true")
+        let longBody = "第一行正文\n\n" + String(repeating: "填充文本行\n", count: 1000)
+        let analyzedBody = DocumentTitleSuggester.analyze(from: longBody)
+        check("全语言命名：analyze 超长正文取首行且无显式标题", "\(analyzedBody.title ?? "") \(analyzedBody.hasHeading)", "第一行正文 false")
+
+        // PendingDraftStore 一次性消费语义
+        PendingDraftStore.store("# 草稿\n\n内容\n")
+        check("快捷指令草稿缓存：第一次取出", PendingDraftStore.consume() ?? "", "# 草稿\n\n内容\n")
+        check("快捷指令草稿缓存：第二次为空", PendingDraftStore.consume() ?? "nil", "nil")
+
         // 单页 Writing Tools 忽略范围：跳过代码块、行内代码、公式原文；普通正文不跳过
         let wtDoc = "普通正文 `code()` 结束\n\n```swift\nlet x = 1\n```\n\n$E=mc^2$\n"
         let tvWT = makeView(wtDoc)

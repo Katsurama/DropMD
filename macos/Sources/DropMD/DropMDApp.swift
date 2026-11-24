@@ -16,7 +16,7 @@ struct DropMDApp: App {
 
     var body: some Scene {
         // 主功能：Markdown 编辑器（新建、打开、自动保存、版本历史由系统文档机制提供）
-        DocumentGroup(newDocument: MarkdownDocument()) { file in
+        DocumentGroup(newDocument: MarkdownDocument(text: PendingDraftStore.consume() ?? "")) { file in
             EditorView(document: file.$document, fileURL: file.fileURL)
         }
         .defaultSize(width: 980, height: 660)
@@ -283,11 +283,10 @@ struct FormatCommands: Commands {
             codeBlockMenu
             Divider()
             ActionMenuItems(actions: EditorAction.lists, editor: editor)
-            Divider()
-            ActionMenuItems(
-                actions: [.translateSelection] + (SiriAIManager.isLanguageModelAvailable ? [.smartFormat] : []),
-                editor: editor
-            )
+            if !aiFormatActions.isEmpty {
+                Divider()
+                ActionMenuItems(actions: aiFormatActions, editor: editor)
+            }
         }
         CommandMenu("插入") {
             ForEach(Array(EditorAction.insertGroups.enumerated()), id: \.offset) { i, group in
@@ -303,6 +302,11 @@ struct FormatCommands: Commands {
                 ActionMenuItems(actions: [.imagePlayground], editor: editor)
             }
         }
+    }
+
+    private var aiFormatActions: [EditorAction] {
+        (SiriAIManager.isTranslationAvailable ? [.translateSelection] : [])
+            + (SiriAIManager.isLanguageModelAvailable ? [.smartFormat] : [])
     }
 
     private var calloutMenu: some View {

@@ -14,6 +14,12 @@ import ImagePlayground
 
 /// Apple Intelligence / Siri AI 功能可用性检测与端侧大模型调用
 enum SiriAIManager {
+    /// 是否支持系统原生离线翻译弹窗（macOS 14.4+）
+    static var isTranslationAvailable: Bool {
+        if #available(macOS 14.4, *) { return true }
+        return false
+    }
+
     /// 是否支持系统内置大模型（macOS 26+ 且已开启可用）
     static var isLanguageModelAvailable: Bool {
         #if canImport(FoundationModels)
@@ -97,21 +103,27 @@ enum DocumentTitleSuggester {
         return s.isEmpty ? nil : s
     }
 
-    /// 跨语言通用兜底：优先提取首个 Markdown 标题，否则提取第一行自然正文
-    static func fallbackTitle(from markdown: String) -> String? {
-        if let heading = extractHeadings(markdown).first?.title,
+    /// 跨语言通用兜底：一次分析截取片段，返回建议标题与是否含显式标题
+    static func analyze(from markdown: String) -> (title: String?, hasHeading: Bool) {
+        let head = String(markdown.prefix(4000))
+        if let heading = extractHeadings(head).first?.title,
            let clean = sanitizeFileName(heading) {
-            return clean
+            return (clean, true)
         }
-        for block in MarkdownCodec.parse(markdown) {
+        for block in MarkdownCodec.parse(head) {
             guard case .line(let line) = block else { continue }
             switch line.kind {
             case .body, .heading, .quote, .bullet, .ordered, .task:
                 let plain = line.runs.filter { !$0.literal }.map(\.text).joined()
-                if let clean = sanitizeFileName(plain) { return clean }
+                if let clean = sanitizeFileName(plain) { return (clean, false) }
             }
         }
-        return nil
+        return (nil, false)
+    }
+
+    /// 跨语言通用兜底：优先提取首个 Markdown 标题，否则提取第一行自然正文
+    static func fallbackTitle(from markdown: String) -> String? {
+        analyze(from: markdown).title
     }
 
     /// macOS 26+：当文章没有现成标题时，用系统端侧大模型生成简短摘要文件名
@@ -137,6 +149,23 @@ enum DocumentTitleSuggester {
         #else
         return nil
         #endif
+    }
+}
+
+/// 一次性传递待填入新文档的草稿（用于快捷指令等从外部传入初始正文）
+enum PendingDraftStore {
+    private static let lock = NSLock()
+    private static var pending: String?
+
+    static func store(_ text: String) {
+        lock.withLock { pending = text }
+    }
+
+    static func consume() -> String? {
+        lock.withLock {
+            defer { pending = nil }
+            return pending
+        }
     }
 }
 
@@ -170,6 +199,17 @@ enum WritingToolsGuard {
         return mergeRanges(rawRanges).map { NSValue(range: $0) }
     }
 
+    private static let sourceRegexes: [NSRegularExpression] = [
+        // 开头 YAML front matter
+        #"(?s)\A---[ \t]*\n.*?\n(?:---|\.\.\.)[ \t]*(?:\n|\z)"#,
+        // 围栏代码块
+        #"(?m)^[ \t]*(?:`{3,}|~{3,})[\s\S]*?^[ \t]*(?:`{3,}|~{3,})[ \t]*$"#,
+        // 数学公式块与行内公式
+        #"\$\$[\s\S]*?\$\$|\$[^\n$]+\$"#,
+        // 行内代码
+        #"`[^`\n]+`"#,
+    ].compactMap { try? NSRegularExpression(pattern: $0) }
+
     /// 双页源码视图中需要排除在 Writing Tools 之外的区间（YAML / 代码块 / 公式 / 行内代码）
     static func ignoredRanges(inSource text: String, enclosingRange: NSRange) -> [NSValue] {
         let ns = text as NSString
@@ -177,20 +217,8 @@ enum WritingToolsGuard {
         let scope = NSIntersectionRange(enclosingRange, full)
         guard scope.length > 0 else { return [] }
 
-        let patterns = [
-            // 开头 YAML front matter
-            #"(?s)\A---[ \t]*\n.*?\n(?:---|\.\.\.)[ \t]*(?:\n|\z)"#,
-            // 围栏代码块
-            #"(?m)^[ \t]*(?:`{3,}|~{3,})[\s\S]*?^[ \t]*(?:`{3,}|~{3,})[ \t]*$"#,
-            // 数学公式块与行内公式
-            #"\$\$[\s\S]*?\$\$|\$[^\n$]+\$"#,
-            // 行内代码
-            #"`[^`\n]+`"#,
-        ]
-
         var matches: [NSRange] = []
-        for pattern in patterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+        for regex in sourceRegexes {
             for m in regex.matches(in: text, range: full) {
                 let clipped = NSIntersectionRange(m.range, scope)
                 if clipped.length > 0 { matches.append(clipped) }

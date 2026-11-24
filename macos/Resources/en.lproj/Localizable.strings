@@ -447,3 +447,5 @@
 "转换失败，请检查文件格式是否受支持。" = "Conversion failed. Make sure the file format is supported.";
 "追加内容" = "Text to Append";
 "需要在支持 Apple 智能的 macOS 26 及以上系统中开启该功能。" = "Requires Apple Intelligence on macOS 26 or later.";
+"智能整理排版已取消" = "Smart Format Canceled";
+"整理期间文档已修改，请重新选择后再试。" = "The document was modified while formatting. Select again and retry.";

@@ -573,31 +573,32 @@ struct SplitHandle: NSViewRepresentable {
 private struct EditorAIFeaturesModifier: ViewModifier {
     @ObservedObject var editor: EditorController
 
+    @ViewBuilder
     func body(content: Content) -> some View {
-        let withTranslation: AnyView = {
-            #if canImport(Translation)
-            if #available(macOS 14.4, *) {
-                return AnyView(content.translationPresentation(
+        if #available(macOS 15.2, *) {
+            content
+                .translationPresentation(
                     isPresented: $editor.translationPresented,
                     text: editor.translationSourceText
                 ) { translated in
                     editor.applyTranslationReplacement(translated)
-                })
-            }
-            #endif
-            return AnyView(content)
-        }()
-
-        #if canImport(ImagePlayground)
-        if #available(macOS 15.2, *) {
-            return AnyView(withTranslation.imagePlaygroundSheet(
-                isPresented: $editor.imagePlaygroundPresented,
-                concept: editor.imagePlaygroundConcept
-            ) { url in
-                editor.insertGeneratedImage(from: url, concept: editor.imagePlaygroundConcept)
-            })
+                }
+                .imagePlaygroundSheet(
+                    isPresented: $editor.imagePlaygroundPresented,
+                    concept: editor.imagePlaygroundConcept
+                ) { url in
+                    editor.insertGeneratedImage(from: url, concept: editor.imagePlaygroundConcept)
+                }
+        } else if #available(macOS 14.4, *) {
+            content
+                .translationPresentation(
+                    isPresented: $editor.translationPresented,
+                    text: editor.translationSourceText
+                ) { translated in
+                    editor.applyTranslationReplacement(translated)
+                }
+        } else {
+            content
         }
-        #endif
-        return withTranslation
     }
 }

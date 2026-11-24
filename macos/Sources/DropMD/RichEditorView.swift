@@ -125,6 +125,7 @@ struct RichTextEditor: NSViewRepresentable {
 
         private var reloadWork: DispatchWorkItem?
         var scrollObserver: NSObjectProtocol?
+        private var textBeforeWritingTools: String?
 
         func scheduleReload(_ tv: RichTextView) {
             reloadWork?.cancel()
@@ -204,6 +205,7 @@ struct RichTextEditor: NSViewRepresentable {
 
         @available(macOS 15.0, *)
         func textViewWritingToolsWillBegin(_ textView: NSTextView) {
+            textBeforeWritingTools = parent.text
             work?.cancel()
             reloadWork?.cancel()
         }
@@ -211,11 +213,11 @@ struct RichTextEditor: NSViewRepresentable {
         @available(macOS 15.0, *)
         func textViewWritingToolsDidEnd(_ textView: NSTextView) {
             flush()
-            if let tv = textView as? RichTextView {
-                MainActor.assumeIsolated {
-                    self.lastMarkdown = nil
-                    self.reload(tv)
-                }
+            let changed = textBeforeWritingTools != parent.text
+            textBeforeWritingTools = nil
+            guard changed else { return }
+            MainActor.assumeIsolated {
+                parent.controller.selectionChanged()
             }
         }
 
