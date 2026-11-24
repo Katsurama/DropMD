@@ -249,20 +249,47 @@ struct ParagraphStyleMenu: View {
     }
 }
 
-/// 侧边栏“摘要”标签页：上半区文章摘要（或所选内容摘要），下半区针对本文提问
+/// 侧边栏“摘要”标签页：上半区文章摘要（或所选内容摘要），下半区 Siri AI 问答（支持中间分隔线上下拖动）
 private struct SummaryInspectorView: View {
     @ObservedObject var editor: EditorController
+    @AppStorage("summaryTopFraction") private var topFraction: Double = 0.42
     @State private var copied = false
     @State private var questionText = ""
 
     var body: some View {
-        VStack(spacing: 0) {
-            summarySection
-                .frame(minHeight: 140, maxHeight: 280)
-            Divider().padding(.horizontal, 12)
-            qaSection
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        GeometryReader { geo in
+            let totalH = max(geo.size.height, 1)
+            let topH = clampedTopHeight(totalH)
+            VStack(spacing: 0) {
+                summarySection
+                    .frame(height: topH)
+                Rectangle()
+                    .fill(Color(nsColor: RichStyle.lineColor))
+                    .frame(height: 1)
+                    .overlay(VerticalSplitHandle(
+                        onDragDelta: { deltaY in
+                            let h = max(geo.size.height, 1)
+                            let cur = clampedTopHeight(h)
+                            let next = clampedTopHeight(h, proposed: cur + deltaY)
+                            topFraction = next / h
+                        },
+                        onDoubleClick: { topFraction = 0.42 }
+                    ).frame(height: 9))
+                    .zIndex(1)
+                qaSection
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
+    }
+
+    private func clampedTopHeight(_ totalHeight: Double, proposed: Double? = nil) -> Double {
+        let minTop = 110.0
+        let minBottom = 160.0
+        let raw = (proposed ?? totalHeight * topFraction).rounded()
+        if totalHeight <= minTop + minBottom {
+            return max(40.0, min((totalHeight * 0.45).rounded(), totalHeight - 40.0))
+        }
+        return min(max(raw, minTop), totalHeight - minBottom)
     }
 
     private var summarySection: some View {
@@ -379,7 +406,7 @@ private struct SummaryInspectorView: View {
     private var qaSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
-                Text("提问")
+                Text(verbatim: "Siri AI")
                     .font(.headline)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -480,5 +507,48 @@ private struct SummaryInspectorView: View {
         guard !q.isEmpty, !editor.isAnsweringQA else { return }
         questionText = ""
         editor.askDocumentQuestion(q)
+    }
+}
+
+/// 上下分区中间的拖动条：鼠标移上去变成上下箭头，拖动实时回报垂直位移，双击恢复默认比例
+private struct VerticalSplitHandle: NSViewRepresentable {
+    var onDragDelta: (Double) -> Void
+    var onDoubleClick: () -> Void
+
+    func makeNSView(context: Context) -> HandleView { HandleView() }
+    func updateNSView(_ view: HandleView, context: Context) {
+        view.onDragDelta = onDragDelta
+        view.onDoubleClick = onDoubleClick
+    }
+
+    final class HandleView: NSView {
+        var onDragDelta: ((Double) -> Void)?
+        var onDoubleClick: (() -> Void)?
+        private var lastWindowY: Double = 0
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            addTrackingArea(NSTrackingArea(rect: .zero, options: [.cursorUpdate, .activeInKeyWindow, .inVisibleRect], owner: self))
+        }
+        required init?(coder: NSCoder) { fatalError() }
+
+        override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeUpDown) }
+        override func cursorUpdate(with event: NSEvent) { NSCursor.resizeUpDown.set() }
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            frame.contains(point) ? self : nil
+        }
+        override func mouseDown(with event: NSEvent) {
+            lastWindowY = event.locationInWindow.y
+            if event.clickCount == 2 { onDoubleClick?() }
+        }
+        override func mouseDragged(with event: NSEvent) {
+            NSCursor.resizeUpDown.set()
+            let currentY = event.locationInWindow.y
+            let deltaY = lastWindowY - currentY
+            lastWindowY = currentY
+            if abs(deltaY) > 0 {
+                onDragDelta?(deltaY)
+            }
+        }
     }
 }
