@@ -139,6 +139,7 @@ struct ConvertFileToMarkdownIntent: AppIntent {
             "options": [
                 "mode": "fast",
                 "word_engine": "pandoc",
+                "inline_images": true,
                 "ocr_engine": "rapidocr",
                 "vision_lang": "zh-Hans",
                 "formulas": false,

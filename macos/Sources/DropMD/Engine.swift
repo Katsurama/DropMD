@@ -107,21 +107,33 @@ final class Engine: @unchecked Sendable {
         p.standardOutput = out
         p.standardInput = inp
         p.standardError = Engine.logHandle()
-        try p.run()
-        // 只记住转换用的引擎：转换中查状态（如重新打开转换窗口）的引擎不能把它顶掉，否则“停止”失灵
+        // 只记住转换用的引擎：转换中查状态不能把它顶掉。
         let converting = args.first == "convert"
-        if converting { locked { process = p } }
+        if converting { try Task.checkCancellation() }
+        try p.run()
+        if converting {
+            locked { process = p }
+            if Task.isCancelled { terminate() }  // 停止可能发生在进程启动和登记之间。
+        }
+        defer { if converting { locked { if process === p { process = nil } } } }
         if let input {
             // 引擎启动就退出时写入会失败：不能让 SIGPIPE 结束整个 App，错误由下面的退出码和“引擎意外退出”反馈
             signal(SIGPIPE, SIG_IGN)
             try? inp.fileHandleForWriting.write(contentsOf: input)
         }
         try? inp.fileHandleForWriting.close()
-        for try await line in out.fileHandleForReading.bytes.lines {
-            onLine(Data(line.utf8))
+        do {
+            for try await line in out.fileHandleForReading.bytes.lines {
+                onLine(Data(line.utf8))
+            }
+        } catch {
+            if converting {
+                terminate()
+                p.waitUntilExit()
+            }
+            throw error
         }
         p.waitUntilExit()
-        if converting { locked { if process === p { process = nil } } }
         return p.terminationStatus
     }
 
@@ -142,8 +154,17 @@ final class Engine: @unchecked Sendable {
     /// 引擎还没来得及建组时只结束它自己
     func terminate() {
         locked {
-            guard let p = process else { return }
+            guard let p = process, p.isRunning else { return }
             if kill(-p.processIdentifier, SIGTERM) != 0 { p.terminate() }
+            // Give Python time to clean its staging area, but don't wait forever in a native OCR call.
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) { [weak self, weak p] in
+                guard let self, let p else { return }
+                self.locked {
+                    guard self.process === p, p.isRunning else { return }
+                    let pid = p.processIdentifier
+                    if kill(-pid, SIGKILL) != 0 { _ = kill(pid, SIGKILL) }
+                }
+            }
         }
     }
 

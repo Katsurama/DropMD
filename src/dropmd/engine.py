@@ -11,7 +11,7 @@
       输入：{"jobs":[{"src","dst"}], "options":{"mode","word_engine","ocr_engine","vision_lang","formulas"}}
       → {"event":"start","index"} / {"event":"page","index","i","n"} / {"event":"result","index","ok","info"} ... {"event":"finished"}
 
-取消：界面直接结束本进程即可。输出先写入 .part 临时文件，不会留下半个 .md。
+取消：向引擎进程组发送 SIGTERM，由当前任务清理自己的暂存区。
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import signal
 import sys
 from pathlib import Path
 
@@ -71,6 +72,7 @@ def _convert(out: _Out) -> int:
         ocr_engine=o.get("ocr_engine", ""),
         vision_lang=o.get("vision_lang", "zh-Hans"),
         formulas=bool(o.get("formulas", False)),
+        inline_images=bool(o.get("inline_images", False)),
     )
     for i, job in enumerate(req.get("jobs", [])):
         out.send({"event": "start", "index": i})
@@ -79,19 +81,21 @@ def _convert(out: _Out) -> int:
             info = convert(Path(job["src"]), Path(job["dst"]), options)
             out.send({"event": "result", "index": i, "ok": True, "info": info})
         except Exception as exc:  # noqa: BLE001 — 任何错误都以中文反馈
-            # 写到一半出错（如磁盘满）时不在用户的文件夹里留下半截的临时文件
-            with contextlib.suppress(OSError, KeyError, TypeError):
-                Path(job["dst"] + ".part").unlink(missing_ok=True)
             out.send({"event": "result", "index": i, "ok": False, "info": describe(exc)})
     out.send({"event": "finished"})
     return 0
+
+
+def _stop(signum, _frame) -> None:
+    # Python 的 finally 负责暂存清理；重复点击不应打断清理。
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    raise SystemExit(128 + signum)
 
 
 def run(args: list[str]) -> int:
     import datetime
 
     # 自成一个进程组：界面点“停止”时结束整组，正在跑的 Pandoc 跟着结束（Engine.swift 的 terminate）。
-    # 否则 Pandoc 会继续跑完，在用户的文件夹里留下没人清理的 .md.part
     with contextlib.suppress(OSError):   # 已是会话首进程等情况下建不了组：不影响转换，只是停止时 Pandoc 不跟着停
         os.setpgid(0, 0)
     out = _Out()
@@ -100,6 +104,7 @@ def run(args: list[str]) -> int:
     if cmd == "status":
         return _status(out, args[1:])
     if cmd == "convert":
+        signal.signal(signal.SIGTERM, _stop)
         return _convert(out)
     out.send({"error": f"未知命令：{cmd}"})
     return 2

@@ -131,7 +131,8 @@ extension EditorController {
             }
             if requireSelection { return nil }
             let fullRange = NSRange(location: 0, length: storage.length)
-            return AITextTarget(sourceMarkdown: pendingText, startSnapshot: startSnapshot, richSelection: fullRange, sourceSelection: nil, isFullDocument: true)
+            let markdown = forceFullDocument ? (r.delegate as? RichTextEditor.Coordinator)?.parent.text ?? pendingText : pendingText
+            return AITextTarget(sourceMarkdown: markdown, startSnapshot: startSnapshot, richSelection: fullRange, sourceSelection: nil, isFullDocument: true)
         } else if let tv = textView {
             let sel = tv.selectedRange()
             let ns = tv.string as NSString
@@ -338,13 +339,21 @@ extension EditorController {
             do {
                 let yaml = try await SiriAIManager.generateFrontMatter(for: target.sourceMarkdown)
                 guard !yaml.isEmpty else { return }
-                let updated = SiriAIManager.upsertYAMLFrontMatter(yaml, into: target.sourceMarkdown)
-                self.applyAIReplacement(
-                    updated,
-                    to: target,
-                    startVersion: startVersion,
-                    conflictTitle: String(localized: "生成文档属性已取消")
-                )
+                if self.editVersion == startVersion, let edit = SiriAIManager.yamlFrontMatterEdit(yaml, in: target.sourceMarkdown) {
+                    if target.richSelection != nil, let view = self.richView,
+                       let coordinator = view.delegate as? RichTextEditor.Coordinator,
+                       view.string == target.startSnapshot,
+                       coordinator.parent.text.utf8.elementsEqual(target.sourceMarkdown.utf8),
+                       coordinator.replaceYAMLFrontMatter(String(target.sourceMarkdown[edit.range]), with: edit.replacement, in: view) {
+                        return
+                    }
+                    if target.sourceSelection != nil, let view = self.textView,
+                       view.string.utf8.elementsEqual(target.sourceMarkdown.utf8), !view.hasMarkedText() {
+                        self.replace(NSRange(edit.range, in: target.sourceMarkdown), with: edit.replacement)
+                        return
+                    }
+                }
+                self.alert(String(localized: "生成文档属性已取消"), String(localized: "处理期间文档已修改，请重新操作。"))
             } catch {
                 self.alert(String(localized: "生成文档属性失败"), error.localizedDescription)
             }

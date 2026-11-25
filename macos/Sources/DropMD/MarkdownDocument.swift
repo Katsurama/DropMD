@@ -79,12 +79,24 @@ struct MarkdownDocument: FileDocument {
         return nil
     }
 
+    /// UTF-16 的纯 ASCII 同时是合法的 UTF-8，只有严格交替的 NUL 与 ASCII 文本才优先判为 UTF-16。
+    private static func utf16ASCIIWithoutBOM(_ data: Data) -> String.Encoding? {
+        guard data.count >= 2, data.count % 2 == 0 else { return nil }
+        let nullOffset = data.first == 0 ? 0 : 1
+        guard data[data.startIndex + nullOffset] == 0,
+              data.enumerated().allSatisfy({ offset, byte in
+                  offset % 2 == nullOffset ? byte == 0 : (0x20...0x7E).contains(byte) || byte == 9 || byte == 10 || byte == 13
+              }) else { return nil }
+        return nullOffset == 0 ? .utf16BigEndian : .utf16LittleEndian
+    }
+
     private static func detect(_ data: Data) -> (text: String, encoding: String.Encoding, bom: Data)? {
         for (mark, encoding) in [([0xEF, 0xBB, 0xBF], String.Encoding.utf8), ([0xFF, 0xFE], .utf16LittleEndian), ([0xFE, 0xFF], .utf16BigEndian)] as [([UInt8], String.Encoding)] {
             if data.starts(with: mark), let s = String(data: Data(data.dropFirst(mark.count)), encoding: encoding) {
                 return (s, encoding, Data(mark))
             }
         }
+        if let encoding = utf16ASCIIWithoutBOM(data), let s = String(data: data, encoding: encoding) { return (s, encoding, Data()) }
         if let s = String(data: data, encoding: .utf8) { return (s, .utf8, Data()) }
         if looksLikeDamagedUTF8(data) { return nil }
         if let encoding = utf16WithoutBOM(data), let s = String(data: data, encoding: encoding) { return (s, encoding, Data()) }

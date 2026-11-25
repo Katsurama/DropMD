@@ -62,7 +62,7 @@
 "正在停止…" = "Stopping…";
 
 /* ContentView.swift */
-"所有转换都在这台 Mac 上完成，文件不会上传。\n\n• 只在您同意时联网：下载识别模型、检查更新。\n• 没有统计或广告。\n• 不修改原始文件。" = "Everything is converted on this Mac. Your files are never uploaded.\n\n• Goes online only with your consent: to download recognition models and check for updates.\n• No analytics or ads.\n• Never changes your original files.";
+"文件转换全程在这台 Mac 上完成，不会上传源文件。\n\n• DropMD 的文档智能功能默认仅在本机运行。选择“自动”或“优先私有云”后，相关文档内容可能发送给 Apple 私有云计算。系统写作工具等由 macOS 管理，不受此选项控制。\n• 经您同意后，可联网下载识别模型或检查更新。\n• 没有统计或广告；转换不修改原始文件。" = "File conversion runs on this Mac without uploading the source files.\n\n• DropMD’s document AI features run on-device by default. Choosing Automatic or Prefer Private Cloud can send relevant document content to Apple Private Cloud Compute. System features such as Writing Tools are managed separately by macOS.\n• DropMD asks for your consent to download recognition models or check for updates online.\n• No analytics or ads. Conversion does not modify the original files.";
 "隐私说明" = "Privacy";
 "本机离线处理" = "Works Offline on This Mac";
 "拖入文件或文件夹" = "Drag Files or Folders Here";
@@ -498,5 +498,5 @@
 "转换为表格失败" = "Failed to Convert to Table";
 "转换为表格已取消" = "Convert to Table Canceled";
 "针对本文提问…" = "Ask about this document…";
-"长文档自动使用 Apple 私有云计算以获得更好效果；离线时自动改用本机模型。" = "Long documents automatically use Apple Private Cloud Compute for better results and fall back to the on-device model when offline.";
+"默认为仅本机。选择“自动”或“优先私有云”后，智能功能可能将相关文档内容发送给 Apple 私有云计算；云端不可用时改用本机模型。" = "The default is On-Device Only. Choosing Automatic or Prefer Private Cloud can send relevant document content to Apple Private Cloud Compute. DropMD falls back to the on-device model when the cloud model is unavailable.";
 "导出 Word 超时，请稍后重试。" = "Word export timed out. Please try again later.";

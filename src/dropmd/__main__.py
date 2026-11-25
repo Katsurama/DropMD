@@ -39,9 +39,11 @@ MULTILANG_EXPECT = ["简体中文", "日本語", "繁體中文", "English"]
 
 
 def _selftest(out_dir: str, hq: bool) -> int:
+    import re
     import socket
     import traceback
     from pathlib import Path
+    from urllib.parse import unquote
 
     from . import netguard
     from .converters import MODE_FAST, MODE_HQ, WORD_PANDOC, Options, convert
@@ -68,7 +70,7 @@ def _selftest(out_dir: str, hq: bool) -> int:
     except OSError as exc:
         check("netguard", False, repr(exc))
 
-    def run(src: Path, opts: Options, dst_name: str, expect):
+    def run(src: Path, opts: Options, dst_name: str, expect, *, expect_image=False):
         dst = out / dst_name
         expects = [expect] if isinstance(expect, str) else list(expect)
         try:
@@ -78,6 +80,9 @@ def _selftest(out_dir: str, hq: bool) -> int:
             missing = [e for e in expects if e not in text]
             ok = not missing and src.read_bytes() == before
             check(dst_name, ok, info if ok else f"未找到预期文字“{'、'.join(missing)}”\n{text[:500]}")
+            if expect_image:
+                refs = re.findall(r"!\[[^\]]*\]\(([^()\s]+\.png)\)", text)
+                check(f"{dst_name}: 图片", any((dst.parent / unquote(ref)).is_file() for ref in refs))
         except Exception as exc:  # noqa: BLE001
             check(dst_name, False, describe(exc))
 
@@ -118,16 +123,13 @@ def _selftest(out_dir: str, hq: bool) -> int:
         check("hq_imports", False, " <- ".join(chain))
 
     fast = Options(mode=MODE_FAST)
-    run(samples / "sample.docx", fast, "docx_markitdown.md", "你好")
-    check("markitdown_images", any((out / "docx_markitdown_images").glob("*.png")))
+    run(samples / "sample.docx", fast, "docx_markitdown.md", "你好", expect_image=True)
     run(samples / "sample.xlsx", fast, "xlsx.md", "苹果")
     run(samples / "sample.pptx", fast, "pptx.md", "スライド")
     run(samples / "sample.html", fast, "html.md", "見出し")
     run(samples / "sample_text.pdf", fast, "pdf_fast.md", "Markdown")
     if pandoc_path():
-        run(samples / "sample.docx", Options(word_engine=WORD_PANDOC), "docx_pandoc.md", "你好")
-        img_dir = out / "docx_pandoc_images"
-        check("pandoc_images", img_dir.is_dir() and any(img_dir.rglob("*.png")))
+        run(samples / "sample.docx", Options(word_engine=WORD_PANDOC), "docx_pandoc.md", "你好", expect_image=True)
     else:
         check("pandoc", False, "未找到 Pandoc")
     if hq:

@@ -348,8 +348,7 @@ final class UpdateChecker: ObservableObject {
         NSApp.terminate(nil)
     }
 
-    /// 启动时清理更新留下的文件：没用上的新版本、临时下载。
-    /// 刚更新到新版本时，再把“下载”里的旧安装包移到废纸篓（可以从废纸篓恢复）。
+    /// 只清理更新器的暂存内容；放到「下载」让用户手动安装的文件不再清理。
     func cleanUpOldFiles() {
         let fm = FileManager.default
         if let staged = Self.stagingURL { try? fm.removeItem(at: staged) }
@@ -358,19 +357,6 @@ final class UpdateChecker: ObservableObject {
         where item.lastPathComponent.hasPrefix("DropMD-update-") || item.lastPathComponent.contains("-DropMD-macOS-") {
             try? fm.removeItem(at: item)
         }
-        let current = Self.currentVersionText
-        guard defaults.string(forKey: "lastLaunchedVersion") != current else { return }
-        defaults.set(current, forKey: "lastLaunchedVersion")
-        let downloads = fm.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
-        for item in (try? fm.contentsOfDirectory(at: downloads, includingPropertiesForKeys: nil)) ?? []
-        where Self.isOldPackage(item.lastPathComponent) {
-            try? fm.trashItem(at: item, resultingItemURL: nil)
-        }
-    }
-
-    /// DropMD 的安装包：DropMD-macOS-AppleSilicon.dmg，或重名时的“… 2.dmg”
-    private static func isOldPackage(_ name: String) -> Bool {
-        name.range(of: #"^DropMD-macOS-AppleSilicon( \d+)?\.(dmg|zip)$"#, options: .regularExpression) != nil
     }
 
     private func moveToDownloads(_ file: URL, name: String) throws -> URL {

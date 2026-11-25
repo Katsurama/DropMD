@@ -117,9 +117,9 @@ High Accuracy mode can now use [Xiaomi-OCR-0](https://github.com/xiaomi-research
 
 ## 🔒 Privacy
 
-- All editing and conversion happen on this Mac; your files are never uploaded
-- Goes online only with your consent: to download the High Accuracy recognition models and to check for updates
-- No analytics, no ads, and your original files are never changed
+- File conversion runs on this Mac without uploading or modifying the source files. DropMD has no analytics or ads.
+- DropMD’s document AI features default to **On-Device Only**. On supported Macs, choosing **Automatic** or **Prefer Private Cloud** in Settings → General → Apple Intelligence can send relevant document text to Apple Private Cloud Compute. If the cloud model is unavailable, DropMD falls back to the on-device model. System features such as Writing Tools are managed separately by macOS.
+- DropMD asks for your consent to download the High Accuracy recognition models or check for updates online.
 
 ## 🛠️ Build from source
 

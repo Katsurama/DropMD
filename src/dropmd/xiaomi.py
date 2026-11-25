@@ -123,10 +123,8 @@ def _read_page(image) -> tuple[str, bool]:
 
 
 def convert_pdf(src: Path, dst: Path, on_page=None) -> str:
-    """转换 PDF，Markdown 写入 dst。on_page(第几页, 总页数) 在每页开始前调用。"""
+    """转换 PDF，Markdown 写入暂存区。on_page(第几页, 总页数) 在每页开始前调用。"""
     import pypdfium2
-
-    from .converters import _write_text
 
     missing = missing_components(["xiaomi"])
     if missing:
@@ -148,7 +146,7 @@ def convert_pdf(src: Path, dst: Path, on_page=None) -> str:
     body = "\n\n".join(p for p in pages if p)
     if not body:
         raise ConversionError(tr("没有识别到文字。", "No text was recognized.", "沒有辨識到文字。"))
-    _write_text(dst, body + "\n")
+    dst.write_text(body + "\n", encoding="utf-8")
     info = tr("Xiaomi-OCR-0；不导出图片", "Xiaomi-OCR-0; images not exported", "Xiaomi-OCR-0；不匯出圖片")
     if cut:
         pages_text = "、".join(cut)

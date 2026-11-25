@@ -90,6 +90,7 @@ final class AppModel: ObservableObject {
     let engine = Engine()
     private var stopRequested = false
     private var activeDownloader: ModelDownloader?
+    private var conversionTask: Task<Int32, Error>?
 
     /// 等主线程上已排队的界面更新（转换结果、下载进度）都做完再收尾
     private static func drainMainQueue() async {
@@ -216,15 +217,30 @@ final class AppModel: ObservableObject {
         a.runModal()
     }
 
-    /// 确认并下载高精度模型。联网前必须先取得用户同意。
+    /// 单独从菜单检查模型也占用运行状态；转换直接使用同一次运行的取消状态。
     func ensureModels(showWhenPresent: Bool = false) async -> Bool {
+        guard !running else { return false }
+        stopRequested = false
+        running = true
+        defer {
+            if stopRequested { statusText = String(localized: "已停止") }
+            running = false
+        }
+        return await checkModels(showWhenPresent: showWhenPresent)
+    }
+
+    /// 确认并下载高精度模型。联网前必须先取得用户同意。
+    private func checkModels(showWhenPresent: Bool = false) async -> Bool {
         let st: Engine.Status
         do {
             st = try await engine.status(formulas: formulas, xiaomi: ocrEngine == "xiaomi")
         } catch {
-            alert(String(localized: "无法检查模型"), error.localizedDescription, style: .warning)
+            if !stopRequested {
+                alert(String(localized: "无法检查模型"), error.localizedDescription, style: .warning)
+            }
             return false
         }
+        guard !stopRequested else { return false }
         if st.missing.isEmpty {
             if showWhenPresent { alert(String(localized: "高精度模型"), String(localized: "当前设置所需的模型都已下载。")) }
             return true
@@ -251,13 +267,9 @@ final class AppModel: ObservableObject {
         """)
         a.addButton(withTitle: String(localized: "同意并下载"))
         a.addButton(withTitle: String(localized: "取消"))
-        guard a.runModal() == .alertFirstButtonReturn else { return false }
+        guard a.runModal() == .alertFirstButtonReturn, !stopRequested else { return false }
 
         // 用 macOS 系统网络下载（与 Safari 相同的 DNS 与代理设置）
-        let wasRunning = running
-        running = true
-        stopRequested = false
-        defer { if !wasRunning { running = false } }
         statusText = String(localized: "正在连接 huggingface.co…")
         progress = 0
         progressTotal = 1
@@ -269,7 +281,7 @@ final class AppModel: ObservableObject {
             try await downloader.download(st.missing, modelsDir: modelsDir) { done, total, label in
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
-                        guard self.activeDownloader === downloader else { return }   // 下载已结束：迟到的进度不再改状态
+                        guard self.activeDownloader === downloader, !self.stopRequested else { return }
                         if total > 0 {
                             self.progressTotal = Double(total)
                             self.progress = Double(done)
@@ -282,10 +294,12 @@ final class AppModel: ObservableObject {
                 }
             }
             await Self.drainMainQueue()
+            guard !stopRequested else { return false }
             statusText = String(localized: "模型下载完成")
             return true
         } catch {
             await Self.drainMainQueue()
+            guard !stopRequested else { return false }
             let msg = ModelDownloader.describe(error)
             statusText = String(localized: "模型下载未完成")
             if !(error is CancellationError) && (error as? URLError)?.code != .cancelled {
@@ -300,6 +314,7 @@ final class AppModel: ObservableObject {
         var result: [Int] = []
         var policy: Bool?
         for i in indices {
+            guard !stopRequested else { return nil }
             guard let dst = items[i].dst, FileManager.default.fileExists(atPath: dst.path) else {
                 result.append(i)
                 continue
@@ -344,9 +359,13 @@ final class AppModel: ObservableObject {
             }
             outDir = d
         }
-        running = true
         stopRequested = false
-        defer { running = false }
+        running = true
+        defer {
+            if stopRequested && conversionTask == nil { statusText = String(localized: "已停止") }
+            conversionTask = nil
+            running = false
+        }
 
         let dsts = Planner.plan(items, outDir: outDir)
         for i in items.indices {
@@ -356,13 +375,14 @@ final class AppModel: ObservableObject {
         }
 
         let needsHQ = mode == .hq && items.contains { $0.url.pathExtension.lowercased() == "pdf" }
-        if needsHQ, !(await ensureModels()) { return }
+        if needsHQ, !(await checkModels()) { return }
         if stopRequested { return }
 
         guard let selected = resolveConflicts(Array(items.indices)) else {
             statusText = String(localized: "已取消")
             return
         }
+        guard !stopRequested else { return }
         if selected.isEmpty {
             statusText = String(localized: "没有需要转换的文件")
             return
@@ -383,7 +403,7 @@ final class AppModel: ObservableObject {
         progress = 0
         progressTotal = Double(selected.count)
         statusText = String(localized: "正在转换… 0 / \(selected.count)")
-        do {
+        let task = Task {
             try await engine.run(["convert"], input: input) { data in
                 guard let ev = Engine.decodeEvent(data) else { return }
                 DispatchQueue.main.async {
@@ -401,26 +421,31 @@ final class AppModel: ObservableObject {
                             let info = ev.info ?? ""
                             self.items[i].info = ok ? "\(info) → \(self.items[i].dst?.lastPathComponent ?? "")" : info
                             self.progress = Double(k + 1)
-                            self.statusText = String(localized: "正在转换… \(k + 1) / \(selected.count)")
+                            if !self.stopRequested {
+                                self.statusText = String(localized: "正在转换… \(k + 1) / \(selected.count)")
+                            }
                         }
                     }
                 }
             }
+        }
+        conversionTask = task
+        do {
+            _ = try await task.value
         } catch {
-            alert(String(localized: "转换引擎出错"), error.localizedDescription, style: .warning)
+            if !stopRequested {
+                alert(String(localized: "转换引擎出错"), error.localizedDescription, style: .warning)
+            }
         }
         await Self.drainMainQueue()
         for i in selected where items[i].status == .waiting || items[i].status == .running {
-            items[i].status = .skipped
+            items[i].status = stopRequested ? .skipped : .failed
             items[i].info = stopRequested ? String(localized: "已停止") : String(localized: "引擎意外退出")
-            if let dst = items[i].dst {
-                try? FileManager.default.removeItem(at: dst.appendingPathExtension("part"))
-            }
         }
         let okCount = selected.filter { items[$0].status == .ok }.count
         let failCount = selected.filter { items[$0].status == .failed }.count
         statusText = (stopRequested ? String(localized: "已停止。") : "") + String(localized: "完成：成功 \(okCount) 个，失败 \(failCount) 个")
-        if failCount > 0 {
+        if failCount > 0 && !stopRequested {
             alert(String(localized: "转换完成"), String(localized: "成功 \(okCount) 个，失败 \(failCount) 个。\n失败原因请查看列表中的“说明”一栏。"), style: .warning)
         }
     }
@@ -429,6 +454,7 @@ final class AppModel: ObservableObject {
         stopRequested = true
         statusText = String(localized: "正在停止…")
         activeDownloader?.cancel()
+        conversionTask?.cancel()
         engine.terminate()
     }
 }

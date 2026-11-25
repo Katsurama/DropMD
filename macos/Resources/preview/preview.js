@@ -254,6 +254,10 @@
       }
       // 使用独立 DOM 解析后替换原始 HTML <img> / <source> 的远程地址，避免挂载到页面时提前触发网络请求
       const doc = new DOMParser().parseFromString(previewMD.render(frontMatter(text || "")), "text/html");
+      // <base> 指向文档目录，脚注等页内锚点仍须指向预览页面本身。
+      doc.querySelectorAll('a[href^="#"]').forEach(function (link) {
+        link.href = new URL(link.getAttribute("href"), window.location.href).href;
+      });
       doc.querySelectorAll("source[srcset]").forEach(function (source) {
         if (hasRemoteSrcset(source.getAttribute("srcset"))) {
           source.remove();

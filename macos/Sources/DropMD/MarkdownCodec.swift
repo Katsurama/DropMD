@@ -131,6 +131,38 @@ enum MarkdownCodec {
         let lines: Range<Int>
     }
 
+    /// 文件开头的 YAML 范围，不含 BOM 和闭合行之后的换行。
+    static func yamlFrontMatter(in source: String) -> (range: Range<String.Index>, lineCount: Int)? {
+        let start = source.hasPrefix("\u{FEFF}") ? source.index(after: source.startIndex) : source.startIndex
+        var lineStart = start
+        var lineCount = 0
+        while true {
+            let lineEnd = source[lineStart...].firstIndex { $0 == "\n" || $0 == "\r\n" } ?? source.endIndex
+            let line = source[lineStart..<lineEnd].trimmingCharacters(in: .whitespaces)
+            lineCount += 1
+            if lineCount == 1 {
+                guard line == "---" else { return nil }
+            } else if line == "---" || line == "..." {
+                return (start..<lineEnd, lineCount)
+            }
+            guard lineEnd < source.endIndex else { return nil }
+            lineStart = source.index(after: lineEnd)
+        }
+    }
+
+    /// 用于撤销或重做 YAML 修改：只覆盖仍匹配的开头片段（可含插入时加的换行）。
+    static func replacingYAMLFrontMatterPrefix(_ expected: String, with replacement: String, in source: String) -> String? {
+        let offset = source.hasPrefix("\u{FEFF}") ? 1 : 0
+        guard let span = Range(NSRange(location: offset, length: expected.utf16.count), in: source),
+              source[span].utf8.elementsEqual(expected.utf8) else { return nil }
+        if let yaml = yamlFrontMatter(in: source) {
+            guard yaml.range.upperBound <= span.upperBound else { return nil }
+        } else if !expected.isEmpty {
+            return nil
+        }
+        return source.replacingCharacters(in: span, with: replacement)
+    }
+
     static func parseWithSource(_ source: String) -> (blocks: [MDBlock], groups: [SourceGroup], lines: [String]) {
         var text = source
         if text.hasPrefix("\u{FEFF}") { text.removeFirst() }
@@ -139,10 +171,9 @@ enum MarkdownCodec {
         var indents: [Int] = []   // 列表缩进栈，用于计算嵌套层级
         var i = 0
         // 文件开头的 YAML 信息（--- … ---，Obsidian、Hugo 等用）：原样保存
-        if lines.first?.trimmingCharacters(in: .whitespaces) == "---",
-           let end = lines.dropFirst().firstIndex(where: { ["---", "..."].contains($0.trimmingCharacters(in: .whitespaces)) }) {
-            blocks.append(.raw(lines[0...end].joined(separator: "\n")))
-            i = end + 1
+        if let frontMatter = yamlFrontMatter(in: source) {
+            i = frontMatter.lineCount
+            blocks.append(.raw(lines[..<i].joined(separator: "\n")))
         }
         var sources: [SourceGroup] = []
         var firstBlock = 0, firstLine = 0
@@ -291,25 +322,46 @@ enum MarkdownCodec {
                 blocks.append(.line(item))
                 continue
             }
-            if trimmed.lowercased().hasPrefix("<details") {
+            if trimmed.first == "<", let opening = detailsOpening(in: lines, at: i) {
                 indents = []
+                // 先消费完整的开标签，再解析内部；残缺或相似的标签走普通 HTML/正文。
+                i = opening.lastLine
+                var part = opening.rest
                 var body: [String] = []
-                var depth = 0
+                var trailing = ""
+                var depth = 1
                 var fence: Fence?   // 代码块里的 <details>、</details> 是代码，不算
-                repeat {
+                var inComment = false
+                var codeEnd: (line: Int, utf16Offset: Int)?
+                while true {
+                    var prefix = ""
                     if let f = fence {
-                        if isFenceClosing(lines[i], f) { fence = nil }
-                    } else if let f = fenceOpening(lines[i]) {
+                        if isFenceClosing(part, f) { fence = nil }
+                    } else if codeEnd.map({ i < $0.line }) == true {
+                        // 跨行代码 span 的中间行不参与 HTML 标签计数。
+                    } else if !inComment, codeEnd == nil, let f = fenceOpening(part) {
                         fence = f
-                    } else {
-                        let l = lines[i].lowercased()
-                        depth += l.components(separatedBy: "<details").count - 1
-                        depth -= l.components(separatedBy: "</details>").count - 1
+                    } else if inComment || codeEnd != nil || part.contains("<") || part.contains("`") {
+                        if !inComment, codeEnd == nil, i > opening.lastLine,
+                           let nested = detailsOpening(in: lines, at: i), nested.lastLine > i {
+                            depth += 1
+                            body.append(contentsOf: lines[i..<nested.lastLine])
+                            i = nested.lastLine
+                            part = nested.rest
+                            prefix = String(lines[i].dropLast(part.count))
+                        }
+                        if let close = detailsClosing(in: part, at: i, lines: lines, depth: &depth, inComment: &inComment, codeEnd: &codeEnd) {
+                            trailing = String(part[close.upperBound...])
+                            part = String(part[..<close.lowerBound])
+                        }
                     }
-                    body.append(lines[i])
+                    body.append(prefix + part)
                     i += 1
-                } while i < lines.count && depth > 0
-                blocks.append(details(body.joined(separator: "\n")))
+                    guard i < lines.count, depth > 0 else { break }
+                    part = lines[i]
+                }
+                blocks.append(details(body.joined(separator: "\n"), openingTag: opening.tag))
+                if !isBlank(trailing) { blocks.append(.raw(trailing)) }
                 continue
             }
             if isRawStart(line) {
@@ -532,16 +584,90 @@ enum MarkdownCodec {
         return flush() ? out : nil
     }
 
-    /// 解析 <details><summary>标题</summary>内容</details>
-    private static func details(_ text: String) -> MDBlock {
-        var inner = text
-        var open = false
-        if let r = inner.range(of: #"^\s*<details[^>]*>"#, options: [.regularExpression, .caseInsensitive]) {
-            open = inner[r].range(of: #"\sopen\b"#, options: [.regularExpression, .caseInsensitive]) != nil
-            inner.removeSubrange(r)
+    private static let detailsTokenPattern = re(
+        #"\\[\\`<]|`+|<!--|<details(?=[ \t]|/?>)(?:[^\"'<>]|\"[^\"]*\"|'[^']*')*>|</details[ \t]*>"#, .caseInsensitive)
+    private static let backtickPattern = re(#"`+"#)
+    private static let detailsNamePattern = re(#"^[ \t]*<details(?=$|[ \t]|/?>)"#, .caseInsensitive)
+    private static let detailsAttributePattern = re(
+        #"\s+([^\s=/>]+)(?:\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s>]+))?"#)
+
+    /// 只计真正的标签；行内代码和注释中的标签必须留在原文里。
+    private static func detailsClosing(
+        in line: String, at row: Int, lines: [String], depth: inout Int, inComment: inout Bool,
+        codeEnd: inout (line: Int, utf16Offset: Int)?
+    ) -> Range<String.Index>? {
+        var start = String.Index(utf16Offset: codeEnd?.utf16Offset ?? 0, in: line)
+        codeEnd = nil
+        func closeTicks(in text: String, from start: String.Index, count: Int) -> NSRange? {
+            backtickPattern.matches(in: text, range: NSRange(start..., in: text))
+                .first { $0.range.length == count && Range($0.range, in: text) != nil }?.range
         }
-        if let r = inner.range(of: #"</details>\s*$"#, options: [.regularExpression, .caseInsensitive]) {
-            inner.removeSubrange(r)
+        while start < line.endIndex {
+            if inComment {
+                guard let end = line.range(of: "-->", range: start..<line.endIndex) else { break }
+                start = end.upperBound
+                inComment = false
+                continue
+            }
+            guard let match = detailsTokenPattern.firstMatch(in: line, range: NSRange(start..., in: line)),
+                  let range = Range(match.range, in: line) else { break }
+            start = range.upperBound
+            let token = line[range]
+            if token.first == "`" {
+                let count = match.range.length
+                if let end = closeTicks(in: line, from: start, count: count) {
+                    start = String.Index(utf16Offset: NSMaxRange(end), in: line)
+                } else {
+                    for next in (row + 1)..<lines.count {
+                        let continuation = lines[next]
+                        if isBlank(continuation) || startsBlock(continuation) || isSetextUnderline(continuation) { break }
+                        if let end = closeTicks(in: continuation, from: continuation.startIndex, count: count) {
+                            codeEnd = (next, NSMaxRange(end))
+                            return nil
+                        }
+                    }
+                }
+            } else if token == "<!--" {
+                inComment = true
+            } else if token.hasPrefix("<") {
+                depth += token.hasPrefix("</") ? -1 : 1
+                if depth == 0 { return range }
+            }
+        }
+        return nil
+    }
+
+    private static func detailsOpening(in lines: [String], at start: Int) -> (tag: String, rest: String, lastLine: Int)? {
+        let first = lines[start]
+        guard let match = detailsNamePattern.firstMatch(in: first, range: NSRange(first.startIndex..., in: first)),
+              let name = Range(match.range, in: first) else { return nil }
+        var tag = String(first[name])
+        var quote: Character?
+        for i in start..<lines.count {
+            let fragment = i == start ? first[name.upperBound...] : lines[i][...]
+            if i != start, isBlank(lines[i]), quote == nil { return nil }
+            for index in fragment.indices {
+                let character = fragment[index]
+                if let activeQuote = quote {
+                    if character == activeQuote { quote = nil }
+                } else if character == "\"" || character == "'" {
+                    quote = character
+                } else if character == "<" {
+                    return nil
+                } else if character == ">" {
+                    return (tag + fragment[...index], String(fragment[fragment.index(after: index)...]), i)
+                }
+            }
+            tag += fragment + "\n"
+        }
+        return nil
+    }
+
+    /// 解析已剥除 <details> / </details> 的内容。
+    private static func details(_ text: String, openingTag: String) -> MDBlock {
+        var inner = text
+        let open = detailsAttributePattern.matches(in: openingTag, range: NSRange(openingTag.startIndex..., in: openingTag)).contains { match in
+            Range(match.range(at: 1), in: openingTag).map { openingTag[$0].lowercased() == "open" } == true
         }
         var summary = ""
         if let r = inner.range(of: #"^\s*<summary[^>]*>[\s\S]*?</summary>"#, options: [.regularExpression, .caseInsensitive]) {

@@ -185,14 +185,14 @@ private struct GeneralSettings: View {
 
 /// 设置 → 通用：Apple 私有云计算与本机模型调度策略（仅 macOS 27+ 显示）
 private struct AIModelPicker: View {
-    @AppStorage(AIModelPreference.storageKey) private var preference = AIModelPreference.auto.rawValue
+    @AppStorage(AIModelPreference.storageKey) private var preference = AIModelPreference.defaultValue
 
     var body: some View {
         Picker(selection: $preference) {
-            ForEach(AIModelPreference.allCases) { Text($0.title).tag($0.rawValue) }
+            ForEach(AIModelPreference.allCases) { Text($0.title).tag($0) }
         } label: {
             Text("智能模型")
-            Text("长文档自动使用 Apple 私有云计算以获得更好效果；离线时自动改用本机模型。")
+            Text("默认为仅本机。选择“自动”或“优先私有云”后，智能功能可能将相关文档内容发送给 Apple 私有云计算；云端不可用时改用本机模型。")
         }
     }
 }

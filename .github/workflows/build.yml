@@ -84,6 +84,7 @@ jobs:
           unzip -q "$f" -d pandoc_x
           cp pandoc_x/*/bin/pandoc packaging/pandoc/
           chmod +x packaging/pandoc/pandoc
+          python tools/test_pandoc_inline.py packaging/pandoc/pandoc
 
       # 小米官网在构建机上经常传到一半断开：下载成功一次后存进构建缓存，以后的构建直接用（脚本仍会校验 SHA-256）。
       # 缓存只有本仓库的构建能读，不是公开下载，字体文件仍不进仓库

@@ -12,9 +12,16 @@
 from __future__ import annotations
 
 import base64
+import ctypes
+import os
 import re
+import shutil
+import stat
 import subprocess
+import sys
+import tempfile
 import threading
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote
@@ -36,6 +43,7 @@ class Options:
     vision_lang: str = "zh-Hans"  # Apple Vision 的主要语言：zh-Hans / zh-Hant / ja-JP
     formulas: bool = False
     on_page: object = None  # Xiaomi-OCR-0 每页要几十秒，用它报告进度
+    inline_images: bool = False  # 快捷指令只返回单个 Markdown 文件
 
 
 _md_lock = threading.Lock()
@@ -53,33 +61,98 @@ def _markitdown():
         return _md_instance
 
 
-_UNSAFE_IN_LINK = re.compile(r"[\s#%?\[\]()<>]+")
+_UNSAFE_IN_LINK = re.compile(r"[\s#%?\[\]()<>\\]+")
 
 
-def images_dir_name(dst: Path) -> str:
-    """图片文件夹名：<文件名>_images，去掉会破坏 Markdown 链接的字符。
+def _images_prefix(dst: Path) -> str:
+    return _UNSAFE_IN_LINK.sub("_", dst.stem) + "_images"
 
-    “a b.md”和“a_b.md”清理后同名：别的文档正在用的文件夹不共用，否则重新转换会删掉它的图片。
-    """
-    stem = _UNSAFE_IN_LINK.sub("_", dst.stem)
-    others = []
-    for p in dst.parent.glob("*.md"):
-        if p.stem != dst.stem and _UNSAFE_IN_LINK.sub("_", p.stem) == stem:
-            try:
-                others.append(unquote(p.read_text(encoding="utf-8", errors="ignore")))   # 高精度模式写的路径里中文会被编码
-            except OSError:  # 名字以 .md 结尾的文件夹、读不了的文件：不影响转换
-                pass
-    name, n = f"{stem}_images", 2
-    while any(f"{name}/" in text for text in others):
-        name, n = f"{stem}_images_{n}", n + 1
+
+def _free_images_name(dst: Path) -> str:
+    prefix = name = _images_prefix(dst)
+    other_links = []
+    for other in dst.parent.iterdir():
+        if other != dst and other.suffix.lower() == ".md" and _images_prefix(other) == prefix and other.is_file():
+            with suppress(OSError):
+                other_links.append(unquote(other.read_text(encoding="utf-8", errors="ignore")))
+    n = 2
+    while os.path.lexists(dst.parent / name) or any(f"{name}/" in text for text in other_links):
+        name, n = f"{prefix}_{n}", n + 1
     return name
 
 
-def _write_text(dst: Path, text: str) -> None:
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dst.with_name(dst.name + ".part")
-    tmp.write_text(text, encoding="utf-8", newline="\n")
-    tmp.replace(dst)
+def _publish_media(src: Path, dst: Path) -> None:
+    # POSIX rename alone silently replaces an existing empty directory.
+    libc = ctypes.CDLL(None, use_errno=True)
+    if sys.platform == "darwin":
+        ok = libc.renamex_np(os.fsencode(src), os.fsencode(dst), ctypes.c_uint(0x4))  # RENAME_EXCL
+    else:
+        ok = libc.renameat2(-100, os.fsencode(src), -100, os.fsencode(dst), ctypes.c_uint(1))  # AT_FDCWD, RENAME_NOREPLACE
+    if ok != 0:
+        err = ctypes.get_errno()
+        raise OSError(err, os.strerror(err), str(dst))
+
+
+def _entry_id(st: os.stat_result) -> list[int] | None:
+    if stat.S_ISDIR(st.st_mode):
+        return [st.st_dev, st.st_ino]
+    if stat.S_ISREG(st.st_mode):
+        return [st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns]
+    return None
+
+
+def _remove_owned_media(folder: Path, entries: dict, root_id: list[int]) -> None:
+    # Directory descriptors keep traversal in the verified tree, not a replacement symlink.
+    def remove(parent, name, prefix, expected):
+        fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+        try:
+            if _entry_id(os.fstat(fd)) != expected:
+                return
+            for child in os.listdir(fd):
+                key = prefix + child
+                owned = entries.get(key)
+                with suppress(OSError):
+                    if isinstance(owned, list) and len(owned) == 2:
+                        remove(fd, child, key + "/", owned)
+                    elif owned is not None and _entry_id(os.stat(child, dir_fd=fd, follow_symlinks=False)) == owned:
+                        os.unlink(child, dir_fd=fd)
+            if _entry_id(os.stat(name, dir_fd=parent, follow_symlinks=False)) == expected:
+                os.rmdir(name, dir_fd=parent)   # Non-empty directories stay.
+        finally:
+            os.close(fd)
+
+    remove(None, folder, "", root_id)
+
+
+def _commit(tmp: Path, dst: Path, media: Path) -> None:
+    if not stat.S_ISREG(tmp.lstat().st_mode) or media.is_symlink():
+        raise ValueError("Unexpected entry in staged output")
+    entries = {}
+    if media.is_dir():
+        text = tmp.read_text(encoding="utf-8")
+        fixed = text.replace(media.name + "\\", media.name + "/")
+        if fixed != text:
+            tmp.write_text(fixed, encoding="utf-8")
+        for p in media.rglob("*"):
+            identity = _entry_id(p.lstat())
+            if identity is None:
+                raise ValueError("Unexpected entry in staged media")
+            entries[p.relative_to(media).as_posix()] = identity
+    if not any(len(v) == 4 for v in entries.values()):
+        tmp.replace(dst)
+        return
+
+    # Old media can still be linked from other documents. Never reuse or delete it.
+    published = dst.parent / media.name
+    root_id = _entry_id(media.lstat())
+    try:
+        _publish_media(media, published)
+        tmp.replace(dst)
+    finally:
+        # If rename committed the Markdown, it already references published images even if stopped now.
+        if tmp.exists() and not media.exists():
+            with suppress(OSError):
+                _remove_owned_media(published, entries, root_id)
 
 
 def _check_paths(src: Path, dst: Path) -> None:
@@ -103,12 +176,8 @@ def fill_empty_table_headers(text: str) -> str:
     return _EMPTY_HEADER.sub(r"\3\n\2", text)
 
 
-_OUR_IMAGE = re.compile(r"image\d+\.[A-Za-z0-9.+-]+")
-
-
-def _save_images(text: str, dst: Path) -> str:
-    """把内嵌在 Markdown 中的 data URI 图片存到“文件名_images”文件夹，改为相对路径引用。"""
-    folder = images_dir_name(dst)
+def _save_images(text: str, media: Path) -> str:
+    """在暂存区导出 data URI 图片，并生成提交后的相对链接。"""
     count = 0
 
     def save(m: re.Match) -> str:
@@ -120,93 +189,57 @@ def _save_images(text: str, dst: Path) -> str:
             return tr(f"<!-- 图片{('：' + alt) if alt else ''}无法读取 -->", f"<!-- Image{(': ' + alt) if alt else ''} can't be read -->", f"<!-- 圖片{('：' + alt) if alt else ''}無法讀取 -->")
         ext = {"jpeg": "jpg", "svg+xml": "svg"}.get(kind.lower(), kind.lower())
         count += 1
-        while (dst.parent / folder / f"image{count}.{ext}").exists():  # 不覆盖已有的文件：上次的图片要等新 .md 写好才删
-            count += 1
         name = f"image{count}.{ext}"
-        (dst.parent / folder).mkdir(parents=True, exist_ok=True)
-        (dst.parent / folder / name).write_bytes(raw)
-        return f"![{alt}]({folder}/{name})"
+        media.mkdir(exist_ok=True)
+        (media / name).write_bytes(raw)
+        return f"![{alt}]({media.name}/{name})"
 
     return _DATA_URI_IMG.sub(save, text)
 
 
-PANDOC_IMAGE = re.compile(r"image\d+\.[A-Za-z0-9]+")   # Pandoc 照 Word 里的名字导出：media/image1.png
-DOCLING_IMAGE = re.compile(r"image_\d{6}_[0-9a-f]+\.png")   # 高精度模式：image_000000_<哈希>.png
-
-
-def drop_unused_images(dst: Path, folder: str, text: str, ours: re.Pattern) -> None:
-    """重新转换后，删掉上次导出、新的 .md 已经不用的图片。只删本程序命名的，用户自己放的文件不动"""
-    d = dst.parent / folder
-    if not d.is_dir():
-        return
-    used = text + unquote(text)   # 高精度模式写的路径里中文会被编码
-    for p in d.rglob("*"):
-        if p.is_file() and ours.fullmatch(p.name) and p.relative_to(dst.parent).as_posix() not in used:
-            p.unlink()
-
-
-def convert_markitdown(src: Path, dst: Path) -> str:
+def convert_markitdown(src: Path, dst: Path, media: Path, inline_images: bool) -> str:
     result = _markitdown().convert_local(str(src), keep_data_uris=True)
     text = (result.markdown or "").strip()
     if not text:
         if src.suffix.lower() == ".pdf":
             raise ConversionError(tr("未能提取到文字，可能是扫描版（图片）PDF。请改用“高精度模式”。", "No text could be extracted; this may be a scanned (image) PDF. Use High Accuracy mode instead.", "未能擷取到文字，可能是掃描版（圖片）PDF。請改用「高精度模式」。"))
         raise ConversionError(tr("文件中没有可提取的内容。", "There is no content to extract in this file.", "檔案中沒有可擷取的內容。"))
-    existed = dst.exists()   # .md 还不存在时，同名文件夹不是本程序建的，里面的文件一个都不动
-    text = fill_empty_table_headers(_save_images(text, dst))
+    text = fill_empty_table_headers(text if inline_images else _save_images(text, media))
     if src.suffix.lower() == ".pdf":
         text = text.replace("\t", " ")
-    _write_text(dst, text + "\n")
-    if existed:   # 新 .md 写好后才删上次的图片：中途失败或停止时，旧 .md 的图片还在
-        drop_unused_images(dst, images_dir_name(dst), text, _OUR_IMAGE)
+    dst.write_text(text + "\n", encoding="utf-8")
     return tr("快速模式", "Fast mode", "快速模式")
 
 
 _LUA_FILTER = resource_root() / "packaging" / "pandoc_plain_images.lua"
 
 
-def convert_pandoc(src: Path, dst: Path) -> str:
+def convert_pandoc(src: Path, dst: Path, media: Path, inline_images: bool) -> str:
     exe = pandoc_path()
     if not exe:
         raise ConversionError(tr("找不到 Pandoc 组件，请改用 MarkItDown 引擎。", "Pandoc can't be found. Use the MarkItDown engine instead.", "找不到 Pandoc 元件，請改用 MarkItDown 引擎。"))
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    img_dir = images_dir_name(dst)
-    reconvert = dst.exists()   # .md 还不存在时，同名文件夹不是本程序建的，里面的文件一个都不动
-    tmp_name = dst.name + ".part"
-    args = [
-        exe, str(src),
-        "--from=docx", "--to=gfm", "--wrap=none",
-        "--sandbox",  # 限制 Pandoc 只读写命令行中指定的文件
-        f"--extract-media={img_dir}",
-        "-o", tmp_name,
-    ]
+    args = [os.path.abspath(exe), str(src.absolute()), "--from=docx", "--to=gfm", "--wrap=none", "--sandbox"]
+    if not inline_images:
+        # Pandoc can report media extraction failures as warnings; never commit those links.
+        args.extend([f"--extract-media={media.name}", "--fail-if-warnings"])
     if _LUA_FILTER.is_file():
-        args.insert(2, f"--lua-filter={_LUA_FILTER}")
+        args.append(f"--lua-filter={_LUA_FILTER}")
+    env = os.environ.copy()
+    env.pop("DROPMD_INLINE_IMAGES", None)
+    if inline_images:
+        env["DROPMD_INLINE_IMAGES"] = "1"
     proc = subprocess.run(
-        args, cwd=str(dst.parent), stdin=subprocess.DEVNULL,
-        capture_output=True, timeout=600,
+        [*args, "-o", dst.name], cwd=dst.parent, stdin=subprocess.DEVNULL,
+        capture_output=True, timeout=600, env=env,
     )
-    tmp = dst.parent / tmp_name
     if proc.returncode != 0:
-        tmp.unlink(missing_ok=True)
         err = proc.stderr.decode("utf-8", "replace").strip().splitlines()
         raise ConversionError(tr("Pandoc 转换失败：", "Pandoc failed: ", "Pandoc 轉換失敗：") + (err[-1] if err else tr("返回码 ", "exit code ", "傳回碼 ") + str(proc.returncode)))
-    # 保险起见，图片引用统一使用正斜杠
-    text = tmp.read_text(encoding="utf-8")
-    fixed = text.replace(img_dir + "\\", img_dir + "/")
-    if fixed != text:
-        tmp.write_text(fixed, encoding="utf-8", newline="\n")
-    tmp.replace(dst)
-    if reconvert:
-        drop_unused_images(dst, img_dir, fixed, PANDOC_IMAGE)
-    media = dst.parent / img_dir
-    n = sum(1 for p in media.rglob("*") if p.is_file()) if media.is_dir() else 0
+    n = sum(1 for p in media.rglob("*") if p.is_file())
     return tr(f"Pandoc；导出 {n} 张图片", f"Pandoc; {n} images exported", f"Pandoc；輸出 {n} 張圖片") if n else "Pandoc"
 
 
-def convert(src: Path, dst: Path, options: Options) -> str:
-    """转换单个文件，成功时返回简短说明，失败时抛出异常。"""
-    _check_paths(src, dst)
+def _render(src: Path, dst: Path, media: Path, options: Options) -> str:
     ext = src.suffix.lower()
     if ext == ".pdf" and options.mode == MODE_HQ:
         from . import hq
@@ -215,9 +248,26 @@ def convert(src: Path, dst: Path, options: Options) -> str:
             from . import xiaomi
 
             return xiaomi.convert_pdf(src, dst, options.on_page)
-        dst.parent.mkdir(parents=True, exist_ok=True)
         return hq.convert_pdf(src, dst, options.ocr_engine or hq.default_ocr_engine(), options.formulas,
-                              images_dir_name(dst), options.vision_lang)
+                              media.name, options.vision_lang)
     if ext == ".docx" and options.word_engine == WORD_PANDOC:
-        return convert_pandoc(src, dst)
-    return convert_markitdown(src, dst)
+        return convert_pandoc(src, dst, media, options.inline_images)
+    return convert_markitdown(src, dst, media, options.inline_images)
+
+
+def convert(src: Path, dst: Path, options: Options) -> str:
+    """每个任务在同卷独占暂存区写完，最后才替换目标 Markdown。"""
+    _check_paths(src, dst)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    stage = Path(tempfile.mkdtemp(prefix=".dropmd-", dir=dst.parent))
+    stage_id = _entry_id(stage.lstat())
+    try:
+        sidecars = not options.inline_images or (src.suffix.lower() == ".pdf" and options.mode == MODE_HQ)
+        tmp, media = stage / "output.md", stage / (_free_images_name(dst) if sidecars else "unused")
+        info = _render(src, tmp, media, options)
+        _commit(tmp, dst, media)
+        return info
+    finally:
+        with suppress(OSError):
+            if _entry_id(stage.lstat()) == stage_id:
+                shutil.rmtree(stage)

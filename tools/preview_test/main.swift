@@ -17,6 +17,15 @@ let calls = [
     if (!t.includes('后面的字') || !t.includes('也在')) throw new Error('公式后的文字丢了：' + t);
     return true
     """,
+    // 文档目录用作相对图片的 base 时，脚注和回跳仍锚定在 Quick Look 预览页。
+    """
+    DropMD.render('正文[^1]\\n\\n[^1]: 脚注', 'file:///tmp/dropmd-preview-assets/', 'zh-Hans');
+    const ref = document.querySelector('.footnote-ref a');
+    const back = document.querySelector('.footnote-backref');
+    const page = location.href.split('#')[0];
+    if (ref?.href !== page + '#fn1' || back?.href !== page + '#fnref1') throw new Error('脚注目标不在预览页');
+    return true
+    """,
     // 导出的 HTML 不带只给预览用的行号
     """
     const h = DropMD.exportBody('# a\\n\\n$$\\nx\\n$$');

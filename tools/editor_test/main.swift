@@ -127,6 +127,19 @@ MainActor.assumeIsolated {
             let raw = "# Title\nsome 中文 text\n".data(using: e)!
             let d = try? MarkdownDocument(data: raw)
             check("无 BOM UTF-16 \(name)", "\(d?.text.hasPrefix("# Title") == true) \(d?.data() == raw)", "true true")
+            let ascii = "# Title\r\n\r\nASCII body\t\n"
+            let asciiData = ascii.data(using: e)!
+            var asciiDoc = try! MarkdownDocument(data: asciiData)
+            check("ASCII 无 BOM UTF-16 \(name) 解码", asciiDoc.text, ascii)
+            check("ASCII 无 BOM UTF-16 \(name) 字节往返", "\(asciiDoc.data() == asciiData)", "true")
+            asciiDoc.text += "新的内容"
+            check("ASCII 无 BOM UTF-16 \(name) 改后保留编码", "\(asciiDoc.data() == asciiDoc.text.data(using: e))", "true")
+        }
+        for input in ["# ASCII\r\n", "# 文本\n", "a\0bc", "a\0é"] {
+            let raw = Data(input.utf8)
+            let doc = try! MarkdownDocument(data: raw)
+            check("UTF-8 不误判：\(input.debugDescription)", doc.text, input)
+            check("UTF-8 字节往返：\(input.debugDescription)", "\(doc.data() == raw)", "true")
         }
         check("新文档是 UTF-8", String(data: MarkdownDocument(text: "新").data(), encoding: .utf8) ?? "", "新")
     }
@@ -2285,6 +2298,17 @@ MainActor.assumeIsolated {
               "true true true true true true true")
 
         // 模型偏好与私有云策略
+        if let defaults = UserDefaults(suiteName: "DropMD.AIModelPreference.tests.\(UUID())") {
+            let key = AIModelPreference.storageKey
+            check("模型偏好：未设置时仅本机", AIModelPreference.stored(in: defaults).rawValue, "onDeviceOnly")
+            defaults.set("invalid", forKey: key)
+            check("模型偏好：无效值回退仅本机", AIModelPreference.stored(in: defaults).rawValue, "onDeviceOnly")
+            for explicit in [AIModelPreference.auto, .preferCloud, .onDeviceOnly] {
+                defaults.set(explicit.rawValue, forKey: key)
+                check("模型偏好：保留明确选择 \(explicit.rawValue)", AIModelPreference.stored(in: defaults).rawValue, explicit.rawValue)
+            }
+            defaults.removeObject(forKey: key)
+        }
         check("模型策略：仅本机始终不用云", "\(SiriAIManager.shouldUsePrivateCloud(preference: .onDeviceOnly, contentLength: 50000))", "false")
         check("模型策略：优先私有云短文也用云", "\(SiriAIManager.shouldUsePrivateCloud(preference: .preferCloud, contentLength: 20))", "true")
         check("模型策略：自动短文用本机、长文用云",
@@ -2327,6 +2351,19 @@ MainActor.assumeIsolated {
         check("文档属性写入：已有 YAML 时替换不重复",
               SiriAIManager.upsertYAMLFrontMatter(yaml, into: docWithYAML),
               yaml + "\n\n# 标题\n\n正文内容。\n")
+        let bom = "\u{FEFF}", crlfYAML = yaml.replacingOccurrences(of: "\n", with: "\r\n")
+        let adjacentHTML = "\r\n<div>紧贴 YAML 的 HTML</div> \r\n\n  # 标题\n正文"
+        check("文档属性写入：保留紧贴 raw、BOM、混合换行和文末无换行",
+              SiriAIManager.upsertYAMLFrontMatter(yaml, into: bom + " ---\t\r\ntitle: Old\r\n  ...  " + adjacentHTML),
+              bom + crlfYAML + adjacentHTML)
+        let leadingBlank = "\r\n---\nnot YAML\n---\n\n尾端  \r\n\r\n"
+        check("文档属性写入：YAML 必须在首行，保留正文首尾空白",
+              SiriAIManager.upsertYAMLFrontMatter(yaml, into: bom + leadingBlank),
+              bom + crlfYAML + "\r\n\r\n" + leadingBlank)
+        check("文档属性写入：无闭合标记时不删除旧内容",
+              SiriAIManager.upsertYAMLFrontMatter(yaml, into: "---\n原文"), yaml + "\n\n---\n原文")
+        check("文档属性写入：文末仅有 YAML、没有换行",
+              SiriAIManager.upsertYAMLFrontMatter(yaml, into: "---\nold: 1\n..."), yaml)
 
         // 文档问答上下文筛选：优先保留匹配关键词段落
         let qaParas = [

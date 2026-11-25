@@ -93,7 +93,6 @@ struct RichTextEditor: NSViewRepresentable {
         guard let tv = scroll.documentView as? RichTextView else { return }
         controller.richView = tv
         let baseChanged = tv.baseURL != baseURL
-        tv.baseURL = baseURL
         // 首次显示，或文档被外部修改（“恢复到上一版本”、在双页左边的原文里编辑）时重新载入
         if text != context.coordinator.lastMarkdown || baseChanged {
             // 双页里正在左边打字：停顿一下再载入，连续输入不卡
@@ -144,28 +143,53 @@ struct RichTextEditor: NSViewRepresentable {
 
         /// 左边改了字、右边还在等着重排：马上排好
         @MainActor func reloadIfPending(_ tv: RichTextView) {
-            if reloadWork != nil { reload(tv) }
+            if reloadWork != nil || tv.baseURL != parent.baseURL { reload(tv) }
+        }
+
+        /// 直接编辑源码中的 YAML；撤销和重做也只替换该片段，不回退后来修改的正文。
+        @discardableResult
+        @MainActor func replaceYAMLFrontMatter(_ previous: String, with replacement: String, in tv: RichTextView) -> Bool {
+            guard pendingView == nil, !tv.hasMarkedText(),
+                  let updated = MarkdownCodec.replacingYAMLFrontMatterPrefix(previous, with: replacement, in: parent.text) else { return false }
+            guard !previous.utf8.elementsEqual(replacement.utf8) else { return true }
+            tv.undoManager?.registerUndo(withTarget: self) { [weak tv] coordinator in
+                guard let tv else { return }
+                MainActor.assumeIsolated {
+                    coordinator.flush()
+                    coordinator.replaceYAMLFrontMatter(replacement, with: previous, in: tv)
+                }
+            }
+            parent.text = updated
+            reload(tv, preservesUndo: true)
+            return true
         }
 
         /// 按文档的 Markdown 重新排单页；光标和滚动位置尽量不变（双页里左边改了字，右边不跳回顶部）
-        @MainActor func reload(_ tv: RichTextView) {
+        @MainActor func reload(_ tv: RichTextView, preservesUndo: Bool = false) {
             reloadWork?.cancel()
             reloadWork = nil
-            guard let storage = tv.textStorage else { return }
+            // 目录改变时等单页修改写回；这时绑定尚没有刚打的字。
+            guard pendingView == nil, !tv.hasMarkedText(), let storage = tv.textStorage else { return }
             let text = parent.text
-            guard text != lastMarkdown || tv.baseURL != parent.baseURL || storage.length == 0 else { return }
+            let textChanged = text != lastMarkdown
+            guard textChanged || tv.baseURL != parent.baseURL || storage.length == 0 else { return }
             lastMarkdown = text
+            tv.baseURL = parent.baseURL
             let clip = tv.enclosingScrollView?.contentView
             let origin = clip?.bounds.origin
             let selection = tv.selectedRange()
             let (content, map) = RichBridge.attributedWithLineMap(markdown: text, baseURL: parent.baseURL)
+            // 路径变更也可能把图片占位文字变成单字符附件，旧撤销操作的偏移此时已失效。
+            if !preservesUndo, textChanged || storage.string != content.string {
+                tv.undoManager?.removeAllActions(withTarget: storage)
+            }
             storage.setAttributedString(content)
             let length = storage.length
-            tv.setSelectedRange(NSRange(location: min(selection.location, length), length: 0))
+            let caret = min(selection.location, length)
+            tv.setSelectedRange(NSRange(location: caret, length: textChanged ? 0 : min(selection.length, length - caret)))
             tv.typingAttributes = length > 0
                 ? storage.attributes(at: min(tv.selectedRange().location, length - 1), effectiveRange: nil)
                 : RichStyle.typingAttributes(for: .body)
-            tv.undoManager?.removeAllActions(withTarget: storage)
             if let clip, let origin {
                 clip.scroll(to: origin)
                 tv.enclosingScrollView?.reflectScrolledClipView(clip)
@@ -199,6 +223,9 @@ struct RichTextEditor: NSViewRepresentable {
 
         func textDidEndEditing(_ notification: Notification) {
             flush()
+            MainActor.assumeIsolated {
+                if let tv = notification.object as? RichTextView, tv.baseURL != parent.baseURL { reload(tv) }
+            }
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
@@ -249,6 +276,7 @@ struct RichTextEditor: NSViewRepresentable {
             MainActor.assumeIsolated {
                 parent.controller.richTextEdited = false
                 parent.controller.richMarkdown = md
+                if let tv = tv as? RichTextView, tv.baseURL != parent.baseURL { reload(tv) }
                 parent.controller.syncSourceMark()
             }
         }

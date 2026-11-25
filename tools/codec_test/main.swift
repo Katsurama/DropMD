@@ -63,6 +63,29 @@ check("footnote", "正文[^1]\n\n[^1]: 脚注内容\n")
 check("details", "<details>\n<summary>点击展开 & 查看</summary>\n\n- 项目\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n</details>\n", "<details>\n<summary>点击展开 &amp; 查看</summary>\n\n- 项目\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n</details>\n")
 // 单页表示不了的写法：原样保存，或换成意思相同的写法
 check("YAML 信息", "---\ntitle: 测试\ntags: [a, b]\n---\n\n正文\n")
+do {
+    let front = " ---\t\r\ntitle: Old\r\n...  "
+    let body = "\r\n<div>HTML</div>\n正文"
+    let source = "\u{FEFF}" + front + body
+    let found = MarkdownCodec.yamlFrontMatter(in: source)
+    let ok = found.map { String(source[$0.range]) == front && String(source[$0.range.upperBound...]) == body && $0.lineCount == 3 } == true
+        && MarkdownCodec.yamlFrontMatter(in: "\n" + source.dropFirst()) == nil
+        && MarkdownCodec.yamlFrontMatter(in: "---\n无闭合标记") == nil
+    print(ok ? "ok   YAML range excludes BOM and adjacent body" : "FAIL YAML range excludes BOM and adjacent body")
+    if !ok { failures += 1 }
+
+    let bom = "\u{FEFF}", newFront = "---\r\ntitle: New\r\n---"
+    let editedBody = "\r\n<div>源文修改</div>\n后来输入，文末无换行"
+    let inserted = newFront + "\r\n\r\n"
+    let inverseOK = MarkdownCodec.replacingYAMLFrontMatterPrefix(newFront, with: front, in: bom + newFront + editedBody) == bom + front + editedBody
+        && MarkdownCodec.replacingYAMLFrontMatterPrefix(inserted, with: "", in: bom + inserted + editedBody) == bom + editedBody
+        && MarkdownCodec.replacingYAMLFrontMatterPrefix("", with: inserted, in: bom + editedBody) == bom + inserted + editedBody
+        && MarkdownCodec.replacingYAMLFrontMatterPrefix("", with: inserted, in: source) == nil
+        && MarkdownCodec.replacingYAMLFrontMatterPrefix(newFront, with: front, in: source) == nil
+        && MarkdownCodec.replacingYAMLFrontMatterPrefix(newFront, with: front, in: newFront + "文末分隔不是 YAML") == nil
+    print(inverseOK ? "ok   YAML undo/redo preserves later body edits and rejects conflicts" : "FAIL YAML undo/redo preserves later body edits and rejects conflicts")
+    if !inverseOK { failures += 1 }
+}
 check("引用式链接", "见[说明][1]和[另一个][]。\n\n[1]: https://example.com \"标题\"\n[另一个]: https://example.org\n")
 check("强制换行", "行一  \n行二\\\n行三\n", "行一<br>行二<br>行三\n")
 check("行尾的普通反斜杠", "路径 C:\\\\\n下一行\n")
@@ -107,7 +130,21 @@ check("列表续行（缩进）", "- 一\n  接着写\n  - 子项\n    子项续
 check("引用续行不带 >", "> 引用一\n接着写\n\n正文\n", "> 引用一\n> 接着写\n\n正文\n")
 check("引用空行后的正文", "> 引用\n>\n正文\n", "> 引用\n>\n\n正文\n")
 check("details open", "<details open>\n<summary>标题</summary>\n\n内容\n\n</details>\n")
+check("details multiline opener", "<details\n  open data-x=\">\">\n<summary>标题</summary>\n\n内容\n\n</details>\n", "<details open>\n<summary>标题</summary>\n\n内容\n\n</details>\n")
+check("details multiline nested opener", "<details>\n<summary>外</summary>\n\n<details\n open>\n<summary>内</summary>\n\n内容\n\n</details>\n\n外层内容\n\n</details>\n", "<details>\n<summary>外</summary>\n\n<details open>\n<summary>内</summary>\n\n内容\n\n</details>\n\n外层内容\n\n</details>\n")
+check("details prefix is not a tag", "<details-widget>相似标签</details-widget>\n\n# 后文\n")
+check("details similar nested tag does not consume following text", "<DETAILS data-x=\" open > \" >\n<summary>标题</summary>\n\n<details-other>内文</details-other>\n\n</DETAILS >\n\n# 后文\n", "<details>\n<summary>标题</summary>\n\n<details-other>内文</details-other>\n\n</details>\n\n# 后文\n")
+for input in ["<details", "<details open", "<details data-x=\">\"", "<details open\n\n# 后文"] {
+    let parsed = MarkdownCodec.parse(input)
+    let remainsLiteral = !parsed.contains { if case .details = $0 { return true }; return false }
+        && MarkdownCodec.serialize(parsed, preserving: input) == input
+    print(remainsLiteral ? "ok   incomplete details: \(input.debugDescription)" : "FAIL incomplete details: \(input.debugDescription)")
+    if !remainsLiteral { failures += 1 }
+}
 check("details nested", "前\n\n<details><summary>外</summary>\n\n<details>\n<summary>内</summary>\n\n内容\n\n</details>\n\n</details>\n\n后\n", "前\n\n<details>\n<summary>外</summary>\n\n<details>\n<summary>内</summary>\n\n内容\n\n</details>\n\n</details>\n\n后\n")
+check("details tags inside inline code remain literal", "<details>\n<summary>标题</summary>\n\n保留 `</details>` 和 `` `<details>` ``。\n\n还有内容。\n\n</details>\n\n# 后文\n")
+check("details tags inside multiline inline code remain literal", "<details>\n<summary>标题</summary>\n\n保留 `第一行\n还有 </details>\n第三行`。\n\n还有内容。\n\n</details>\n\n# 后文\n")
+check("details tags inside HTML comments remain literal", "<details>\n<summary>标题</summary>\n\n<!-- 行内 </details> -->\n\n<!--\n</details>\n<details\n open>\n` -->\n\n还有内容。\n\n</details>\n\n# 后文\n")
 check("sup sub kbd", "H<sub>2</sub>O 与 x<sup>2</sup>，按 <kbd>⌘S</kbd> 保存\n")
 check("line break", "第一行<br>第二行\n")
 check("html tags", "<b>粗</b> <mark>亮</mark>\n", "**粗** ==亮==\n")

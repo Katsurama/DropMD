@@ -16,6 +16,7 @@ import sys
 import threading
 from pathlib import Path
 
+from .errors import ConversionError, tr
 from .models import missing_components, required_components
 from .paths import models_dir
 
@@ -96,8 +97,6 @@ def get_converter(ocr_engine: str, formulas: bool, vision_lang: str = "zh-Hans")
         if key not in _cache:
             missing = missing_components(required_components(formulas))
             if missing:
-                from .errors import ConversionError, tr
-
                 raise ConversionError(
                     tr("高精度模型尚未下载：", "High-accuracy models aren't downloaded yet: ", "高精度模型尚未下載：")
                     + tr("、", ", ", "、").join(c.title for c in missing)
@@ -108,43 +107,20 @@ def get_converter(ocr_engine: str, formulas: bool, vision_lang: str = "zh-Hans")
 
 def convert_pdf(src: Path, dst: Path, ocr_engine: str, formulas: bool, images_dir_name: str,
                 vision_lang: str = "zh-Hans") -> str:
-    """转换 PDF，Markdown 写入 dst，图片写入 dst 同级的 images_dir_name 文件夹。"""
+    """把完整的 Docling 结果导出至任务暂存区。"""
+    from docling.datamodel.base_models import ConversionStatus
     from docling_core.types.doc import ImageRefMode
 
-    from .converters import DOCLING_IMAGE, drop_unused_images
-
-    reconvert = dst.exists()   # .md 还不存在时，同名文件夹不是本程序建的，里面的文件一个都不动
     converter = get_converter(ocr_engine, formulas, vision_lang)
     result = converter.convert(str(src), raises_on_error=True)
+    if result.status == ConversionStatus.PARTIAL_SUCCESS:
+        raise ConversionError(tr("只识别了部分页面，未保存不完整的结果。", "Only part of the PDF was recognized; the incomplete result was not saved.", "只辨識了部分頁面，未儲存不完整的結果。"))
+    if result.status != ConversionStatus.SUCCESS:
+        raise ConversionError(tr("PDF 转换未完成。", "The PDF conversion did not complete.", "PDF 轉換未完成。"))
     doc = result.document
-
-    tmp = dst.with_name(dst.name + ".part")
-    doc.save_as_markdown(
-        tmp,
-        artifacts_dir=Path(images_dir_name),
-        image_mode=ImageRefMode.REFERENCED,
-    )
-    # 保险起见，图片引用统一使用 Markdown 通用的正斜杠
-    text = tmp.read_text(encoding="utf-8")
-    if not text.strip():  # 空白页：不生成空文件，也不覆盖原来的 .md
-        tmp.unlink()
-        if (dst.parent / images_dir_name).is_dir() and not any((dst.parent / images_dir_name).iterdir()):
-            (dst.parent / images_dir_name).rmdir()
-        from .errors import ConversionError, tr
-
+    doc.save_as_markdown(dst, artifacts_dir=Path(images_dir_name), image_mode=ImageRefMode.REFERENCED)
+    if not dst.read_text(encoding="utf-8").strip():
         raise ConversionError(tr("没有识别到文字。", "No text was recognized.", "沒有辨識到文字。"))
-    fixed = text.replace(images_dir_name + "\\", images_dir_name + "/")
-    if fixed != text:
-        tmp.write_text(fixed, encoding="utf-8")
-    tmp.replace(dst)
-    if reconvert:
-        drop_unused_images(dst, images_dir_name, fixed, DOCLING_IMAGE)
-
-    img_dir = dst.parent / images_dir_name
-    if img_dir.is_dir() and not any(img_dir.iterdir()):
-        img_dir.rmdir()
-
-    from .errors import tr
 
     n_pics = len(getattr(doc, "pictures", []) or [])
     if n_pics:

@@ -17,6 +17,7 @@ enum AIModelPreference: String, CaseIterable, Identifiable {
     case preferCloud
 
     static let storageKey = "aiModelPreference"
+    static let defaultValue: Self = .onDeviceOnly
 
     var id: String { rawValue }
 
@@ -28,9 +29,10 @@ enum AIModelPreference: String, CaseIterable, Identifiable {
         }
     }
 
-    static var current: AIModelPreference {
-        let raw = UserDefaults.standard.string(forKey: storageKey) ?? ""
-        return AIModelPreference(rawValue: raw) ?? .auto
+    static var current: Self { stored(in: .standard) }
+
+    static func stored(in defaults: UserDefaults) -> Self {
+        defaults.string(forKey: storageKey).flatMap(Self.init(rawValue:)) ?? defaultValue
     }
 }
 
@@ -427,23 +429,23 @@ enum SiriAIManager {
         return out.joined(separator: "\n")
     }
 
-    /// 若文档开头已有 `---` YAML 块则替换之，否则插入文档开头并空一行
-    static func upsertYAMLFrontMatter(_ yaml: String, into markdown: String) -> String {
+    /// 只替换 YAML 的行，或在 BOM 之后插入；正文的换行和空白不参与解析、重写。
+    static func yamlFrontMatterEdit(_ yaml: String, in markdown: String) -> (range: Range<String.Index>, replacement: String)? {
         let cleanYAML = yaml.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanYAML.isEmpty else { return markdown }
-        let normalized = markdown.replacingOccurrences(of: "\r\n", with: "\n")
-        let (blocks, groups, lines) = MarkdownCodec.parseWithSource(normalized)
-        var bodyStartLine = 0
-        if let first = groups.first,
-           first.blocks.lowerBound < blocks.count,
-           case .raw(let rawText) = blocks[first.blocks.lowerBound],
-           rawText.trimmingCharacters(in: .whitespaces).hasPrefix("---") {
-            bodyStartLine = first.lines.upperBound
+        guard !cleanYAML.isEmpty else { return nil }
+        let newline = markdown.first { $0 == "\n" || $0 == "\r\n" } == "\r\n" ? "\r\n" : "\n"
+        let replacement = cleanYAML.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\n", with: newline)
+        if let existing = MarkdownCodec.yamlFrontMatter(in: markdown) {
+            return (existing.range, replacement)
         }
-        let body = lines[min(bodyStartLine, lines.count)...]
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .newlines)
-        return body.isEmpty ? cleanYAML + "\n" : cleanYAML + "\n\n" + body + "\n"
+        let start = markdown.hasPrefix("\u{FEFF}") ? markdown.index(after: markdown.startIndex) : markdown.startIndex
+        return (start..<start, replacement + newline + (start == markdown.endIndex ? "" : newline))
+    }
+
+    static func upsertYAMLFrontMatter(_ yaml: String, into markdown: String) -> String {
+        guard let edit = yamlFrontMatterEdit(yaml, in: markdown) else { return markdown }
+        return markdown.replacingCharacters(in: edit.range, with: edit.replacement)
     }
 
     /// 为问答准备文档上下文：短文保留全文，长文保留开头概览并按问题关键词挑选最相关段落
