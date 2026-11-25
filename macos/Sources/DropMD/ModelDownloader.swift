@@ -164,7 +164,9 @@ final class ModelDownloader: @unchecked Sendable {
             while let chunk = try handle.read(upToCount: 4 << 20), !chunk.isEmpty { hasher.update(data: chunk) }
             let hex = hasher.finalize().map { String(format: "%02x", $0) }.joined()
             guard hex == blobId.lowercased() else { throw DownloadError.integrity(sibling.rfilename) }
+            return
         }
+        throw DownloadError.integrity(sibling.rfilename)
     }
 
     /// 下载缺少的模型组件。progress(已下载字节, 总字节, 当前说明)
@@ -209,8 +211,22 @@ final class ModelDownloader: @unchecked Sendable {
                 done += f.byteCount
                 progress(done, total, label)
             }
-            try? FileManager.default.removeItem(at: final)
-            try FileManager.default.moveItem(at: partial, to: final)
+            let fm = FileManager.default
+            let backup = modelsDir.appendingPathComponent(c.folder + ".old", isDirectory: true)
+            try? fm.removeItem(at: backup)
+            let hadOld = fm.fileExists(atPath: final.path)
+            if hadOld {
+                try fm.moveItem(at: final, to: backup)
+            }
+            do {
+                try fm.moveItem(at: partial, to: final)
+                if hadOld { try? fm.removeItem(at: backup) }
+            } catch {
+                if hadOld, !fm.fileExists(atPath: final.path) {
+                    try? fm.moveItem(at: backup, to: final)
+                }
+                throw error
+            }
             guard FileManager.default.fileExists(atPath: modelsDir.appendingPathComponent(c.marker).path) else {
                 throw DownloadError.missingMarker(c.title)
             }

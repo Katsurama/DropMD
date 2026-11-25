@@ -15,12 +15,21 @@ final class MathRenderer: NSObject, WKNavigationDelegate {
     /// 预览页面（含 KaTeX）；只用 swift run 开发时没有，公式就显示原文
     var pageURL: URL? = Bundle.main.resourceURL?.appendingPathComponent("preview/preview.html")
 
+    private final class CachedResult {
+        let result: Result
+        init(_ result: Result) { self.result = result }
+    }
+
     private var webView: WKWebView?
     private var window: NSWindow?
     private var ready = false
     private var queue: [(key: String, latex: String, display: Bool, size: CGFloat)] = []
     private var waiting: [String: [(Result?) -> Void]] = [:]
-    private var cache: [String: Result] = [:]
+    private let cache: NSCache<NSString, CachedResult> = {
+        let c = NSCache<NSString, CachedResult>()
+        c.countLimit = 256
+        return c
+    }()
     private var busy = false
     /// 等页面加载好的导出
     private var loadWaiters: [CheckedContinuation<Void, Never>] = []
@@ -59,7 +68,7 @@ final class MathRenderer: NSObject, WKNavigationDelegate {
 
     func render(_ latex: String, display: Bool, size: CGFloat, completion: @escaping (Result?) -> Void) {
         let key = "\(display ? "D" : "I")\(size)|\(latex)"
-        if let r = cache[key] { return completion(r) }
+        if let r = cache.object(forKey: key as NSString)?.result { return completion(r) }
         guard let url = pageURL, FileManager.default.fileExists(atPath: url.path) else { return completion(nil) }
         if waiting[key] != nil { waiting[key]!.append(completion); return }
         waiting[key] = [completion]
@@ -157,7 +166,7 @@ final class MathRenderer: NSObject, WKNavigationDelegate {
     }
 
     private func finish(_ key: String, _ result: Result?) {
-        if let result { cache[key] = result }
+        if let result { cache.setObject(CachedResult(result), forKey: key as NSString) }
         let done = waiting.removeValue(forKey: key) ?? []
         busy = false
         for c in done { c(result) }

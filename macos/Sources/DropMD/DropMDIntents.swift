@@ -118,17 +118,21 @@ struct ConvertFileToMarkdownIntent: AppIntent {
 
         let rawLast = (file.filename as NSString).lastPathComponent
         let safeName = (rawLast.isEmpty || rawLast == "." || rawLast == "..") ? "input" : rawLast
+        let inDir = workDir.appendingPathComponent("in", isDirectory: true)
+        let outDir = workDir.appendingPathComponent("out", isDirectory: true)
+        try fm.createDirectory(at: inDir, withIntermediateDirectories: true)
+        try fm.createDirectory(at: outDir, withIntermediateDirectories: true)
         let srcURL: URL
         if let original = file.fileURL, fm.fileExists(atPath: original.path) {
             srcURL = original
         } else {
-            let localCopy = workDir.appendingPathComponent(safeName)
+            let localCopy = inDir.appendingPathComponent(safeName)
             try file.data.write(to: localCopy)
             srcURL = localCopy
         }
 
         let baseName = srcURL.deletingPathExtension().lastPathComponent
-        let dstURL = workDir.appendingPathComponent("\(baseName).md")
+        let dstURL = outDir.appendingPathComponent("\(baseName).md")
 
         let payload: [String: Any] = [
             "jobs": [["src": srcURL.path, "dst": dstURL.path]],

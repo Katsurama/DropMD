@@ -545,16 +545,33 @@ enum MarkdownCodec {
         }
         var summary = ""
         if let r = inner.range(of: #"^\s*<summary[^>]*>[\s\S]*?</summary>"#, options: [.regularExpression, .caseInsensitive]) {
-            summary = String(inner[r])
-                .replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression)
-                .replacingOccurrences(of: "&lt;", with: "<")
-                .replacingOccurrences(of: "&gt;", with: ">")
-                .replacingOccurrences(of: "&quot;", with: "\"")
-                .replacingOccurrences(of: "&amp;", with: "&")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            summary = decodeHTMLEntities(
+                String(inner[r]).replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression),
+                nbspAsSpace: true
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
             inner.removeSubrange(r)
         }
         return .details(summary: summary, body: parse(inner), open: open)
+    }
+
+    private static let htmlEntityRegex = re(#"&(#[0-9]+|#[xX][0-9a-fA-F]+|[a-zA-Z]+);"#)
+
+    /// 解码常见命名及十进制/十六进制 HTML 实体；`nbspAsSpace` 为 true 时将 `&nbsp;` 转普通空格
+    static func decodeHTMLEntities(_ s: String, nbspAsSpace: Bool = false) -> String {
+        guard s.contains("&") else { return s }
+        let nbsp = nbspAsSpace ? " " : "\u{00A0}"
+        let names = ["amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": nbsp]
+        var out = s
+        for m in htmlEntityRegex.matches(in: s, range: NSRange(s.startIndex..., in: s)).reversed() {
+            guard let whole = Range(m.range, in: out), let body = Range(m.range(at: 1), in: out) else { continue }
+            let name = String(out[body])
+            let lower = name.lowercased()
+            let value: UInt32? = lower.hasPrefix("#x") ? UInt32(lower.dropFirst(2), radix: 16)
+                : lower.hasPrefix("#") ? UInt32(lower.dropFirst()) : nil
+            let char = value.flatMap(Unicode.Scalar.init).map { $0 == "\u{00A0}" ? nbsp : String(Character($0)) } ?? names[lower]
+            if let char { out.replaceSubrange(whole, with: char) }
+        }
+        return out
     }
 
     // MARK: - 块级语法的识别

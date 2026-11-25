@@ -16,7 +16,6 @@ extension RichTextView {
     private static let htmlItalic = try! NSRegularExpression(pattern: #"(^|[;\s"'])font-style\s*:\s*italic"#, options: .caseInsensitive)   // 不算 Word 的 mso-bidi-font-style
     private static let htmlBold = try! NSRegularExpression(pattern: #"(^|[;\s"'])font-weight\s*:\s*(bold|[6-9]00)"#, options: .caseInsensitive)
     private static let htmlNotBold = try! NSRegularExpression(pattern: #"(^|[;\s"'])font-weight\s*:\s*(normal|[1-4]00)"#, options: .caseInsensitive)   // Google 文档整篇包在 <b style="font-weight:normal"> 里
-    private static let htmlEntity = try! NSRegularExpression(pattern: #"&(#[0-9]+|#[xX][0-9a-fA-F]+|[a-z]+);"#)
 
     /// HTML 里的一段文字：是否粗体、斜体，属于几级标题（0 = 不是标题）
     static func htmlChunks(_ html: String) -> [(text: String, bold: Bool, italic: Bool, heading: Int)] {
@@ -37,28 +36,13 @@ extension RichTextView {
                     open.append((tag, ((tag == "b" || tag == "strong") && !has(notBold)) || has(boldStyle), tag == "em" || tag == "i" || has(italicStyle)))
                 }
             } else if ns.character(at: m.range.location) != 60, !open.contains(where: { hidden.contains($0.tag) }) {   // 60 = <，即注释
-                let text = decodeEntities(ns.substring(with: m.range))
+                let text = MarkdownCodec.decodeHTMLEntities(ns.substring(with: m.range), nbspAsSpace: true)
                     .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
                     .trimmingCharacters(in: .whitespaces)
                 if text.isEmpty { continue }
                 let level = open.last { $0.tag.count == 2 && $0.tag.first == "h" }.flatMap { Int($0.tag.dropFirst()) } ?? 0
                 out.append((text, open.contains { $0.bold }, open.contains { $0.italic }, (1...6).contains(level) ? level : 0))
             }
-        }
-        return out
-    }
-
-    private static func decodeEntities(_ s: String) -> String {
-        guard s.contains("&") else { return s }
-        let names = ["amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": " "]
-        let entity = htmlEntity
-        var out = s
-        for m in entity.matches(in: s, range: NSRange(s.startIndex..., in: s)).reversed() {
-            guard let whole = Range(m.range, in: out), let body = Range(m.range(at: 1), in: out) else { continue }
-            let name = String(out[body])
-            let value: UInt32? = name.lowercased().hasPrefix("#x") ? UInt32(name.dropFirst(2), radix: 16) : name.hasPrefix("#") ? UInt32(name.dropFirst()) : nil
-            let char = value.flatMap(Unicode.Scalar.init).map { $0 == "\u{A0}" ? " " : String(Character($0)) } ?? names[name]
-            if let char { out.replaceSubrange(whole, with: char) }
         }
         return out
     }

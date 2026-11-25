@@ -37,7 +37,10 @@ enum AppUpdateInstaller {
     static func replaceAfterExit(pid: Int32, app: URL, staged: URL, relaunch: Bool) throws {
         let script = """
         pid="$1"; app="$2"; new="$3"; relaunch="$4"; n=0
-        while kill -0 "$pid" 2>/dev/null; do sleep 0.5; n=$((n+1)); done
+        while kill -0 "$pid" 2>/dev/null; do
+          if [ "$n" -ge 240 ]; then rm -rf "$new"; exit 0; fi
+          sleep 0.5; n=$((n+1))
+        done
         rm -rf "$app.old"
         if mv "$app" "$app.old" && mv "$new" "$app"; then rm -rf "$app.old"; else [ -d "$app" ] || mv "$app.old" "$app"; fi
         if [ "$relaunch" = 1 ] && [ "$n" -le 240 ]; then open "$app"; fi

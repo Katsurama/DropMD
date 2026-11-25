@@ -451,13 +451,7 @@ enum RichHTML {
     }
 
     static func decodeEntities(_ text: String) -> String {
-        text.replacingOccurrences(of: "&nbsp;", with: "\u{00A0}")
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&apos;", with: "'")
-            .replacingOccurrences(of: "&amp;", with: "&")
+        MarkdownCodec.decodeHTMLEntities(text)
     }
 
     private static func alignment(_ raw: String?) -> NSTextAlignment? {

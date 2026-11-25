@@ -28,6 +28,7 @@ do {
     check(!ok(.init(rfilename: "a", size: 6, blobId: "0000000000000000000000000000000000000000", lfs: nil)), "模型文件：Git 哈希不对时拒绝")
     check(ok(.init(rfilename: "a", size: 6, blobId: nil, lfs: .init(sha256: "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03", size: 6))), "模型文件：SHA-256 正确时放行")
     check(!ok(.init(rfilename: "a", size: 6, blobId: nil, lfs: .init(sha256: String(repeating: "0", count: 64), size: 6))), "模型文件：SHA-256 不对时拒绝")
+    check(!ok(.init(rfilename: "a", size: 6, blobId: nil, lfs: nil)), "模型文件：缺少哈希时拒绝")
 }
 
 func version(of app: URL) -> String? {

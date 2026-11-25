@@ -3,7 +3,18 @@ import ImageIO
 import UniformTypeIdentifiers
 
 enum HTMLExport {
-    private static let imagePattern = try! NSRegularExpression(pattern: #"<img\b[^>]*?\ssrc="([^"]*)""#)   // src 不一定写在最前（<img width="200" src="…">）
+    private static let imagePattern = try! NSRegularExpression(
+        pattern: #"<img\b[^>]*?\ssrc=(?:"([^"]*)"|'([^']*)')"#,
+        options: .caseInsensitive
+    )
+
+    private static func srcRange(in match: NSTextCheckingResult, text: String) -> Range<String.Index>? {
+        for idx in [1, 2] {
+            let r = match.range(at: idx)
+            if r.location != NSNotFound, let sr = Range(r, in: text) { return sr }
+        }
+        return nil
+    }
 
     /// src 指向的本机图片；网络图片、已嵌入的图片和其他文件返回 nil
     private static func localImage(_ rawSrc: Substring, base: URL?) -> (url: URL, mime: String)? {
@@ -22,7 +33,7 @@ enum HTMLExport {
     static func embedLocalImages(_ html: String, base: URL?) -> String {
         var out = html
         for m in imagePattern.matches(in: html, range: NSRange(html.startIndex..., in: html)).reversed() {
-            guard let r = Range(m.range(at: 1), in: out), let image = localImage(out[r], base: base),
+            guard let r = srcRange(in: m, text: out), let image = localImage(out[r], base: base),
                   let data = try? Data(contentsOf: image.url) else { continue }
             out.replaceSubrange(r, with: "data:\(image.mime);base64,\(data.base64EncodedString())")
         }
@@ -37,11 +48,12 @@ enum HTMLExport {
         var images: [URL] = []
         let matches = imagePattern.matches(in: html, range: NSRange(html.startIndex..., in: html))
         for m in matches.reversed() {
-            guard let r = Range(m.range(at: 1), in: out), let image = localImage(out[r], base: base) else { continue }
+            guard let r = srcRange(in: m, text: out), let image = localImage(out[r], base: base) else { continue }
             out.replaceSubrange(r, with: "\(scheme):/" + (version.map { "\($0)/" } ?? "") + "\(images.count)")
             images.append(image.url)
         }
-        return (out.replacingOccurrences(of: "<img ", with: "<img loading=\"lazy\" decoding=\"async\" "), images)
+        let tagged = out.replacingOccurrences(of: #"(?i)<img\s+"#, with: "<img loading=\"lazy\" decoding=\"async\" ", options: .regularExpression)
+        return (tagged, images)
     }
 
     /// 快速查看显示用的图片：超过 512 KB 的缩到 maxPixel 边长，小图和解不开的图（如 SVG）原样

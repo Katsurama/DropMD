@@ -706,6 +706,11 @@ MainActor.assumeIsolated {
         check("带版本的地址能读出版本和第几张", URL(string: "dropmd-image:/3/0")!.pathComponents.joined(separator: " "), "/ 3 0")
         check("地址有编码的本机图片能显示", RichBridge.imageString(path: "big%2Epng", alt: "", baseURL: URL(fileURLWithPath: dir.path, isDirectory: true)).attribute(.attachment, at: 0, effectiveRange: nil) != nil ? "有" : "没有", "有")
         check("导出保持原图", HTMLExport.embedLocalImages(tag, base: dir) == "<img src=\"data:image/png;base64,\(big.base64EncodedString())\">" ? "原图" : "变了", "原图")
+        check("导出 HTML 支持单引号与大写 img", HTMLExport.embedLocalImages(#"<IMG SRC='%E5%9B%BE%20%E7%89%87/a.png'>"#, base: dir),
+              #"<IMG SRC='data:image/png;base64,aGk='>"#)
+        let linkedSingle = HTMLExport.linkLocalImages(#"<IMG SRC='no.png'>"#, base: dir, scheme: "dropmd-image")
+        check("快速查看支持单引号与大写 img", "\(linkedSingle.html) \(linkedSingle.images.count)",
+              #"<img loading="lazy" decoding="async" SRC='dropmd-image:/0'> 1"#)
         try? FileManager.default.removeItem(at: dir)
     }
     // 光标在公式后（打字属性取自公式这个字符）：输入的文字不能变成公式
@@ -2390,6 +2395,19 @@ MainActor.assumeIsolated {
         } else {
             check("读取 README.zh-CN.md", "missing", "ok")
         }
+
+        // RichHTML 边界与共用 HTML 实体解码测试
+        let singleQuoteP = RichBridge.attributed(markdown: "<p align='center'>居中&#39;文字&#x2014;测试</p>\n", baseURL: nil)
+        let sqAlign = (singleQuoteP.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.alignment
+        check("单引号 align='center' 且解数字实体", "\(sqAlign == .center) \(singleQuoteP.string.trimmingCharacters(in: .newlines))", "true 居中'文字—测试")
+
+        let unpairedDiv = RichBridge.attributed(markdown: "<div align=\"center\">\n\n普通正文\n", baseURL: nil)
+        check("未配对 <div align> 保持原样卡片不隐藏", "\(unpairedDiv.attribute(DMKey.raw, at: 0, effectiveRange: nil) != nil) \(unpairedDiv.string.hasPrefix("<div"))", "true true")
+
+        let divWithTable = RichBridge.attributed(markdown: "<div align=\"center\">\n<table><tr><td>x</td></tr></table>\n</div>\n", baseURL: nil)
+        check("含 <table> 的 HTML 块回退原样卡片", divWithTable.attribute(DMKey.raw, at: 0, effectiveRange: nil) != nil ? "raw" : "rendered", "raw")
+
+        check("通用实体解码", MarkdownCodec.decodeHTMLEntities("A&amp;B &#39;C&#x2014;D&nbsp;E", nbspAsSpace: true), "A&B 'C—D E")
     }
 
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
