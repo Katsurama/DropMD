@@ -30,7 +30,13 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         hiddenCache = c
         return c
     }
+    private static let codeLangAttrs: [NSAttributedString.Key: Any] = [
+        .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .medium),
+        .foregroundColor: NSColor.tertiaryLabelColor,
+    ]
     private var hiddenCache: [NSRange]?
+    private var numFontCache: [CGFloat: NSFont] = [:]
+    private var symbolCache: [String: NSImage] = [:]
 
     private var pendingStyleRange: NSRange?
     private var styleScheduled = false
@@ -373,7 +379,11 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
                 let line = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
                 let baseline = location(forGlyphAt: glyph).y
                 let font = (attrs[.font] as? NSFont) ?? RichStyle.baseFont(for: .body)
-                let numFont = NSFont.monospacedDigitSystemFont(ofSize: font.pointSize * 0.94, weight: .regular)
+                let numFont = numFontCache[font.pointSize] ?? {
+                    let f = NSFont.monospacedDigitSystemFont(ofSize: font.pointSize * 0.94, weight: .regular)
+                    numFontCache[font.pointSize] = f
+                    return f
+                }()
                 let marker = "\(number(at: para.location, depth: d, in: storage))."
                 let markerAttrs: [NSAttributedString.Key: Any] = [.font: numFont, .foregroundColor: NSColor.secondaryLabelColor]
                 let size = (marker as NSString).size(withAttributes: markerAttrs)
@@ -393,9 +403,18 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         guard glyph < numberOfGlyphs else { return }
         let line = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
         let font = (textStorage?.attribute(.font, at: para.location, effectiveRange: nil) as? NSFont) ?? RichStyle.baseFont(for: .body)
-        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: weight)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
-        guard let img = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(config) else { return }
+        let cacheKey = "\(name)|\(pointSize)|\(weight.rawValue)|\(color.description)|\(NSAppearance.currentDrawing().name.rawValue)"
+        let img: NSImage
+        if let cached = symbolCache[cacheKey] {
+            img = cached
+        } else {
+            let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: weight)
+                .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
+            guard let built = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(config) else { return }
+            if symbolCache.count > 64 { symbolCache.removeAll(keepingCapacity: true) }
+            symbolCache[cacheKey] = built
+            img = built
+        }
         let midY = origin.y + line.minY + location(forGlyphAt: glyph).y - font.capHeight / 2
         let size = img.size
         let rect = NSRect(x: origin.x + line.minX + centerX - size.width / 2, y: midY - size.height / 2, width: size.width, height: size.height)
@@ -438,8 +457,13 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         drawCodeBlocks(glyphsToShow, origin: origin)
         drawCallouts(glyphsToShow, origin: origin)
         // 收起的内容不画背景：隐藏的表格边框会缩成一个小方块画在左上角
+        let hiddenList = hiddenRanges
+        if hiddenList.isEmpty {
+            super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
+            return
+        }
         var start = glyphsToShow.location
-        for hidden in hiddenRanges.map({ glyphRange(forCharacterRange: $0, actualCharacterRange: nil) }).sorted(by: { $0.location < $1.location })
+        for hidden in hiddenList.map({ glyphRange(forCharacterRange: $0, actualCharacterRange: nil) }).sorted(by: { $0.location < $1.location })
         where NSMaxRange(hidden) > start && hidden.location < NSMaxRange(glyphsToShow) {
             if hidden.location > start { super.drawBackground(forGlyphRange: NSRange(location: start, length: hidden.location - start), at: origin) }
             start = NSMaxRange(hidden)
@@ -553,10 +577,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         guard let storage = textStorage, storage.length > 0 else { return }
         let ns = storage.string as NSString
         let chars = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
-        let langAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: NSColor.tertiaryLabelColor,
-        ]
+        let langAttrs = Self.codeLangAttrs
         var loc = ns.paragraphRange(for: NSRange(location: min(chars.location, ns.length - 1), length: 0)).location
         while loc < NSMaxRange(chars) && loc < ns.length {
             guard let block = codeBlock(at: loc) else {

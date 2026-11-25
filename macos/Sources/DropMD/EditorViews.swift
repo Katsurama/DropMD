@@ -18,12 +18,15 @@ struct MarkdownTextView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let storage = NSTextStorage()
         let layout = NSLayoutManager()
+        layout.allowsNonContiguousLayout = true
         storage.addLayoutManager(layout)
         let container = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
         container.widthTracksTextView = true
         layout.addTextContainer(container)
 
         let tv = SourceTextView(frame: .zero, textContainer: container)
+        tv.wantsLayer = true
+        tv.layerContentsRedrawPolicy = .onSetNeedsDisplay
         tv.isRichText = false
         tv.importsGraphics = false
         tv.allowsUndo = true
@@ -51,6 +54,8 @@ struct MarkdownTextView: NSViewRepresentable {
         tv.delegate = context.coordinator
 
         let scroll = SplitScrollView()
+        scroll.wantsLayer = true
+        scroll.contentView.wantsLayer = true
         scroll.overlayScrollers = true   // 原文只在双页里显示
         scroll.hasVerticalScroller = true
         scroll.hasHorizontalScroller = false

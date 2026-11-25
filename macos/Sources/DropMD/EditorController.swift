@@ -109,10 +109,12 @@ final class EditorController: ObservableObject {
         didSet {
             guard isRichMode != oldValue else { return }
             (richView?.enclosingScrollView as? SplitScrollView)?.overlayScrollers = !isRichMode
+            richView?.enclosingScrollView?.contentView.postsBoundsChangedNotifications = !isRichMode
             clearSourceMark()
             richView?.sourceCursorRange = nil
             richView?.sourceCaretLocation = nil
             lastCursorLine = -1
+            lastSyncedRichLine = -1
             updateSelectionState()
         }
     }
@@ -267,11 +269,55 @@ final class EditorController: ObservableObject {
         return lineMap
     }
 
+    private var cachedLineStarts: [Int] = [0]
+    private var cachedLineStartsText = ""
+    private var lastSyncedRichLine: Double = -1
+
+    private func lineStarts(for text: String) -> [Int] {
+        if text == cachedLineStartsText { return cachedLineStarts }
+        var starts: [Int] = [0]
+        starts.reserveCapacity(max(64, text.utf16.count / 32))
+        var offset = 0
+        for code in text.utf16 {
+            offset += 1
+            if code == 0x0A { starts.append(offset) }
+        }
+        cachedLineStarts = starts
+        cachedLineStartsText = text
+        return starts
+    }
+
+    private func cachedLineStart(_ line: Int, in text: String) -> Int {
+        guard line > 0 else { return 0 }
+        let starts = lineStarts(for: text)
+        return line < starts.count ? starts[line] : (text as NSString).length
+    }
+
+    private func cachedLineNumber(at index: Int, in text: String) -> Int {
+        let starts = lineStarts(for: text)
+        let clamped = max(0, min(index, (text as NSString).length))
+        return Self.binarySearchLastIndex(starts) { $0 <= clamped } ?? 0
+    }
+
+    private static func binarySearchLastIndex<T>(_ array: [T], where predicate: (T) -> Bool) -> Int? {
+        var low = 0, high = array.count - 1, ans: Int?
+        while low <= high {
+            let mid = (low + high) / 2
+            if predicate(array[mid]) {
+                ans = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+        return ans
+    }
+
     /// 原文第 line 行所在的那一段，在单页里的字的范围
     private func richRange(forLine line: Int) -> (entry: Int, range: NSRange)? {
         let map = currentLineMap()
         guard let length = richView?.textStorage?.length, length > 0,
-              let i = map.lastIndex(where: { $0.line <= line }) ?? (map.isEmpty ? nil : 0) else { return nil }
+              let i = Self.binarySearchLastIndex(map, where: { $0.line <= line }) ?? (map.isEmpty ? nil : 0) else { return nil }
         let start = min(map[i].offset, length - 1)
         let end = i + 1 < map.count ? min(map[i + 1].offset, length) : length
         return (i, NSRange(location: start, length: max(1, end - start)))
@@ -280,7 +326,10 @@ final class EditorController: ObservableObject {
     /// 单页里第 offset 个字所在行的顶端（文字区坐标）
     private func richY(_ offset: Int) -> CGFloat? {
         guard let tv = richView, let lm = tv.layoutManager, let length = tv.textStorage?.length, length > 0 else { return nil }
-        let glyph = lm.glyphIndexForCharacter(at: min(max(offset, 0), length - 1))
+        let safe = min(max(offset, 0), length - 1)
+        lm.ensureLayout(forCharacterRange: NSRange(location: safe, length: 1))
+        let glyph = lm.glyphIndexForCharacter(at: safe)
+        guard glyph < lm.numberOfGlyphs else { return nil }
         return lm.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil).minY + tv.textContainerOrigin.y
     }
 
@@ -291,12 +340,11 @@ final class EditorController: ObservableObject {
         let visible = tv.visibleRect
         let glyph = lm.glyphIndex(for: NSPoint(x: 0, y: visible.minY - tv.textContainerInset.height), in: tc)
         let char = lm.characterIndexForGlyph(at: glyph)
-        let ns = tv.string as NSString
-        let line = Self.lineNumber(in: ns, at: char)
+        let line = cachedLineNumber(at: char, in: tv.string)
         guard line != lastScrollLine else { return }
         lastScrollLine = line
         let map = currentLineMap()
-        guard let i = map.lastIndex(where: { $0.line <= line }), var y = richY(map[i].offset) else {
+        guard let i = Self.binarySearchLastIndex(map, where: { $0.line <= line }), var y = richY(map[i].offset) else {
             ignoreRichScrollUntil = Date().addingTimeInterval(0.3)
             rich.scroll(.zero)
             return
@@ -317,24 +365,30 @@ final class EditorController: ObservableObject {
         let glyph = lm.glyphIndex(for: NSPoint(x: 0, y: top - rich.textContainerOrigin.y), in: tc)
         let char = lm.characterIndexForGlyph(at: glyph)
         let map = currentLineMap()
-        guard let i = map.lastIndex(where: { $0.offset <= char }) else { return scrollSource(toLine: 0) }
+        guard let i = Self.binarySearchLastIndex(map, where: { $0.offset <= char }) else { return scrollSource(toLine: 0) }
         var line = Double(map[i].line)
         if i + 1 < map.count, let y0 = richY(map[i].offset), let y1 = richY(map[i + 1].offset), y1 > y0 {
             line += Double(map[i + 1].line - map[i].line) * Double(max(0, min(1, (top - y0) / (y1 - y0))))
         }
+        guard abs(line - lastSyncedRichLine) >= 0.02 else { return }
+        lastSyncedRichLine = line
         scrollSource(toLine: line)
     }
 
     /// 原文滚到第 line 行（可以是小数）
     func scrollSource(toLine line: Double) {
-        guard let tv = textView, let lm = tv.layoutManager, let tc = tv.textContainer,
+        guard let tv = textView, let lm = tv.layoutManager,
               let clip = tv.enclosingScrollView?.contentView else { return }
-        let ns = tv.string as NSString
+        let text = tv.string
+        let ns = text as NSString
+        guard ns.length > 0 else { return }
         let whole = Int(line)
-        let index = Self.lineStart(whole, in: ns)
+        let index = cachedLineStart(whole, in: text)
+        let targetChar = min(index, ns.length - 1)
+        let layoutLen = min(256, ns.length - targetChar)
+        lm.ensureLayout(forCharacterRange: NSRange(location: targetChar, length: max(1, layoutLen)))
         guard lm.numberOfGlyphs > 0 else { return }
-        lm.ensureLayout(for: tc)
-        let glyph = min(lm.glyphIndexForCharacter(at: min(index, max(0, ns.length - 1))), lm.numberOfGlyphs - 1)
+        let glyph = min(lm.glyphIndexForCharacter(at: targetChar), lm.numberOfGlyphs - 1)
         var rect = lm.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
         // 小数部分：按这一行的高度往下挪一点，滚动更顺
         rect.origin.y += rect.height * CGFloat(line - Double(whole))

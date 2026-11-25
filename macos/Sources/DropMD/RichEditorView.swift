@@ -11,15 +11,18 @@ struct RichTextEditor: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeNSView(context: Context) -> NSScrollView {
-        // 使用 TextKit 1（NSLayoutManager），以便支持表格并自行绘制列表符号
+        // 使用 TextKit 1（NSLayoutManager），以便支持表格并自行绘制列表符号；开启按需非连续排版，保证长文档 120Hz 滚动流畅
         let storage = NSTextStorage()
         let layout = RichLayoutManager()
+        layout.allowsNonContiguousLayout = true
         storage.addLayoutManager(layout)
         let container = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
         container.widthTracksTextView = true
         layout.addTextContainer(container)
 
         let tv = RichTextView(frame: .zero, textContainer: container)
+        tv.wantsLayer = true
+        tv.layerContentsRedrawPolicy = .onSetNeedsDisplay
         tv.isRichText = true
         tv.importsGraphics = false        // 粘贴的图片无法保存到 Markdown，请用“插入图片”
         tv.usesFontPanel = false          // Markdown 不能保存字体与字号
@@ -51,6 +54,8 @@ struct RichTextEditor: NSViewRepresentable {
         tv.delegate = context.coordinator
 
         let scroll = SplitScrollView()
+        scroll.wantsLayer = true
+        scroll.contentView.wantsLayer = true
         scroll.overlayScrollers = !controller.isRichMode
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
@@ -74,8 +79,8 @@ struct RichTextEditor: NSViewRepresentable {
         tv.onFocusChange = { [weak controller] focused in
             MainActor.assumeIsolated { controller?.updateSelectionState(richFocused: focused) }
         }
-        // 双页：滚动右边时，左边的原文跟着滚
-        scroll.contentView.postsBoundsChangedNotifications = true
+        // 双页：滚动右边时，左边的原文跟着滚（单页关闭通知以减少 120Hz 滚动派发开销）
+        scroll.contentView.postsBoundsChangedNotifications = !controller.isRichMode
         context.coordinator.scrollObserver = NotificationCenter.default.addObserver(
             forName: NSView.boundsDidChangeNotification, object: scroll.contentView, queue: .main) { [weak controller] _ in
             MainActor.assumeIsolated { controller?.richScrolled() }
