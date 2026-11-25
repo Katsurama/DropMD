@@ -269,35 +269,7 @@ final class EditorController: ObservableObject {
         return lineMap
     }
 
-    private var cachedLineStarts: [Int] = [0]
-    private var cachedLineStartsText = ""
     private var lastSyncedRichLine: Double = -1
-
-    private func lineStarts(for text: String) -> [Int] {
-        if text == cachedLineStartsText { return cachedLineStarts }
-        var starts: [Int] = [0]
-        starts.reserveCapacity(max(64, text.utf16.count / 32))
-        var offset = 0
-        for code in text.utf16 {
-            offset += 1
-            if code == 0x0A { starts.append(offset) }
-        }
-        cachedLineStarts = starts
-        cachedLineStartsText = text
-        return starts
-    }
-
-    private func cachedLineStart(_ line: Int, in text: String) -> Int {
-        guard line > 0 else { return 0 }
-        let starts = lineStarts(for: text)
-        return line < starts.count ? starts[line] : (text as NSString).length
-    }
-
-    private func cachedLineNumber(at index: Int, in text: String) -> Int {
-        let starts = lineStarts(for: text)
-        let clamped = max(0, min(index, (text as NSString).length))
-        return Self.binarySearchLastIndex(starts) { $0 <= clamped } ?? 0
-    }
 
     private static func binarySearchLastIndex<T>(_ array: [T], where predicate: (T) -> Bool) -> Int? {
         var low = 0, high = array.count - 1, ans: Int?
@@ -336,11 +308,12 @@ final class EditorController: ObservableObject {
     /// 左边原文滚动时，右边滚到对应位置
     func syncScroll() {
         guard !isRichMode, Date() >= ignoreSourceScrollUntil else { return }
-        guard let tv = textView, let lm = tv.layoutManager, let tc = tv.textContainer, let rich = richView else { return }
+        guard let tv = textView, let lm = tv.layoutManager, let tc = tv.textContainer, let rich = richView,
+              let ruler = tv.enclosingScrollView?.verticalRulerView as? SourceLineNumberRulerView else { return }
         let visible = tv.visibleRect
         let glyph = lm.glyphIndex(for: NSPoint(x: 0, y: visible.minY - tv.textContainerInset.height), in: tc)
         let char = lm.characterIndexForGlyph(at: glyph)
-        let line = cachedLineNumber(at: char, in: tv.string)
+        let line = ruler.lineIndex(forCharacter: char)
         guard line != lastScrollLine else { return }
         lastScrollLine = line
         let map = currentLineMap()
@@ -377,15 +350,13 @@ final class EditorController: ObservableObject {
 
     /// 原文滚到第 line 行（可以是小数）
     func scrollSource(toLine line: Double) {
-        guard let tv = textView, let lm = tv.layoutManager,
-              let clip = tv.enclosingScrollView?.contentView else { return }
-        let text = tv.string
-        let ns = text as NSString
-        guard ns.length > 0 else { return }
+        guard let tv = textView, let lm = tv.layoutManager, let length = tv.textStorage?.length, length > 0,
+              let scrollView = tv.enclosingScrollView,
+              let ruler = scrollView.verticalRulerView as? SourceLineNumberRulerView else { return }
+        let clip = scrollView.contentView
         let whole = Int(line)
-        let index = cachedLineStart(whole, in: text)
-        let targetChar = min(index, ns.length - 1)
-        let layoutLen = min(256, ns.length - targetChar)
+        let targetChar = min(ruler.characterIndex(forLine: whole), length - 1)
+        let layoutLen = min(256, length - targetChar)
         lm.ensureLayout(forCharacterRange: NSRange(location: targetChar, length: max(1, layoutLen)))
         guard lm.numberOfGlyphs > 0 else { return }
         let glyph = min(lm.glyphIndexForCharacter(at: targetChar), lm.numberOfGlyphs - 1)

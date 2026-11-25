@@ -407,8 +407,13 @@ final class SourceLineNumberRulerView: NSRulerView {
         return low
     }
 
-    private func lineIndex(forCharacter charIndex: Int) -> Int {
+    func lineIndex(forCharacter charIndex: Int) -> Int {
         max(0, firstIndex(greaterThan: charIndex) - 1)
+    }
+
+    func characterIndex(forLine line: Int) -> Int {
+        guard line > 0 else { return 0 }
+        return line < lineStarts.count ? lineStarts[line] : cachedLength
     }
 
     private func activeLineIndex(in tv: NSTextView) -> Int? {

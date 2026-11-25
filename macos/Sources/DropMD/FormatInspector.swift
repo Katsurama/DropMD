@@ -29,10 +29,7 @@ struct FormatInspector: View {
             case .summary:
                 SummaryInspectorView(editor: editor)
                     .onAppear { editor.generateDocumentSummary(force: false) }
-                    .onDisappear {
-                        editor.cancelDocumentSummary()
-                        editor.cancelDocumentQA()
-                    }
+                    .onDisappear { editor.cancelDocumentSummary() }
             case .none:
                 EmptyView()
             }
@@ -467,7 +464,7 @@ private struct SummaryInspectorView: View {
                                         }
                                         .padding(.top, 2)
                                     } else {
-                                        Text(verbatim: item.answer)
+                                        Text(item.displayAnswer)
                                             .font(.system(size: 14.5))
                                             .lineSpacing(4)
                                             .foregroundStyle(item.isError ? Color.secondary : Color.primary)

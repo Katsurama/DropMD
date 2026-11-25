@@ -217,6 +217,7 @@ struct EditorView: View {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             sourceLoaded = true
         }
+        .onDisappear { editor.cancelDocumentQA() }
         .onChange(of: document.text) { _, newValue in editor.textChanged(newValue) }
         .onChange(of: fileURL) { _, newValue in
             editor.fileURL = newValue

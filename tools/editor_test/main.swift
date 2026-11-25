@@ -2116,6 +2116,11 @@ MainActor.assumeIsolated {
         scroll.rulersVisible = true
         lm.ensureLayout(for: tc)
 
+        tv.string = "\u{00E9}\n第二行\n"
+        check("组合重音替换前的滚动行号与行首", "\(ruler.lineIndex(forCharacter: 2)) \(ruler.characterIndex(forLine: 1))", "1 2")
+        storage.replaceCharacters(in: NSRange(location: 0, length: 1), with: "e\u{0301}")
+        check("组合重音替换后更新 UTF-16 行首与滚动行号", "\(ruler.lineIndex(forCharacter: 2)) \(ruler.lineIndex(forCharacter: 3)) \(ruler.characterIndex(forLine: 1))", "0 1 3")
+
         let thinThickness = ruler.ruleThickness
         storage.replaceCharacters(in: NSRange(location: storage.length, length: 0), with: String(repeating: "x\n", count: 100))
         let wideThickness = ruler.ruleThickness
@@ -2135,6 +2140,16 @@ MainActor.assumeIsolated {
         tv.markedLines = NSRange(location: 0, length: (wrapped as NSString).length - 1)
         let wrappedRect = tv.markedLinesRect()
         check("双页长行未预先排版时黄色高亮仍完整覆盖折行", "\(wrappedRect.height > 28)", "true")
+    }
+
+    do {
+        let answer = "**重点**\n\n[说明](https://example.com)"
+        let item = DocumentQAItem(question: "问题", answer: answer)
+        let rendered = item.displayAnswer
+        let isBold = rendered.runs.first?.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
+        check("问答格式化粗体、保留换行、不激活生成的链接", "\(String(rendered.characters)) \(isBold) \(rendered.runs.allSatisfy { $0.link == nil })", "重点\n\n说明 true true")
+        let error = DocumentQAItem(question: "问题", answer: answer, isError: true)
+        check("问答错误提示保留原文", String(error.displayAnswer.characters), answer)
     }
 
     // 双页对照表（LineMap）：无序列表（含 -）、有序列表、待办列表每一项各自对应原文行，不把整段列表并成一项

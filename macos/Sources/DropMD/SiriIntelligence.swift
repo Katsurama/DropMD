@@ -41,6 +41,16 @@ struct DocumentQAItem: Identifiable, Equatable {
     var answer: String
     var isLoading = false
     var isError = false
+
+    var displayAnswer: AttributedString {
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        guard !isError, var rendered = try? AttributedString(markdown: answer, options: options) else {
+            return AttributedString(answer)
+        }
+        // 生成的回答是可选取的文字，不把模型给出的地址变成可点击的链接。
+        rendered.link = nil
+        return rendered
+    }
 }
 
 #if canImport(FoundationModels)
