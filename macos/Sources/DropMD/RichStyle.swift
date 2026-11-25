@@ -30,11 +30,18 @@ enum DMKey {
     static let imageID = NSAttributedString.Key("dm.imageID")    // String：每张图片不同，相邻的相同图片才分得开
     static let image = NSAttributedString.Key("dm.image")        // String：图片路径
     static let alt = NSAttributedString.Key("dm.alt")            // String：图片说明文字
+    static let imageWidth = NSAttributedString.Key("dm.imageWidth")   // String：HTML 图片宽（像素或百分比）
+    static let imageHeight = NSAttributedString.Key("dm.imageHeight") // String：HTML 图片高（像素）
     static let callout = NSAttributedString.Key("dm.callout")    // String：提示框标题行的原文（如 [!TIP]），显示为“提示”等
+    static let htmlRaw = NSAttributedString.Key("dm.htmlRaw")         // String：展示型 HTML 块渲染后保留的原文
+    static let htmlBlockID = NSAttributedString.Key("dm.htmlBlockID") // String：多段展示型 HTML 块共享的编号
+    static let htmlHidden = NSAttributedString.Key("dm.htmlHidden")   // Bool：成对对齐容器标记段落（隐藏不占位）
+    static let htmlInline = NSAttributedString.Key("dm.htmlInline")   // String：行内 HTML / &nbsp; 原文
+    static let htmlInlineID = NSAttributedString.Key("dm.htmlInlineID") // String：行内 HTML 片段编号
 
     /// 段落类型相关的属性（切换段落样式时先全部清除）
     static let quoteBlock = NSAttributedString.Key("dm.quoteblock") // String：每段引用不同，空行隔开的两段引用（如提示框和下面的普通引用）才分得开
-    static let paragraphKeys = [heading, quote, code, task, list, depth, raw, rule, summary, detailsOpen, collapsed, start, listCode, codeBlock, quoteBlock]
+    static let paragraphKeys = [heading, quote, code, task, list, depth, raw, rule, summary, detailsOpen, collapsed, start, listCode, codeBlock, quoteBlock, htmlRaw, htmlBlockID, htmlHidden]
 }
 
 /// 单页的页边距（“显示 → 页边距”、设置）：实际控制的是文字那一栏最宽多少，两边剩下的就是页边距

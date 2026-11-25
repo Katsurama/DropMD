@@ -2334,6 +2334,64 @@ MainActor.assumeIsolated {
         try? FileManager.default.removeItem(at: tmpDocDir)
     }
 
+    // 展示型 HTML 与 README 渲染与往返
+    do {
+        let rootURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+        let readmeURL = rootURL.appendingPathComponent("README.zh-CN.md")
+        if let readme = try? String(contentsOf: readmeURL, encoding: .utf8) {
+            let rendered = RichBridge.attributed(markdown: readme, baseURL: rootURL)
+            let ns = rendered.string as NSString
+
+            var attachmentCount = 0
+            rendered.enumerateAttribute(.attachment, in: NSRange(location: 0, length: rendered.length)) { val, _, _ in
+                if let cell = (val as? NSTextAttachment)?.attachmentCell as? ImageAttachmentCell, cell.image != nil {
+                    attachmentCount += 1
+                }
+            }
+            check("README 本机图片全部加载为真实附件", attachmentCount >= 7 ? "ok" : "count=\(attachmentCount)", "ok")
+
+            let leakedTags = ["<div align=\"center\">", "</div>", "<p align=\"right\">", "<img src=", "<a href=", "&nbsp;", "<br>"]
+            let leaked = leakedTags.filter { rendered.string.contains($0) }
+            check("README 不出现展示型 HTML 源码标签", leaked.isEmpty ? "clean" : leaked.joined(separator: ","), "clean")
+
+            let langRange = ns.range(of: "简体中文")
+            let langAlign = langRange.location != NSNotFound
+                ? (rendered.attribute(.paragraphStyle, at: langRange.location, effectiveRange: nil) as? NSParagraphStyle)?.alignment
+                : nil
+            check("README 右对齐导航栏段落对齐为 right", langAlign == .right ? "right" : String(describing: langAlign), "right")
+
+            let titleRange = ns.range(of: "DropMD")
+            let titleAlign = titleRange.location != NSNotFound
+                ? (rendered.attribute(.paragraphStyle, at: titleRange.location, effectiveRange: nil) as? NSParagraphStyle)?.alignment
+                : nil
+            check("README 居中标题段落对齐为 center", titleAlign == .center ? "center" : String(describing: titleAlign), "center")
+
+            let roundTrip = MarkdownCodec.serialize(RichBridge.blocks(from: rendered), preserving: readme)
+            check("README 富文本往返保存完全无损", roundTrip == readme ? "exact" : "diff", "exact")
+
+            // 模拟在某段正文（如“还没有赞助者”）里打字后保存，所有 HTML 块完整保留
+            let tv = RichTextView(frame: NSRect(x: 0, y: 0, width: 720, height: 600))
+            tv.baseURL = rootURL
+            tv.textStorage?.setAttributedString(rendered)
+            let targetRange = (tv.string as NSString).range(of: "还没有赞助者")
+            if targetRange.location != NSNotFound {
+                tv.setSelectedRange(NSRange(location: targetRange.location, length: 0))
+                type(tv, "目前")
+                let editedSaved = MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: readme)
+                let htmlIntact = editedSaved.contains("<p align=\"right\">")
+                    && editedSaved.contains("<div align=\"center\">")
+                    && editedSaved.contains("<img src=\"docs/images/icon.png\" width=\"112\" alt=\"DropMD 图标\">")
+                    && editedSaved.contains("&nbsp;·&nbsp;")
+                    && editedSaved.contains("目前还没有赞助者")
+                check("README 局部编辑后所有展示型 HTML 完整保留", htmlIntact ? "ok" : "lost", "ok")
+            } else {
+                check("README 找到编辑锚点", "missing", "found")
+            }
+        } else {
+            check("读取 README.zh-CN.md", "missing", "ok")
+        }
+    }
+
     print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

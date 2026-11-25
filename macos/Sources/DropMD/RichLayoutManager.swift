@@ -23,10 +23,10 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
 
     // MARK: 收起的折叠块：内容不生成字形、行高为 0（文字仍在，保存不受影响）
 
-    /// 收起的折叠块中的内容（缓存；文字或属性改变后重新计算）
+    /// 收起的折叠块与隐藏容器标记段落（缓存；文字或属性改变后重新计算）
     var hiddenRanges: [NSRange] {
         if let c = hiddenCache { return c }
-        let c = collapsedRanges()
+        let c = (collapsedRanges() + htmlHiddenRanges()).sorted { $0.location < $1.location }
         hiddenCache = c
         return c
     }
@@ -219,7 +219,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
     }
 
     /// 标题之后、连续的折叠块内容段落
-    private func collapsedRanges() -> [NSRange] {
+    func collapsedRanges() -> [NSRange] {
         guard let s = textStorage, s.length > 0 else { return [] }
         let ns = s.string as NSString
         var out: [NSRange] = []
@@ -233,6 +233,19 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             var body = NSRange()
             let rest = NSRange(location: start, length: s.length - start)
             if s.attribute(DMKey.inDetails, at: start, longestEffectiveRange: &body, in: rest) != nil { out.append(body) }
+        }
+        return out
+    }
+
+    /// 展示型 HTML 容器的起止标记段落（例如成对 `<div align="center">` 与 `</div>`）
+    private func htmlHiddenRanges() -> [NSRange] {
+        guard let s = textStorage, s.length > 0 else { return [] }
+        let ns = s.string as NSString
+        var out: [NSRange] = []
+        s.enumerateAttribute(DMKey.htmlHidden, in: NSRange(location: 0, length: s.length)) { value, range, _ in
+            guard value != nil else { return }
+            let para = ns.paragraphRange(for: NSRange(location: range.location, length: 0))
+            if out.last != para { out.append(para) }
         }
         return out
     }

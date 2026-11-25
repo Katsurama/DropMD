@@ -51,11 +51,12 @@ enum RichBridge {
 
     static func attributed(from blocks: [MDBlock], baseURL: URL?, blockStart: ((Int) -> Void)? = nil) -> NSAttributedString {
         let out = NSMutableAttributedString()
+        let divInfo = RichHTML.pairedAlignDivs(in: blocks)
 
         var lastRaw = false
         var listDepth = 0   // 上一个列表项的层级：列表项里的代码块缩进到它的文字下面
         var quoteID: String?  // 当前这段引用的编号
-        for block in blocks {
+        for (idx, block) in blocks.enumerated() {
             blockStart?(out.length)
             if case .line(let l) = block, l.kind == .quote {
                 if quoteID == nil || l.quoteStart { quoteID = UUID().uuidString }
@@ -63,8 +64,23 @@ enum RichBridge {
                 quoteID = nil
             }
             if case .line(let l) = block, let d = l.kind.listDepth { listDepth = d }
-            // 相邻的两段原样内容之间显示一个空行（不保存；两段编号不同，保存时自动空行），看得出是两块
+
+            var renderedHTML: NSAttributedString?
+            var isLiteralRawCard = false
             if case .raw(let text) = block, !isMathBlock(text) {
+                if divInfo.tags.contains(idx) {
+                    renderedHTML = RichHTML.hiddenMarkerParagraph(raw: text)
+                } else if RichHTML.isBreakOnlyBlock(text) {
+                    renderedHTML = RichHTML.breakParagraph(raw: text)
+                } else if let html = RichHTML.renderBlock(text, inheritedAlignment: divInfo.alignments[idx], baseURL: baseURL) {
+                    renderedHTML = html
+                } else {
+                    isLiteralRawCard = true
+                }
+            }
+
+            // 相邻的两段原样内容卡片之间显示一个空行（不保存；两段编号不同，保存时自动空行），看得出是两块
+            if isLiteralRawCard {
                 if lastRaw {
                     let gap = NSMutableAttributedString(attributedString: paragraph(NSAttributedString(), kind: .body))
                     gap.addAttribute(DMKey.codeGap, value: true, range: NSRange(location: 0, length: gap.length))
@@ -92,6 +108,10 @@ enum RichBridge {
                     style.alignment = .center
                     style.paragraphSpacingBefore = 8
                     style.paragraphSpacing = 12
+                    p.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: p.length))
+                } else if let divAlign = divInfo.alignments[idx],
+                          let style = (p.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle {
+                    style.alignment = divAlign
                     p.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: p.length))
                 }
                 if let start = line.start { p.addAttribute(DMKey.start, value: start, range: NSRange(location: 0, length: p.length)) }
@@ -141,11 +161,15 @@ enum RichBridge {
                 out.append(mathBlockParagraph(text))
 
             case .raw(let text):
-                let id = UUID().uuidString   // 与代码块相同：相邻的两段原样内容靠编号分开
-                for l in text.components(separatedBy: "\n") {
-                    let p = NSMutableAttributedString(attributedString: paragraph(runsString([MDRun(text: l)], kind: .raw, baseURL: baseURL), kind: .raw))
-                    p.addAttribute(DMKey.codeBlock, value: id, range: NSRange(location: 0, length: p.length))
-                    out.append(p)
+                if let renderedHTML {
+                    out.append(renderedHTML)
+                } else {
+                    let id = UUID().uuidString   // 与代码块相同：相邻的两段原样内容靠编号分开
+                    for l in text.components(separatedBy: "\n") {
+                        let p = NSMutableAttributedString(attributedString: paragraph(runsString([MDRun(text: l)], kind: .raw, baseURL: baseURL), kind: .raw))
+                        p.addAttribute(DMKey.codeBlock, value: id, range: NSRange(location: 0, length: p.length))
+                        out.append(p)
+                    }
                 }
 
             case .details(let summary, let body, let open):
@@ -217,26 +241,102 @@ enum RichBridge {
 
     static func runsString(_ runs: [MDRun], kind: RichKind, baseURL: URL?) -> NSMutableAttributedString {
         let s = NSMutableAttributedString()
-        for r in runs {
+        var i = 0
+        while i < runs.count {
+            let r = runs[i]
             if let src = r.image {
                 s.append(imageString(path: src, alt: r.text, title: r.title, link: r.link, linkTitle: r.linkTitle, baseURL: baseURL))
-            } else if r.literal, isInlineMath(r.text) {
+                i += 1
+                continue
+            }
+            if r.literal, isInlineMath(r.text) {
                 s.append(mathString(r.text, display: false, attributes: RichStyle.attributes(for: r, kind: kind)))
-            } else if r.literal, let c = MDCallout(header: r.text) {
+                i += 1
+                continue
+            }
+            if r.literal, let c = MDCallout(header: r.text) {
                 // 提示框标题行显示为中文标题，保存时写回原文
                 var a = RichStyle.attributes(for: r, kind: kind)
                 a[DMKey.callout] = r.text.trimmingCharacters(in: .whitespaces)
                 s.append(NSAttributedString(string: c.title, attributes: a))
-            } else {
-                // 段落里的单个换行显示为空格
-                let a = RichStyle.attributes(for: r, kind: kind)
+                i += 1
+                continue
+            }
+            // 行内 HTML：<a href="...">...</a>
+            if r.literal, !kind.isMonospaced, let anchor = RichHTML.parseAnchorOpenTag(r.text),
+               let close = ((i + 1)..<runs.count).first(where: { runs[$0].literal && RichHTML.isAnchorCloseTag(runs[$0].text) }) {
+                let inner = Array(runs[(i + 1)..<close])
+                // 若内部仅含单张/多张 <img> 或普通文字（不含复杂未知块标签），直接渲染为带链接富文本并整段记住原文
+                let canRenderInner = inner.allSatisfy { sub in
+                    sub.image != nil || !sub.literal || RichHTML.renderImageTag(sub.text, baseURL: baseURL) != nil
+                }
+                if !inner.isEmpty, canRenderInner {
+                    let rawJoined = runs[i...close].map(\.text).joined()
+                    let rendered = NSMutableAttributedString()
+                    for sub in inner {
+                        if sub.literal, let img = RichHTML.renderImageTag(sub.text, link: anchor.href, linkTitle: anchor.title, baseURL: baseURL) {
+                            rendered.append(img)
+                        } else if let src = sub.image {
+                            rendered.append(imageString(path: src, alt: sub.text, title: sub.title, link: anchor.href, linkTitle: anchor.title, baseURL: baseURL))
+                        } else {
+                            var linked = sub
+                            linked.link = anchor.href
+                            linked.title = anchor.title
+                            rendered.append(NSAttributedString(string: linked.text, attributes: RichStyle.attributes(for: linked, kind: kind)))
+                        }
+                    }
+                    if rendered.length > 0 {
+                        let whole = NSRange(location: 0, length: rendered.length)
+                        rendered.addAttribute(DMKey.htmlInline, value: rawJoined, range: whole)
+                        rendered.addAttribute(DMKey.htmlInlineID, value: UUID().uuidString, range: whole)
+                        s.append(rendered)
+                        i = close + 1
+                        continue
+                    }
+                }
+            }
+            // 行内 HTML：独立 <img ...>
+            if r.literal, !kind.isMonospaced,
+               let img = RichHTML.renderImageTag(r.text, link: r.link, linkTitle: r.linkTitle, baseURL: baseURL) {
+                let marked = NSMutableAttributedString(attributedString: img)
+                let whole = NSRange(location: 0, length: marked.length)
+                marked.addAttribute(DMKey.htmlInline, value: r.text, range: whole)
+                marked.addAttribute(DMKey.htmlInlineID, value: UUID().uuidString, range: whole)
+                s.append(marked)
+                i += 1
+                continue
+            }
+            // 普通文字中的 &nbsp;：在单页中显示为不换行空格，保存时无损还原为 &nbsp;
+            let a = RichStyle.attributes(for: r, kind: kind)
+            if !r.code, !r.literal, !kind.isMonospaced, r.text.contains("&nbsp;") {
                 var soft = a
                 soft[DMKey.softBreak] = true
                 for (k, part) in r.text.components(separatedBy: "\n").enumerated() {
                     if k > 0 { s.append(NSAttributedString(string: " ", attributes: soft)) }
-                    s.append(NSAttributedString(string: part, attributes: a))
+                    let pieces = part.components(separatedBy: "&nbsp;")
+                    for (pIdx, piece) in pieces.enumerated() {
+                        if pIdx > 0 {
+                            var nbspAttrs = a
+                            nbspAttrs[DMKey.htmlInline] = "&nbsp;"
+                            nbspAttrs[DMKey.htmlInlineID] = UUID().uuidString
+                            s.append(NSAttributedString(string: "\u{00A0}", attributes: nbspAttrs))
+                        }
+                        if !piece.isEmpty {
+                            s.append(NSAttributedString(string: piece, attributes: a))
+                        }
+                    }
                 }
+                i += 1
+                continue
             }
+            // 段落里的单个换行显示为空格
+            var soft = a
+            soft[DMKey.softBreak] = true
+            for (k, part) in r.text.components(separatedBy: "\n").enumerated() {
+                if k > 0 { s.append(NSAttributedString(string: " ", attributes: soft)) }
+                s.append(NSAttributedString(string: part, attributes: a))
+            }
+            i += 1
         }
         return s
     }
@@ -313,7 +413,8 @@ enum RichBridge {
 
     static let maxImageWidth: CGFloat = 560
 
-    static func imageString(path: String, alt: String, title: String? = nil, link: String? = nil, linkTitle: String? = nil, baseURL: URL?) -> NSAttributedString {
+    static func imageString(path: String, alt: String, title: String? = nil, link: String? = nil, linkTitle: String? = nil,
+                            htmlWidth: String? = nil, htmlHeight: String? = nil, baseURL: URL?) -> NSAttributedString {
         var image: NSImage?
         let lower = path.lowercased()
         let embedded = lower.hasPrefix("data:")
@@ -327,6 +428,8 @@ enum RichBridge {
         marks[DMKey.title] = title
         marks[DMKey.link] = link
         marks[DMKey.linkTitle] = linkTitle
+        marks[DMKey.imageWidth] = htmlWidth
+        marks[DMKey.imageHeight] = htmlHeight
         marks[DMKey.imageID] = UUID().uuidString
         guard let loaded = image, loaded.size.width > 0, loaded.size.height > 0 else {
             // 找不到图片时显示占位文字，保存时仍写回原来的图片地址
@@ -336,13 +439,43 @@ enum RichBridge {
             return NSAttributedString(string: String(localized: "［图片：\(alt.isEmpty ? (embedded ? "data:" : path) : alt)］"), attributes: a)
         }
         let attachment = NSTextAttachment()
-        let scale = min(1, maxImageWidth / loaded.size.width)
-        let size = NSSize(width: loaded.size.width * scale, height: loaded.size.height * scale)
-        let cell = ImageAttachmentCell(image: loaded, size: size)
+        let (size, widthFraction) = fittedImageSize(natural: loaded.size, htmlWidth: htmlWidth, htmlHeight: htmlHeight)
+        let cell = ImageAttachmentCell(image: loaded, size: size, widthFraction: widthFraction)
         attachment.attachmentCell = cell
         let s = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
         s.addAttributes(marks, range: NSRange(location: 0, length: s.length))
         return s
+    }
+
+    private static func fittedImageSize(natural: NSSize, htmlWidth: String?, htmlHeight: String?) -> (NSSize, CGFloat?) {
+        let ratio = natural.height / max(natural.width, 1)
+        if let rawW = htmlWidth?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !rawW.isEmpty {
+            if rawW.hasSuffix("%"), let pct = Double(rawW.dropLast().trimmingCharacters(in: .whitespaces)),
+               pct > 0, pct <= 100 {
+                let frac = CGFloat(pct / 100)
+                let w = max(40, (maxImageWidth * frac).rounded())
+                return (NSSize(width: w, height: max(1, (w * ratio).rounded())), frac)
+            }
+            if let px = parsePixelValue(rawW) {
+                let w = min(max(px, 16), maxImageWidth)
+                let h = htmlHeight.flatMap(parsePixelValue).map { max(16, min($0, maxImageWidth * 2)) } ?? max(1, (w * ratio).rounded())
+                return (NSSize(width: w, height: h), nil)
+            }
+        }
+        if let h = htmlHeight.flatMap(parsePixelValue) {
+            let clampedH = max(16, min(h, maxImageWidth * 2))
+            let w = min(maxImageWidth, max(16, (clampedH / max(ratio, 0.01)).rounded()))
+            return (NSSize(width: w, height: max(1, (w * ratio).rounded())), nil)
+        }
+        let scale = min(1, maxImageWidth / natural.width)
+        return (NSSize(width: natural.width * scale, height: natural.height * scale), nil)
+    }
+
+    private static func parsePixelValue(_ raw: String) -> CGFloat? {
+        var t = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if t.hasSuffix("px") { t = String(t.dropLast(2)).trimmingCharacters(in: .whitespaces) }
+        guard let v = Double(t), v > 0 else { return nil }
+        return CGFloat(v)
     }
 
     // MARK: 公式
@@ -393,7 +526,9 @@ enum RichBridge {
             } else if let path = a[DMKey.image] as? String {
                 let image = NSMutableAttributedString(attributedString: imageString(path: path, alt: (a[DMKey.alt] as? String) ?? "",
                                                                                          title: a[DMKey.title] as? String, link: a[DMKey.link] as? String,
-                                                                                         linkTitle: a[DMKey.linkTitle] as? String, baseURL: baseURL))
+                                                                                         linkTitle: a[DMKey.linkTitle] as? String,
+                                                                                         htmlWidth: a[DMKey.imageWidth] as? String,
+                                                                                         htmlHeight: a[DMKey.imageHeight] as? String, baseURL: baseURL))
                 var rest = a
                 rest[.attachment] = nil
                 for (k, v) in rest where image.attribute(k, at: 0, effectiveRange: nil) == nil {
@@ -429,6 +564,7 @@ enum RichBridge {
         case line(MDLine)
         case code(String, String, listGap: Bool?, id: String?)
         case raw(String, id: String?)
+        case htmlRaw(String, id: String?)
         case rule
         case summary(String, open: Bool)
         case math(String)
@@ -542,6 +678,9 @@ enum RichBridge {
 
     private static func classify(_ storage: NSAttributedString, _ ns: NSString, content: NSRange,
                                  attrs: [NSAttributedString.Key: Any], seen: inout Set<String>) -> Item {
+        if let html = attrs[DMKey.htmlRaw] as? String {
+            return .htmlRaw(html, id: attrs[DMKey.htmlBlockID] as? String)
+        }
         if let block = tableBlock(of: attrs) {
             return .cell(block.table, block.startingRow, block.startingColumn, runs(storage, &seen, content),
                          (attrs[.paragraphStyle] as? NSParagraphStyle)?.alignment ?? .natural)
@@ -590,6 +729,33 @@ enum RichBridge {
         var seenPaths: Set<String> = []   // 没有编号的图片（旧剪贴板内容）按路径算，只在同一段里去重
         var calloutDone = false            // 提示框标题同理
         storage.enumerateAttributes(in: range, options: []) { a, sub, _ in
+            if let htmlInline = a[DMKey.htmlInline] as? String {
+                let fresh = (a[DMKey.htmlInlineID] as? String).map { seen.insert($0).inserted } ?? true
+                guard fresh else { return }
+                if htmlInline == "&nbsp;" {
+                    var r = MDRun(text: "&nbsp;")
+                    r.bold = RichStyle.isBold(a[.font] as? NSFont)
+                    r.italic = ((a[.obliqueness] as? Double) ?? 0) != 0
+                    r.strike = ((a[.strikethroughStyle] as? Int) ?? 0) != 0
+                    r.highlight = a[DMKey.highlight] != nil
+                    let shift = (a[.superscript] as? Int) ?? 0
+                    r.sup = shift > 0
+                    r.sub = shift < 0
+                    r.kbd = a[DMKey.kbd] != nil
+                    r.link = a[DMKey.link] as? String
+                    if r.link != nil {
+                        r.title = a[DMKey.title] as? String
+                    } else {
+                        r.underline = ((a[.underlineStyle] as? Int) ?? 0) != 0
+                    }
+                    out.append(r)
+                } else {
+                    var r = MDRun(text: htmlInline)
+                    r.literal = true
+                    out.append(r)
+                }
+                return
+            }
             if let header = a[DMKey.callout] as? String {
                 // 标题文字被拆成几段（改了其中一个字的格式、在中间打了字）时也只写一次
                 if calloutDone { return }
@@ -698,6 +864,14 @@ enum RichBridge {
                     i += 1
                 }
                 blocks.append(.raw(lines.joined(separator: "\n")))
+            case .htmlRaw(let source, let id):
+                i += 1
+                if let id {
+                    while let item = next(i), case .htmlRaw(_, let nextID) = item, nextID == id {
+                        i += 1
+                    }
+                }
+                blocks.append(.raw(source))
             case .cell(let table, _, _, _, _):
                 var cells: [(row: Int, col: Int, runs: [MDRun])] = []
                 var aligns: [Int: NSTextAlignment] = [:]   // 按表头一行的对齐方式保存
@@ -722,9 +896,10 @@ enum RichBridge {
     }
 }
 
-/// 单页中的图片（支持圆角、细边框、容器自适应缩放以及 GIF 动图自动播放）
+/// 单页中的图片（支持圆角、细边框、容器自适应缩放、HTML 百分比并排以及 GIF 动图自动播放）
 final class ImageAttachmentCell: NSTextAttachmentCell {
     private let maxSize: NSSize
+    private let widthFraction: CGFloat?
     private var fittedSize: NSSize
     private weak var layoutManager: NSLayoutManager?
     private var lastCharIndex = 0
@@ -733,8 +908,9 @@ final class ImageAttachmentCell: NSTextAttachmentCell {
     private var currentFrame = 0
     private var timer: Timer?
 
-    init(image: NSImage, size: NSSize) {
+    init(image: NSImage, size: NSSize, widthFraction: CGFloat? = nil) {
         self.maxSize = size
+        self.widthFraction = widthFraction
         self.fittedSize = size
         super.init(imageCell: image)
         if let rep = image.representations.compactMap({ $0 as? NSBitmapImageRep }).first,
@@ -798,11 +974,19 @@ final class ImageAttachmentCell: NSTextAttachmentCell {
         layoutManager = textContainer.layoutManager
         lastCharIndex = charIndex
         let pad = textContainer.lineFragmentPadding * 2
-        let containerAvail = textContainer.size.width > 0 ? textContainer.size.width - pad : maxSize.width
-        let fragAvail = lineFrag.width > 0 ? lineFrag.width - pad : containerAvail
-        let avail = max(40, min(containerAvail, fragAvail))
-        let scale = min(1, avail / max(maxSize.width, 1))
-        fittedSize = NSSize(width: (maxSize.width * scale).rounded(), height: (maxSize.height * scale).rounded())
+        let containerAvail = max(40, (textContainer.size.width > 0 ? textContainer.size.width - pad : maxSize.width))
+        if let frac = widthFraction {
+            // 按容器宽度比例缩放，留出少许列间距以支持 49% 双图同行并排
+            let gap: CGFloat = frac < 0.99 ? 4 : 0
+            let targetW = max(40, min(containerAvail, (containerAvail * frac).rounded(.down) - gap))
+            let ratio = maxSize.height / max(maxSize.width, 1)
+            fittedSize = NSSize(width: targetW, height: max(1, (targetW * ratio).rounded()))
+        } else {
+            let fragAvail = lineFrag.width > 0 ? lineFrag.width - pad : containerAvail
+            let avail = max(40, min(containerAvail, fragAvail))
+            let scale = min(1, avail / max(maxSize.width, 1))
+            fittedSize = NSSize(width: (maxSize.width * scale).rounded(), height: (maxSize.height * scale).rounded())
+        }
         return super.cellFrame(for: textContainer, proposedLineFragment: lineFrag, glyphPosition: position, characterIndex: charIndex)
     }
 

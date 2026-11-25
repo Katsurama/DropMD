@@ -314,8 +314,11 @@ final class RichTextView: NSTextView {
         set {
             var newValue = newValue
             newValue[DMKey.collapsed] = nil   // 在收起的标题末尾回车，新段落不应跟着“收起”
+            newValue[DMKey.htmlHidden] = nil  // 不在隐藏容器标记段落里输入
             newValue[DMKey.math] = nil        // 在公式后输入的文字不是公式，否则保存时被写成公式原文
             newValue[DMKey.softBreak] = nil   // 在换行后输入的空格不是换行
+            newValue[DMKey.htmlInline] = nil  // 在行内 HTML / &nbsp; 旁输入的文字是普通文字
+            newValue[DMKey.htmlInlineID] = nil
             // 在原样内容（<span>、[^1] 等）后面输入的是普通文字：不跟着原样保存，否则打的 *字* 下次打开变成斜体。在它中间输入才算修改它
             if newValue[DMKey.literal] != nil, let storage = textStorage {
                 let at = selectedRange().location
@@ -331,7 +334,7 @@ final class RichTextView: NSTextView {
                 newValue = RichStyle.typingAttributes(for: .body)
             }
             if newValue[DMKey.image] != nil {   // 在图片旁输入的文字不是图片，否则保存时被吞掉
-                for k in [DMKey.image, DMKey.imageID, DMKey.alt, DMKey.title, DMKey.link, DMKey.linkTitle] { newValue[k] = nil }
+                for k in [DMKey.image, DMKey.imageID, DMKey.imageWidth, DMKey.imageHeight, DMKey.alt, DMKey.title, DMKey.link, DMKey.linkTitle] { newValue[k] = nil }
                 let kind = RichBridge.kind(of: newValue)
                 newValue[.foregroundColor] = RichStyle.textColor(for: kind)
                 newValue[.font] = RichStyle.baseFont(for: kind)   // 图片不带字体，否则变成系统默认的小字
@@ -935,7 +938,7 @@ final class RichTextView: NSTextView {
         rawNewlineAt = nil   // 光标离开刚开出的空行（或在上面打了字）就不再算“刚开出的”
         super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelecting)
         guard !stillSelecting, let lm = layoutManager as? RichLayoutManager else { return }
-        let hidden = lm.hiddenRanges
+        let hidden = lm.collapsedRanges()
         guard !hidden.isEmpty else { return }
         for value in ranges {
             let r = value.rangeValue

@@ -148,7 +148,9 @@ extension RichTextView {
 
     private static let keptKeys: Set<NSAttributedString.Key> = [
         .font, .underlineStyle, .strikethroughStyle, .obliqueness, .link, .attachment, .superscript,
-        DMKey.inlineCode, DMKey.kbd, DMKey.highlight, DMKey.literal, DMKey.link, DMKey.title, DMKey.linkTitle, DMKey.imageID, DMKey.softBreak, DMKey.image, DMKey.alt, DMKey.callout, DMKey.math,
+        DMKey.inlineCode, DMKey.kbd, DMKey.highlight, DMKey.literal, DMKey.link, DMKey.title, DMKey.linkTitle,
+        DMKey.imageID, DMKey.imageWidth, DMKey.imageHeight, DMKey.softBreak, DMKey.image, DMKey.alt, DMKey.callout, DMKey.math,
+        DMKey.htmlInline, DMKey.htmlInlineID,
     ]
 
     // MARK: - 在单页之间复制：另存一份带 DropMD 属性的内容，公式、图片粘贴后不丢
