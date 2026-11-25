@@ -185,6 +185,7 @@ struct EditorView: View {
                         Rectangle()
                             .fill(Color(nsColor: RichStyle.lineColor))
                             .frame(width: 1)
+                            .ignoresSafeArea(.container, edges: .top)
                             .overlay(SplitHandle(
                                 onDrag: { x in
                                     let right = geo.frame(in: .global).maxX
@@ -352,7 +353,7 @@ struct EditorView: View {
             .fixedSize()
             .help("显示方式")
         }
-        // 中间：段落样式 | 文字样式 + 列表 | 插入（3 组，避免过多胶囊挤占工具栏）
+        // 中间：段落样式 | 文字样式 + 列表 | 插入 | 写作工具（独立胶囊，遵循 Liquid Glass 分组规范）
         ToolbarItem(placement: .principal) {
             ParagraphStyleMenu(editor: editor, selection: editor.selection)
         }
@@ -360,19 +361,21 @@ struct EditorView: View {
             HStack(spacing: 0) {
                 ToolbarFormatGroup(editor: editor, selection: editor.selection)
                 ToolbarListMenu(editor: editor, selection: editor.selection)
-                if SiriAIManager.isWritingToolsAvailable {
-                    Button { editor.perform(.writingTools) } label: {
-                        Label("写作工具", systemImage: "apple.writing.tools")
-                    }
-                    .help("写作工具")
-                    .accessibilityLabel("写作工具")
-                }
             }
         }
         ToolbarItem(placement: .principal) {
             HStack(spacing: 0) {
                 toolbarGroup([.table, .image, .link])
                 insertMoreMenu
+            }
+        }
+        if SiriAIManager.isWritingToolsAvailable {
+            ToolbarItem(placement: .principal) {
+                Button { editor.perform(.writingTools) } label: {
+                    Label("写作工具", systemImage: "apple.writing.tools")
+                }
+                .help("写作工具")
+                .accessibilityLabel("写作工具")
             }
         }
         ToolbarItemGroup(placement: .primaryAction) {
@@ -394,6 +397,11 @@ struct EditorView: View {
                 .disabled(fileURL == nil)
                 .help("分享")
                 .accessibilityLabel("分享")
+        }
+        if #available(macOS 26.0, *) {
+            ToolbarSpacer(.fixed, placement: .primaryAction)
+        }
+        ToolbarItemGroup(placement: .primaryAction) {
             Toggle(isOn: Binding(get: { activePane == .format }, set: { _ in togglePane(.format) })) {
                 Label("格式", systemImage: "paintbrush")
             }
@@ -406,10 +414,10 @@ struct EditorView: View {
             .accessibilityLabel("目录")
             if SiriAIManager.isLanguageModelAvailable {
                 Toggle(isOn: Binding(get: { activePane == .summary }, set: { _ in togglePane(.summary) })) {
-                    Label("摘要", systemImage: "sparkles")
+                    Label { Text(verbatim: "Apple Intelligence") } icon: { Image(systemName: "sparkles") }
                 }
-                .help("摘要")
-                .accessibilityLabel("摘要")
+                .help(Text(verbatim: "Apple Intelligence"))
+                .accessibilityLabel(Text(verbatim: "Apple Intelligence"))
             }
         }
     }

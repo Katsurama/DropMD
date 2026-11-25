@@ -38,7 +38,7 @@ struct FormatInspector: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color(nsColor: .controlBackgroundColor).ignoresSafeArea(.container, edges: .top))
     }
 
     // 参考 Xcode / Pages 的检查器：小标题 + 分隔线分节，不用卡片边框
@@ -256,6 +256,7 @@ private struct SummaryInspectorView: View {
     @State private var copied = false
     @State private var questionText = ""
     @State private var dividerHovered = false
+    @FocusState private var questionFocused: Bool
 
     var body: some View {
         GeometryReader { geo in
@@ -268,6 +269,7 @@ private struct SummaryInspectorView: View {
                     Rectangle()
                         .fill(Color(nsColor: RichStyle.lineColor))
                         .frame(height: 1)
+                        .padding(.horizontal, 16)
                     if dividerHovered {
                         Capsule()
                             .fill(Color.secondary.opacity(0.45))
@@ -435,17 +437,12 @@ private struct SummaryInspectorView: View {
             .padding(.bottom, 8)
 
             if editor.qaMessages.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 20))
-                        .foregroundStyle(.tertiary)
-                    Text("可针对当前文档内容提问。")
-                        .font(.system(size: 13.5))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                .padding(16)
+                Text("可针对当前文档内容提问。")
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .padding(16)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -500,27 +497,32 @@ private struct SummaryInspectorView: View {
                 TextField("针对本文提问…", text: $questionText)
                     .font(.system(size: 14))
                     .textFieldStyle(.plain)
+                    .focused($questionFocused)
                     .disabled(editor.isAnsweringQA)
                     .onSubmit(submitQuestion)
 
                 Button(action: submitQuestion) {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 20))
-                        .foregroundStyle(canSend ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.tertiary))
+                        .foregroundStyle(canSend ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary))
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSend)
                 .help("发送")
                 .accessibilityLabel("发送")
             }
-            .padding(.leading, 12)
+            .padding(.leading, 14)
             .padding(.trailing, 8)
-            .padding(.vertical, 7)
-            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(.vertical, 8)
+            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.14), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(
+                        questionFocused ? Color.accentColor.opacity(0.65) : Color.primary.opacity(0.12),
+                        lineWidth: questionFocused ? 1.5 : 1
+                    )
             )
+            .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
             .padding(.horizontal, 14)
             .padding(.top, 6)
             .padding(.bottom, 14)

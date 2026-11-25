@@ -76,6 +76,10 @@ private struct GeneratedFrontMatter {
 
 /// Apple Intelligence / Siri AI 功能可用性检测与端侧/私有云大模型调用
 enum SiriAIManager {
+    private static var isAIDisabledForTesting: Bool {
+        ProcessInfo.processInfo.environment["DROPMD_DISABLE_AI"] == "1"
+    }
+
     /// 是否支持系统原生离线翻译弹窗（macOS 14.4+）
     static var isTranslationAvailable: Bool {
         if #available(macOS 14.4, *) { return true }
@@ -88,14 +92,23 @@ enum SiriAIManager {
         return false
     }
 
-    /// 是否支持系统写作工具（Writing Tools，macOS 15.2+）
+    /// 是否支持系统写作工具（Writing Tools，macOS 15.2+ 且 Apple Silicon 并已启用 Apple Intelligence）
     static var isWritingToolsAvailable: Bool {
+        guard !isAIDisabledForTesting else { return false }
+        #if arch(arm64)
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, *) {
+            return SystemLanguageModel.default.isAvailable
+        }
+        #endif
         if #available(macOS 15.2, *) { return true }
+        #endif
         return false
     }
 
     /// 是否支持系统内置大模型（macOS 26+ 且已开启可用）
     static var isLanguageModelAvailable: Bool {
+        guard !isAIDisabledForTesting else { return false }
         #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
             return SystemLanguageModel.default.isAvailable
@@ -106,6 +119,7 @@ enum SiriAIManager {
 
     /// 是否支持 Apple 私有云计算大模型（macOS 27+）
     static var isPrivateCloudAvailable: Bool {
+        guard !isAIDisabledForTesting else { return false }
         #if canImport(FoundationModels)
         if #available(macOS 27.0, *) {
             return PrivateCloudComputeLanguageModel().isAvailable
@@ -116,6 +130,7 @@ enum SiriAIManager {
 
     /// 是否支持系统图乐园（Image Playground，macOS 15.2+）
     static var isImagePlaygroundAvailable: Bool {
+        guard !isAIDisabledForTesting else { return false }
         #if canImport(ImagePlayground)
         if #available(macOS 15.2, *) {
             return ImagePlaygroundViewController.isAvailable
@@ -625,17 +640,15 @@ enum SiriAIManager {
             && shouldUsePrivateCloud(preference: AIModelPreference.current, contentLength: document.count)
         let maxChars = useCloud ? 20000 : 5500
         let context = prepareContextForQA(document: document, question: question, maxChars: maxChars)
-        let instructions = """
-        Answer concisely in the same language as the user's message, using the provided document when relevant. If the document does not mention the requested information, say so clearly.
-        """
-        var promptParts = ["Document content:\n\n\(context)"]
+        let instructions = context
+        var promptParts: [String] = []
         let recent = history.suffix(3).filter { !$0.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         if !recent.isEmpty {
             let histText = recent.map { "Q: \($0.question)\nA: \($0.answer)" }.joined(separator: "\n\n")
-            promptParts.append("Recent conversation:\n\(histText)")
+            promptParts.append(histText)
         }
-        promptParts.append("Current question: \(question)")
-        let prompt = promptParts.joined(separator: "\n\n---\n\n")
+        promptParts.append(question)
+        let prompt = promptParts.joined(separator: "\n\n")
         let response = try await runWithSession(instructions: instructions, contentLength: document.count) { session in
             try await session.respond(to: prompt)
         }

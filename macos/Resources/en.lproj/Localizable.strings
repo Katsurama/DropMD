@@ -446,7 +446,6 @@
 "智能整理排版已取消" = "Smart Format Canceled";
 "处理期间文档已修改，请重新操作。" = "The document was modified while processing. Please try again.";
 "当前文档中没有可翻译的自然语言内容。" = "There is no translatable text in this document.";
-"摘要" = "Summary";
 "没有可翻译的正文" = "No Translatable Text";
 "翻译整篇文档" = "Translate Document";
 "翻译整篇文档失败" = "Failed to Translate Document";
@@ -481,7 +480,6 @@
 "文件名" = "File Name";
 "文档" = "Document";
 "文章摘要" = "Summary";
-"智能" = "Intelligence";
 "智能工具" = "Smart Tools";
 "智能模型" = "Intelligence Model";
 "未发现待办事项" = "No Tasks Found";

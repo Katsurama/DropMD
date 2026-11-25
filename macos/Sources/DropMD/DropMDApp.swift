@@ -315,8 +315,10 @@ struct FormatCommands: Commands {
             Button("目录", systemImage: "list.bullet.indent") { toggleInspector?(.outline) }
                 .disabled(toggleInspector == nil)
             if SiriAIManager.isLanguageModelAvailable {
-                Button("摘要", systemImage: "sparkles") { toggleInspector?(.summary) }
-                    .disabled(toggleInspector == nil)
+                Button { toggleInspector?(.summary) } label: {
+                    Label { Text(verbatim: "Apple Intelligence") } icon: { Image(systemName: "sparkles") }
+                }
+                .disabled(toggleInspector == nil)
             }
             AppearanceMenu()
             PageMarginMenu()

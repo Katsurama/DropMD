@@ -146,8 +146,10 @@ private struct GeneralSettings: View {
                 .onChange(of: language) { _, newValue in AppLanguage.set(newValue) }
             }
             if SiriAIManager.isPrivateCloudAvailable {
-                Section("智能") {
+                Section {
                     AIModelPicker()
+                } header: {
+                    Text(verbatim: "Apple Intelligence")
                 }
             }
             Section("Markdown 文件") {
