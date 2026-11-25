@@ -61,10 +61,13 @@ extension EditorController {
         let text = pendingText
         guard let url = savePanel(ext: "html", type: .html) else { return }
         let title = url.deletingPathExtension().lastPathComponent
+        let baseDir = fileURL?.deletingLastPathComponent()
         Task { @MainActor in
             do {
                 let rendered = try await MathRenderer.shared.exportBody(text, ui: Self.calloutTitles)
-                let body = HTMLExport.embedLocalImages(rendered, base: self.fileURL?.deletingLastPathComponent())
+                let body = await Task.detached(priority: .userInitiated) {
+                    HTMLExport.embedLocalImages(rendered, base: baseDir)
+                }.value
                 // 样式表直接从 App 里读：网页脚本不能读取本机样式表的内容（WebKit 的安全限制）
                 let css = MathRenderer.shared.pageURL.flatMap {
                     try? String(contentsOf: $0.deletingLastPathComponent().appendingPathComponent("preview.css"), encoding: .utf8)

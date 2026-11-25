@@ -42,8 +42,13 @@ enum AppUpdateInstaller {
           sleep 0.5; n=$((n+1))
         done
         rm -rf "$app.old"
-        if mv "$app" "$app.old" && mv "$new" "$app"; then rm -rf "$app.old"; else [ -d "$app" ] || mv "$app.old" "$app"; fi
-        if [ "$relaunch" = 1 ] && [ "$n" -le 240 ]; then open "$app"; fi
+        if mv "$app" "$app.old" && mv "$new" "$app"; then
+          rm -rf "$app.old"
+          if [ "$relaunch" = 1 ] && [ "$n" -le 240 ]; then open "$app"; fi
+        else
+          [ -d "$app" ] || mv "$app.old" "$app"
+          rm -rf "$new"
+        fi
         """
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")

@@ -3,6 +3,8 @@ import ImageIO
 import UniformTypeIdentifiers
 
 enum HTMLExport {
+    private static let maxEmbedBytes = 50 * 1024 * 1024
+
     private static let imagePattern = try! NSRegularExpression(
         pattern: #"<img\b[^>]*?\ssrc=(?:"([^"]*)"|'([^']*)')"#,
         options: .caseInsensitive
@@ -19,22 +21,30 @@ enum HTMLExport {
     /// src 指向的本机图片；网络图片、已嵌入的图片和其他文件返回 nil
     private static func localImage(_ rawSrc: Substring, base: URL?) -> (url: URL, mime: String)? {
         let src = rawSrc.replacingOccurrences(of: "&amp;", with: "&")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !src.isEmpty else { return nil }
         let lower = src.lowercased()
         if lower.hasPrefix("http:") || lower.hasPrefix("https:") || lower.hasPrefix("//") || lower.hasPrefix("data:") { return nil }
-        let base = base.map { URL(fileURLWithPath: $0.path, isDirectory: true) }   // 文件夹地址要以 / 结尾，相对路径才对
+        let baseDir = base.map { URL(fileURLWithPath: $0.path, isDirectory: true) }   // 文件夹地址要以 / 结尾，相对路径才对
             ?? (src.hasPrefix("/") ? URL(fileURLWithPath: "/", isDirectory: true) : nil)   // 未保存的文档：插入的图片是绝对路径
-        guard let url = URL(string: src, relativeTo: base), url.isFileURL,
+        guard let baseDir else { return nil }
+        let candidate = URL(string: src, relativeTo: baseDir)
+            ?? URL(fileURLWithPath: src.removingPercentEncoding ?? src, relativeTo: baseDir)
+        let url = candidate.standardizedFileURL
+        guard url.isFileURL,
               let mime = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType, mime.hasPrefix("image/") else { return nil }
         return (url, mime)
     }
 
     /// 把正文里引用的本机图片直接嵌进 HTML（data:）：导出的文件放到哪个文件夹都能显示，也不会写进本机路径。
-    /// base 是文档所在的文件夹；网络图片和读不到的图片保持原样
+    /// base 是文档所在的文件夹；网络图片、超大图片（> 50 MB）和读不到的图片保持原样
     static func embedLocalImages(_ html: String, base: URL?) -> String {
         var out = html
         for m in imagePattern.matches(in: html, range: NSRange(html.startIndex..., in: html)).reversed() {
-            guard let r = srcRange(in: m, text: out), let image = localImage(out[r], base: base),
-                  let data = try? Data(contentsOf: image.url) else { continue }
+            guard let r = srcRange(in: m, text: out), let image = localImage(out[r], base: base) else { continue }
+            let size = (try? image.url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
+            if let size, size > maxEmbedBytes { continue }
+            guard let data = try? Data(contentsOf: image.url), data.count <= maxEmbedBytes else { continue }
             out.replaceSubrange(r, with: "data:\(image.mime);base64,\(data.base64EncodedString())")
         }
         return out

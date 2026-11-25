@@ -153,8 +153,14 @@ final class MathRenderer: NSObject, WKNavigationDelegate {
                 guard case .success(let value) = result, let a = value as? [Double], a.count == 3, a[0] > 0, a[1] > 0 else {
                     return self.finish(job.key, nil)
                 }
+                let snapW = min(4096.0, ceil(a[0])), snapH = min(4096.0, ceil(a[1]))
+                if snapW > webView.frame.width || snapH > webView.frame.height {
+                    let target = NSSize(width: max(webView.frame.width, snapW), height: max(webView.frame.height, snapH))
+                    self.window?.setContentSize(target)
+                    webView.setFrameSize(target)
+                }
                 let config = WKSnapshotConfiguration()
-                config.rect = NSRect(x: 0, y: 0, width: ceil(a[0]), height: ceil(a[1]))
+                config.rect = NSRect(x: 0, y: 0, width: snapW, height: snapH)
                 webView.takeSnapshot(with: config) { image, _ in
                     MainActor.assumeIsolated {
                         let mask = image.flatMap(Self.mask)

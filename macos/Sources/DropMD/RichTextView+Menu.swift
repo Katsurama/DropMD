@@ -107,10 +107,17 @@ extension RichTextView {
                 let r = objectRange(at: hit) ?? NSRange(location: hit, length: 1)   // 显示出来的图片是一个附件字符
                 let path = a[DMKey.image] as? String ?? ""
                 let file = imageFile(path)
-                groups.append([menuItem(String(localized: "编辑替代文本…"), #selector(editImageAlt(_:)), NSValue(range: r)),
-                               menuItem(String(localized: "提取图片中的文字"), file == nil ? nil : #selector(extractImageText(_:)), NSValue(range: r)),
-                               menuItem(String(localized: "在访达中显示"), file == nil ? nil : #selector(revealImage(_:)), file),
-                               menuItem(String(localized: "删除图片"), #selector(deleteImage(_:)), NSValue(range: r))])
+                let isHTMLBlock = a[DMKey.htmlRaw] != nil
+                var items: [NSMenuItem] = []
+                if !isHTMLBlock {
+                    items.append(menuItem(String(localized: "编辑替代文本…"), #selector(editImageAlt(_:)), NSValue(range: r)))
+                }
+                items.append(menuItem(String(localized: "提取图片中的文字"), file == nil ? nil : #selector(extractImageText(_:)), NSValue(range: r)))
+                items.append(menuItem(String(localized: "在访达中显示"), file == nil ? nil : #selector(revealImage(_:)), file))
+                if !isHTMLBlock {
+                    items.append(menuItem(String(localized: "删除图片"), #selector(deleteImage(_:)), NSValue(range: r)))
+                }
+                groups.append(items)
             } else if let url = a[DMKey.link] as? String {
                 var r = NSRange()
                 storage.attribute(DMKey.link, at: hit, longestEffectiveRange: &r, in: NSRange(location: 0, length: storage.length))
@@ -314,10 +321,16 @@ extension RichTextView {
         let a = storage.attributes(at: range.location, effectiveRange: nil)
         let image = NSMutableAttributedString(attributedString: RichBridge.imageString(
             path: path, alt: alt, title: a[DMKey.title] as? String, link: a[DMKey.link] as? String,
-            linkTitle: a[DMKey.linkTitle] as? String, baseURL: baseURL))
+            linkTitle: a[DMKey.linkTitle] as? String,
+            htmlWidth: a[DMKey.imageWidth] as? String, htmlHeight: a[DMKey.imageHeight] as? String,
+            baseURL: baseURL))
         // 段落的属性（列表、表格、折叠块、缩进）照原样补上，否则这一段会变回正文
         var rest = a
         rest[.attachment] = nil
+        if let htmlInline = a[DMKey.htmlInline] as? String {
+            rest[DMKey.htmlInline] = RichHTML.updatingAlt(in: htmlInline, to: alt)
+            rest[DMKey.htmlInlineID] = UUID().uuidString
+        }
         for (k, v) in rest where image.attribute(k, at: 0, effectiveRange: nil) == nil {
             image.addAttribute(k, value: v, range: NSRange(location: 0, length: image.length))
         }

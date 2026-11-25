@@ -157,7 +157,7 @@ final class UpdateChecker: ObservableObject {
     }
 
     private var downloadTask: Task<Void, Never>?
-    private var replaceScheduled = false
+    private var replaceScheduledAt: Date?
 
     /// 发布安装包的 GitHub 仓库（Info.plist 中的 DropMDUpdateRepository，格式 owner/repo）
     static var repository: String? {
@@ -290,6 +290,7 @@ final class UpdateChecker: ObservableObject {
                             try AppUpdateInstaller.stage(package: file, to: staged, bundleID: Bundle.main.bundleIdentifier, version: expected)
                         }.value
                         try? FileManager.default.removeItem(at: file)
+                        replaceScheduledAt = nil
                         state = .readyToRestart
                         return
                     } catch {
@@ -333,12 +334,12 @@ final class UpdateChecker: ObservableObject {
             state = .failed(String(localized: "新版本文件不见了，请重新下载。"))
             return
         }
-        // 替换脚本只启动一次：取消退出后再点“重新启动”，两个脚本同时替换会把 App 弄坏
-        if !replaceScheduled {
+        // 替换脚本只启动一次：取消退出后再点“重新启动”，120 秒内不再重复拉起；超过 120 秒脚本已超时退出，允许重新调度
+        if replaceScheduledAt.map({ Date().timeIntervalSince($0) >= 120 }) ?? true {
             do {
                 try AppUpdateInstaller.replaceAfterExit(pid: ProcessInfo.processInfo.processIdentifier,
                                                         app: Self.appURL, staged: staged, relaunch: true)
-                replaceScheduled = true
+                replaceScheduledAt = Date()
             } catch {
                 state = .failed(String(localized: "无法启动更新：\(error.localizedDescription)"))
                 return

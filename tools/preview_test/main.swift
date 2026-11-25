@@ -46,9 +46,18 @@ let calls = [
     if ((h.match(/<ol/g) || []).length !== 1) throw new Error('嵌套列表被拆开了：' + h);
     return true
     """,
-    // 导出的 HTML 保留网络图片（预览里为保护隐私不加载）
+    // 导出的 HTML 保留网络图片（预览里为保护隐私不加载），预览同时拦截原始 HTML <img> 且转义提示框标题
     """
     if (!DropMD.exportBody('![a](https://example.com/a.png)').includes('<img src="https://example.com/a.png"')) throw new Error('导出时网络图片丢了');
+    DropMD.render('<img src="https://example.com/a.svg" alt="徽章">\\n\\n> [!NOTE]\\n> 正文', '', '', { NOTE: '<b>笔记</b>' });
+    const c = document.getElementById('content').innerHTML;
+    if (c.includes('<img') || !c.includes('blocked-image') || !c.includes('徽章')) throw new Error('原始 HTML 远程图片没有在预览里拦截：' + c);
+    if (c.includes('<b>笔记</b>') || !c.includes('&lt;b&gt;笔记&lt;/b&gt;')) throw new Error('提示框标题未按纯文本转义：' + c);
+    if (!DropMD.exportBody('<img src="https://example.com/a.svg" alt="徽章">').includes('<img src="https://example.com/a.svg"')) throw new Error('导出时原始 HTML 网络图片丢了');
+    DropMD.render('<img srcset="https://example.com/a.png 1x" alt="高清图">\\n\\n<picture><source srcset="https://example.com/a.webp"><img src="local.png"></picture>', '', '', {});
+    const c2 = document.getElementById('content').innerHTML;
+    if (c2.includes('<source') || c2.includes('srcset') || !c2.includes('blocked-image') || !c2.includes('高清图') || !c2.includes('<img src="local.png">')) throw new Error('原始 HTML 远程 srcset 没有在预览里拦截：' + c2);
+    if (!DropMD.exportBody('<img srcset="https://example.com/a.png 1x" alt="高清图">').includes('https://example.com/a.png')) throw new Error('导出时远程 srcset 丢了');
     return true
     """,
 ]

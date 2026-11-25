@@ -142,7 +142,8 @@
         }
         while (t.children.length && /^(softbreak|hardbreak)$/.test(t.children[0].type)) t.children.shift();
         const title = new state.Token("html_inline", "", 0);
-        title.content = '<span class="callout-title">' + ui[type] + "</span>";
+        const label = ui[type] || type;
+        title.content = '<span class="callout-title">' + md.utils.escapeHtml(String(label)) + "</span>";
         t.children.unshift(title);
         tokens[i].attrJoin("class", "callout callout-" + type.toLowerCase());
       }
@@ -234,7 +235,44 @@
       if (uiText) Object.assign(ui, uiText);
       // 文档语言决定汉字字形，见 preview.css
       if (lang) document.documentElement.lang = lang;
-      document.getElementById("content").innerHTML = previewMD.render(frontMatter(text || ""));
+      function isRemoteUrl(u) {
+        return /^(https?:)?\/\//i.test((u || "").trim());
+      }
+      function hasRemoteSrcset(s) {
+        return (s || "").split(",").some(function (entry) {
+          const url = entry.trim().split(/\s+/)[0] || "";
+          return isRemoteUrl(url);
+        });
+      }
+      function replaceBlockedImage(img, labelSrc) {
+        const span = doc.createElement("span");
+        span.className = "blocked-image";
+        span.title = labelSrc;
+        const alt = img.getAttribute("alt") || "";
+        span.textContent = ui.blockedImage + (alt ? ui.colon + alt : "");
+        img.replaceWith(span);
+      }
+      // 使用独立 DOM 解析后替换原始 HTML <img> / <source> 的远程地址，避免挂载到页面时提前触发网络请求
+      const doc = new DOMParser().parseFromString(previewMD.render(frontMatter(text || "")), "text/html");
+      doc.querySelectorAll("source[srcset]").forEach(function (source) {
+        if (hasRemoteSrcset(source.getAttribute("srcset"))) {
+          source.remove();
+        }
+      });
+      doc.querySelectorAll("img").forEach(function (img) {
+        const src = (img.getAttribute("src") || "").trim();
+        const srcset = (img.getAttribute("srcset") || "").trim();
+        if (isRemoteUrl(src)) {
+          replaceBlockedImage(img, src);
+        } else if (hasRemoteSrcset(srcset)) {
+          if (!src) {
+            replaceBlockedImage(img, srcset);
+          } else {
+            img.removeAttribute("srcset");
+          }
+        }
+      });
+      document.getElementById("content").replaceChildren(...doc.body.childNodes);
       return true;
     },
 

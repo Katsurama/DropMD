@@ -183,15 +183,12 @@ extension EditorController {
         let baseURL = fileURL?.deletingLastPathComponent()
         if let sel = target.richSelection, let r = richView, let storage = r.textStorage, NSMaxRange(sel) <= storage.length {
             let writeRange = insertionOnly ? NSRange(location: NSMaxRange(sel), length: 0) : sel
-            let formattedText: String
+            let rendered = NSMutableAttributedString(attributedString: RichBridge.attributed(markdown: markdown, baseURL: baseURL))
             if insertionOnly {
-                let prefix = writeRange.location > 0 && !(storage.string as NSString).substring(to: writeRange.location).hasSuffix("\n") ? "\n" : ""
-                formattedText = prefix + markdown
-            } else {
-                formattedText = markdown
-            }
-            let rendered = NSMutableAttributedString(attributedString: RichBridge.attributed(markdown: formattedText, baseURL: baseURL))
-            if !target.isFullDocument && !insertionOnly, rendered.string.hasSuffix("\n") {
+                if writeRange.location > 0, !(storage.string as NSString).substring(to: writeRange.location).hasSuffix("\n") {
+                    rendered.insert(NSAttributedString(string: "\n", attributes: RichStyle.attributes(for: MDRun(), kind: .body)), at: 0)
+                }
+            } else if !target.isFullDocument, rendered.string.hasSuffix("\n") {
                 rendered.deleteCharacters(in: NSRange(location: rendered.length - 1, length: 1))
             }
             r.replace(writeRange, with: rendered, caret: writeRange.location + rendered.length)

@@ -244,6 +244,16 @@ enum WordExport {
       if decoded == "" or decoded:find("%z") then
         return missing_placeholder(el)
       end
+      local allowed_img_exts = {
+        png = true, jpg = true, jpeg = true, gif = true,
+        webp = true, bmp = true, tif = true, tiff = true,
+        svg = true, heic = true, avif = true
+      }
+      local ext = decoded:match("%.([%w]+)$")
+      local lower_ext = ext and ext:lower() or ""
+      if not allowed_img_exts[lower_ext] then
+        return missing_placeholder(el)
+      end
       local base = os.getenv("DROPMD_BASE_DIR") or ""
       local is_abs = decoded:sub(1, 1) == "/"
       if not is_abs and base == "" then
@@ -254,15 +264,21 @@ enum WordExport {
       if not f then
         return missing_placeholder(el)
       end
-      -- macOS 上 io.open 可以打开目录，read("*a") 会返回 nil；写入 mediabag 避免 Pandoc 二次 URL 解码
-      local bytes = f:read("*a")
+      -- macOS 上 io.open 可以打开目录，seek/read 会返回 nil；先限制体积再写入 mediabag，避免读入超大文件或二次 URL 解码
+      local max_bytes = 50 * 1024 * 1024
+      local size = f:seek("end")
+      if not size or size <= 0 or size > max_bytes then
+        f:close()
+        return missing_placeholder(el)
+      end
+      f:seek("set", 0)
+      local bytes = f:read(max_bytes + 1)
       f:close()
-      if not bytes or #bytes == 0 then
+      if not bytes or #bytes == 0 or #bytes > max_bytes then
         return missing_placeholder(el)
       end
       img_count = img_count + 1
-      local ext = decoded:match("%.([%w]+)$")
-      local name = "dropmd_img_" .. img_count .. (ext and ("." .. ext:lower()) or "")
+      local name = "dropmd_img_" .. img_count .. "." .. lower_ext
       pandoc.mediabag.insert(name, nil, bytes)
       el.src = name
       return el
@@ -351,14 +367,31 @@ enum WordExport {
         }
         proc.environment = env
 
+        final class TimeoutBox: @unchecked Sendable {
+            private let lock = NSLock()
+            private var value = false
+            func markTimedOut() { lock.lock(); value = true; lock.unlock() }
+            var isTimedOut: Bool { lock.lock(); defer { lock.unlock() }; return value }
+        }
         let errPipe = Pipe()
         proc.standardOutput = FileHandle.nullDevice
         proc.standardError = errPipe
         try proc.run()
+        let timeoutBox = TimeoutBox()
+        let timer = DispatchWorkItem {
+            guard proc.isRunning else { return }
+            timeoutBox.markTimedOut()
+            proc.terminate()
+        }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 120, execute: timer)
         let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
         proc.waitUntilExit()
+        timer.cancel()
 
         guard proc.terminationStatus == 0, FileManager.default.fileExists(atPath: output.path) else {
+            if timeoutBox.isTimedOut {
+                throw ExportError.failed(String(localized: "导出 Word 超时，请稍后重试。"))
+            }
             let msg = String(data: errData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             throw ExportError.failed(msg.isEmpty ? "Pandoc (\(proc.terminationStatus))" : msg)
         }

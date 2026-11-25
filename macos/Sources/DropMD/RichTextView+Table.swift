@@ -71,14 +71,18 @@ extension RichTextView {
             guard addRow else { return moveBelowTable(para.location) }
             // 最后一格：在表格末尾新增一行
             let row = NSMutableAttributedString()
-            // 新的一行沿用各列原来的宽度
+            // 新的一行沿用各列原来的宽度，仅扫描当前表格范围，集齐所有列宽后立即停止
+            let cols = current.table.numberOfColumns
             var widths: [Int: CGFloat] = [:]
-            textStorage?.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: textStorage?.length ?? 0)) { value, _, _ in
-                if let b = (value as? NSParagraphStyle)?.textBlocks.first as? NSTextTableBlock, b.table === current.table {
-                    widths[b.startingColumn] = b.value(for: .width)
+            if let storage = textStorage {
+                let tableScope = (layoutManager as? RichLayoutManager)?.tableRange(around: para, in: storage) ?? para
+                storage.enumerateAttribute(.paragraphStyle, in: tableScope) { value, _, stop in
+                    if let b = (value as? NSParagraphStyle)?.textBlocks.first as? NSTextTableBlock, b.table === current.table {
+                        widths[b.startingColumn] = b.value(for: .width)
+                        if widths.count >= cols { stop.pointee = true }
+                    }
                 }
             }
-            let cols = current.table.numberOfColumns
             for c in 0..<cols {
                 row.append(RichBridge.cellParagraph(table: current.table, row: current.startingRow + 1, column: c,
                                                     runs: [], baseURL: baseURL, width: widths[c] ?? 100 / CGFloat(cols)))

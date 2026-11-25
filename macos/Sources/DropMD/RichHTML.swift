@@ -454,6 +454,42 @@ enum RichHTML {
         MarkdownCodec.decodeHTMLEntities(text)
     }
 
+    /// 替换 HTML 媒体片段中首个 <img> 标签的 alt 属性，保留其余属性（如 width/height）与外层 <a>
+    static func updatingAlt(in html: String, to newAlt: String) -> String {
+        let escaped = escapeAttribute(newAlt)
+        let ns = html as NSString
+        guard let imgMatch = imgTagRegexGlobal.firstMatch(in: html, options: [], range: NSRange(location: 0, length: ns.length)) else {
+            return html
+        }
+        let imgRange = imgMatch.range
+        let imgTag = ns.substring(with: imgRange)
+        let imgNS = imgTag as NSString
+        let matches = attrRegex.matches(in: imgTag, options: [], range: NSRange(location: 0, length: imgNS.length))
+        let updatedImg: String
+        if let altMatch = matches.first(where: { imgNS.substring(with: $0.range(at: 1)).lowercased() == "alt" }) {
+            updatedImg = imgNS.replacingCharacters(in: altMatch.range, with: "alt=\"\(escaped)\"")
+        } else if imgTag.hasSuffix("/>") {
+            let prefix = String(imgTag.dropLast(2))
+            let sep = prefix.last?.isWhitespace == true ? "" : " "
+            updatedImg = "\(prefix)\(sep)alt=\"\(escaped)\"/>"
+        } else if imgTag.hasSuffix(">") {
+            let prefix = String(imgTag.dropLast(1))
+            let sep = prefix.last?.isWhitespace == true ? "" : " "
+            updatedImg = "\(prefix)\(sep)alt=\"\(escaped)\">"
+        } else {
+            updatedImg = imgTag
+        }
+        return ns.replacingCharacters(in: imgRange, with: updatedImg)
+    }
+
+    private static func escapeAttribute(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+    }
+
     private static func alignment(_ raw: String?) -> NSTextAlignment? {
         switch raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "left": return .left

@@ -62,6 +62,10 @@ final class ModelDownloader: @unchecked Sendable {
         session = URLSession(configuration: config)
     }
 
+    deinit {
+        session.invalidateAndCancel()
+    }
+
     func cancel() {
         lock.lock()
         cancelled = true
@@ -107,36 +111,40 @@ final class ModelDownloader: @unchecked Sendable {
 
     /// 下载单个文件到 dest，期间回调已接收字节数
     private func downloadFile(_ url: URL, to dest: URL, onBytes: @escaping @Sendable (Int64) -> Void) async throws {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            let holder = TaskHolder()
-            let timer = DispatchSource.makeTimerSource(queue: .global())
-            timer.schedule(deadline: .now() + 0.3, repeating: 0.3)
-            timer.setEventHandler {
-                if let task = holder.task { onBytes(task.countOfBytesReceived) }
-            }
-            let task = session.downloadTask(with: url) { tmp, resp, error in
-                timer.cancel()
-                if let error { return cont.resume(throwing: error) }
-                let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
-                guard code == 200, let tmp else {
-                    return cont.resume(throwing: DownloadError.http(code, url.lastPathComponent))
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+                let holder = TaskHolder()
+                let timer = DispatchSource.makeTimerSource(queue: .global())
+                timer.schedule(deadline: .now() + 0.3, repeating: 0.3)
+                timer.setEventHandler {
+                    if let task = holder.task { onBytes(task.countOfBytesReceived) }
                 }
-                do {
-                    try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
-                    try? FileManager.default.removeItem(at: dest)
-                    try FileManager.default.moveItem(at: tmp, to: dest)
-                    cont.resume()
-                } catch {
-                    cont.resume(throwing: error)
+                let task = session.downloadTask(with: url) { tmp, resp, error in
+                    timer.cancel()
+                    if let error { return cont.resume(throwing: error) }
+                    let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+                    guard code == 200, let tmp else {
+                        return cont.resume(throwing: DownloadError.http(code, url.lastPathComponent))
+                    }
+                    do {
+                        try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        try? FileManager.default.removeItem(at: dest)
+                        try FileManager.default.moveItem(at: tmp, to: dest)
+                        cont.resume()
+                    } catch {
+                        cont.resume(throwing: error)
+                    }
                 }
+                holder.task = task
+                lock.lock()
+                currentTask = task
+                let stop = cancelled
+                lock.unlock()
+                timer.resume()
+                if stop { task.cancel() } else { task.resume() }
             }
-            holder.task = task
-            lock.lock()
-            currentTask = task
-            let stop = cancelled
-            lock.unlock()
-            timer.resume()
-            if stop { task.cancel() } else { task.resume() }
+        } onCancel: {
+            self.cancel()
         }
     }
 

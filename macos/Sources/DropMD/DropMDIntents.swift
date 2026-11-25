@@ -148,11 +148,16 @@ struct ConvertFileToMarkdownIntent: AppIntent {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let errorHolder = IntentErrorHolder()
-        let status = try await Engine().run(["convert"], input: reqData) { lineData in
-            if let ev = try? decoder.decode(Engine.Event.self, from: lineData),
-               ev.event == "result", ev.ok == false {
-                errorHolder.record(ev.info)
+        let engine = Engine()
+        let status = try await withTaskCancellationHandler {
+            try await engine.run(["convert"], input: reqData) { lineData in
+                if let ev = try? decoder.decode(Engine.Event.self, from: lineData),
+                   ev.event == "result", ev.ok == false {
+                    errorHolder.record(ev.info)
+                }
             }
+        } onCancel: {
+            engine.terminate()
         }
         guard status == 0, fm.fileExists(atPath: dstURL.path),
               let mdData = try? Data(contentsOf: dstURL) else {

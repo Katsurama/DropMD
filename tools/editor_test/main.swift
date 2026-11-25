@@ -708,6 +708,10 @@ MainActor.assumeIsolated {
         check("导出保持原图", HTMLExport.embedLocalImages(tag, base: dir) == "<img src=\"data:image/png;base64,\(big.base64EncodedString())\">" ? "原图" : "变了", "原图")
         check("导出 HTML 支持单引号与大写 img", HTMLExport.embedLocalImages(#"<IMG SRC='%E5%9B%BE%20%E7%89%87/a.png'>"#, base: dir),
               #"<IMG SRC='data:image/png;base64,aGk='>"#)
+        check("导出 HTML 支持未编码空格路径", HTMLExport.embedLocalImages(#"<img src="图 片/a.png">"#, base: dir),
+              #"<img src="data:image/png;base64,aGk=">"#)
+        check("快速查看支持未编码空格路径", HTMLExport.linkLocalImages(#"<img src="图 片/a.png">"#, base: dir, scheme: "dropmd-image").html,
+              #"<img loading="lazy" decoding="async" src="dropmd-image:/0">"#)
         let linkedSingle = HTMLExport.linkLocalImages(#"<IMG SRC='no.png'>"#, base: dir, scheme: "dropmd-image")
         check("快速查看支持单引号与大写 img", "\(linkedSingle.html) \(linkedSingle.images.count)",
               #"<img loading="lazy" decoding="async" SRC='dropmd-image:/0'> 1"#)
@@ -1191,6 +1195,14 @@ MainActor.assumeIsolated {
             if let r = tv.objectRange(at: at) { tv.setImageAlt("新", in: r) }
             check("右键：改说明不破坏 \(src.prefix(2))", md(tv), want)
         }
+        // 行内 HTML 图片改说明时保留 width 等属性；整块 raw HTML 图片菜单不提供“编辑替代文本…”和“删除图片”
+        tv = makeView("<img src=\"a.png\" width=\"112\" alt=\"旧\">\n")
+        if let r = tv.objectRange(at: 0) { tv.setImageAlt("新", in: r) }
+        check("右键：行内 HTML 图片改说明保留宽度", md(tv), "<img src=\"a.png\" width=\"112\" alt=\"新\">\n")
+        tv = makeView("<p align=\"center\"><img src=\"a.png\"></p>\n")
+        let htmlBlockMenu = titles(tv, hit: 0)
+        check("右键：raw HTML 图片隐藏改说明和删除项",
+              "\(!htmlBlockMenu.contains("编辑替代文本…") && !htmlBlockMenu.contains("删除图片") && htmlBlockMenu.contains("提取图片中的文字"))", "true")
         tv = at("```swift\nlet a = 1\nlet b = 2\n```\n", "b")
         check("右键：代码块里的操作", "\(titles(tv).hasPrefix("复制代码|语言"))", "true")
         tv.setCodeLanguage(obj("python"))
@@ -2020,6 +2032,15 @@ MainActor.assumeIsolated {
         check("Word 导出禁用 pandoc_title_block 且无 base 时不读相对图",
               noBase.doc.contains("% completion rate") && !noBase.doc.contains("w:val=\"Title\"") && noBase.media.isEmpty ? "ok" : "fail", "ok")
 
+        // 非图片扩展名本地文件禁止通过图片语法嵌入
+        let secretTxt = dir.appendingPathComponent("secret.txt")
+        try! "TOP_SECRET_TEXT".write(to: secretTxt, atomically: true, encoding: .utf8)
+        let nonImageDocx = dir.appendingPathComponent("nonimage.docx")
+        try! WordExport.export(markdown: "![文本](secret.txt)\n\n![无后缀](/etc/hosts)\n", to: nonImageDocx, base: dir)
+        let nonImage = unzipDocx(nonImageDocx, into: "unpacked_nonimage")
+        check("Word 导出拦截非图片扩展名本地文件",
+              nonImage.media.isEmpty && !nonImage.doc.contains("TOP_SECRET_TEXT") && nonImage.doc.contains("文本") && nonImage.doc.contains("无后缀") ? "ok" : "fail", "ok")
+
         // 真实示例文档导出检查
         if let sampleText = try? String(contentsOfFile: "packaging/samples/editor_sample.md", encoding: .utf8) {
             let sampleDocx = dir.appendingPathComponent("editor_sample.docx")
@@ -2204,15 +2225,9 @@ MainActor.assumeIsolated {
         let longChunks = SiriAIManager.splitIntoChunks((1...8).map { "第\($0)段内容：" + String(repeating: "测", count: 800) }.joined(separator: "\n\n"), maxChars: 1000)
         check("摘要分段：长文拆成多块且不丢段落", "\(longChunks.count > 1) \(longChunks.joined(separator: "\n\n").contains("第8段内容"))", "true true")
 
-        let summaryCallout = SiriAIManager.formatSummaryCallout(from: "1. 要点一\n- 要点二")
-        check("摘要格式：标准化为 NOTE 提示框", summaryCallout, "> [!NOTE]\n> - 要点一\n> - 要点二")
         check("摘要解析：剥离重复列表前缀",
               SiriAIManager.parseSummaryBullets(from: "- - 要点一\n* • 要点二").joined(separator: "|"),
               "要点一|要点二")
-        let withH1 = "---\ntitle: demo\n---\n\n# 主标题\n\n正文开始。\n"
-        check("摘要插入：落在 YAML 与一级标题正下方",
-              SiriAIManager.insertSummaryCallout(summaryCallout, into: withH1),
-              "---\ntitle: demo\n---\n\n# 主标题\n\n> [!NOTE]\n> - 要点一\n> - 要点二\n\n正文开始。\n")
 
         // 保格式整篇翻译：只翻自然语言，代码、公式、YAML、链接地址、图片路径完全保留
         let transSrc = """

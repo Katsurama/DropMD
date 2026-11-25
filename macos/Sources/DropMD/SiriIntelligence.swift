@@ -342,52 +342,6 @@ enum SiriAIManager {
             .filter { !$0.isEmpty }
     }
 
-    static func formatSummaryCallout(bullets: [String]) -> String {
-        let clean = bullets.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        guard !clean.isEmpty else { return "" }
-        return (["> [!NOTE]"] + clean.map { "> - \($0)" }).joined(separator: "\n")
-    }
-
-    static func formatSummaryCallout(from raw: String) -> String {
-        formatSummaryCallout(bullets: parseSummaryBullets(from: raw))
-    }
-
-    /// 将摘要提示框插入 YAML 之后，若紧随其后为一级标题（# ...）则插在一级标题正下方
-    static func insertSummaryCallout(_ callout: String, into markdown: String) -> String {
-        let cleanCallout = callout.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanCallout.isEmpty else { return markdown }
-
-        let normalized = markdown.replacingOccurrences(of: "\r\n", with: "\n")
-        let (blocks, groups, lines) = MarkdownCodec.parseWithSource(normalized)
-
-        var insertLine = 0
-        var groupIndex = 0
-        if let first = groups.first,
-           case .raw(let rawText) = blocks[first.blocks.lowerBound],
-           rawText.trimmingCharacters(in: .whitespaces).hasPrefix("---") {
-            insertLine = first.lines.upperBound
-            groupIndex = 1
-        }
-        if groupIndex < groups.count {
-            let g = groups[groupIndex]
-            if g.blocks.lowerBound < blocks.count,
-               case .line(let line) = blocks[g.blocks.lowerBound],
-               case .heading(1) = line.kind {
-                insertLine = g.lines.upperBound
-            }
-        }
-
-        let before = lines[..<min(insertLine, lines.count)]
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .newlines)
-        let after = lines[min(insertLine, lines.count)...]
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .newlines)
-
-        let parts = [before, cleanCallout, after].filter { !$0.isEmpty }
-        return parts.joined(separator: "\n\n") + "\n"
-    }
-
     // MARK: - 结构化写作小工具（@Generable）与文档内问答
 
     /// 将表头与行数据规范化为标准 Markdown 表格
