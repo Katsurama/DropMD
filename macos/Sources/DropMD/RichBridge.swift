@@ -434,16 +434,14 @@ enum RichBridge {
         marks[DMKey.imageHeight] = htmlHeight
         marks[DMKey.imageID] = UUID().uuidString
         guard let loaded = image, loaded.size.width > 0, loaded.size.height > 0 else {
-            // 找不到图片时显示占位文字，保存时仍写回原来的图片地址
-            var a = RichStyle.attributes(for: MDRun(), kind: .body)
-            a[.foregroundColor] = NSColor.secondaryLabelColor
-            if let font = a[.font] as? NSFont { a[.font] = font.withSize(font.pointSize * 0.85) }
-            for (k, v) in marks { a[k] = v }
+            // 找不到或没下载的图片：显示虚线占位框（整块，不会被折行拆开），保存时仍写回原来的图片地址
+            let base = RichStyle.baseFont(for: .body)
             let name = alt.isEmpty ? (embedded ? "data:" : (path as NSString).lastPathComponent) : alt
             let label = RemoteImages.isRemote(path) ? String(localized: "网络图片未加载：\(name)") : String(localized: "找不到图片：\(name)")
-            // 最后一个字后加字距：相邻的占位框之间留出空隙（不加字符，保存和复制不受影响）
-            let s = NSMutableAttributedString(string: label, attributes: a)
-            s.addAttribute(.kern, value: RichStyle.placeholderGap, range: NSRange(location: s.length - 1, length: 1))
+            let attachment = NSTextAttachment()
+            attachment.attachmentCell = PlaceholderAttachmentCell(label: label, font: base.withSize(base.pointSize * 0.85))
+            let s = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
+            s.addAttributes(marks, range: NSRange(location: 0, length: s.length))
             return s
         }
         let attachment = NSTextAttachment()
@@ -913,6 +911,48 @@ enum RichBridge {
 }
 
 /// 单页中的图片（支持圆角、细边框、容器自适应缩放、HTML 百分比并排以及 GIF 动图自动播放）
+/// 没显示出来的图片：画成和快速查看一样的虚线圆角框加灰字
+final class PlaceholderAttachmentCell: NSTextAttachmentCell {
+    let label: String
+    let labelFont: NSFont
+    private static let padding = NSSize(width: 8, height: 3)
+    private static let gap: CGFloat = 3   // 框外左右各留的空隙：相邻的框不贴在一起
+
+    init(label: String, font: NSFont) {
+        self.label = label
+        self.labelFont = font
+        super.init()
+    }
+
+    required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    private var textAttributes: [NSAttributedString.Key: Any] {
+        [.font: labelFont, .foregroundColor: NSColor.secondaryLabelColor]
+    }
+
+    override func cellSize() -> NSSize {
+        let text = (label as NSString).size(withAttributes: textAttributes)
+        return NSSize(width: ceil(text.width) + 2 * (Self.padding.width + Self.gap), height: ceil(text.height) + 2 * Self.padding.height)
+    }
+
+    override func cellBaselineOffset() -> NSPoint {
+        NSPoint(x: 0, y: labelFont.descender - Self.padding.height)
+    }
+
+    override func draw(withFrame cellFrame: NSRect, in controlView: NSView?) {
+        let box = cellFrame.insetBy(dx: Self.gap + 0.5, dy: 0.5)
+        let path = NSBezierPath(roundedRect: box, xRadius: 6, yRadius: 6)
+        path.lineWidth = 1
+        path.setLineDash([3, 2], count: 2, phase: 0)
+        NSColor.separatorColor.setStroke()
+        path.stroke()
+        let flipped = controlView?.isFlipped ?? true
+        let textHeight = ceil((label as NSString).size(withAttributes: textAttributes).height)
+        let y = flipped ? cellFrame.minY + Self.padding.height : cellFrame.maxY - Self.padding.height - textHeight
+        (label as NSString).draw(at: NSPoint(x: cellFrame.minX + Self.gap + Self.padding.width, y: y), withAttributes: textAttributes)
+    }
+}
+
 final class ImageAttachmentCell: NSTextAttachmentCell {
     private let maxSize: NSSize
     private let widthFraction: CGFloat?

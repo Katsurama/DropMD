@@ -285,7 +285,6 @@ enum RichStyle {
     static let italicObliqueness = 0.18   // 系统字体（苹方等）没有斜体，用倾斜代替
     static let detailsIndent: CGFloat = 22
     static let codePadding: CGFloat = 16   // 代码块左右的内边距
-    static let placeholderGap: CGFloat = 10   // 未显示图片的占位框之间的空隙
 
     /// 行内代码底色：轻量半透明填充
     static let codeBackground = NSColor(name: "DropMD.inlineCodeBackground") { a in

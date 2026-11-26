@@ -1204,13 +1204,13 @@ MainActor.assumeIsolated {
         for (src, want) in [("- ![旧](a.png) 后\n", "- ![新](a.png) 后\n"),
                             ("| ![旧](a.png) | b |\n| --- | --- |\n", "| ![新](a.png) | b |\n| --- | --- |\n")] {
             tv = makeView(src)
-            let at = (tv.string as NSString).range(of: "旧").location
-            if let r = tv.objectRange(at: at) { tv.setImageAlt("新", in: r) }
+            let at = (tv.string as NSString).range(of: "\u{FFFC}").location
+            tv.setImageAlt("新", in: tv.objectRange(at: at) ?? NSRange(location: at, length: 1))
             check("右键：改说明不破坏 \(src.prefix(2))", md(tv), want)
         }
         // 行内 HTML 图片改说明时保留 width 等属性；整块 raw HTML 图片菜单不提供“编辑替代文本…”和“删除图片”
         tv = makeView("<img src=\"a.png\" width=\"112\" alt=\"旧\">\n")
-        if let r = tv.objectRange(at: 0) { tv.setImageAlt("新", in: r) }
+        tv.setImageAlt("新", in: tv.objectRange(at: 0) ?? NSRange(location: 0, length: 1))
         check("右键：行内 HTML 图片改说明保留宽度", md(tv), "<img src=\"a.png\" width=\"112\" alt=\"新\">\n")
         tv = makeView("<p align=\"center\"><img src=\"a.png\"></p>\n")
         let htmlBlockMenu = titles(tv, hit: 0)
@@ -1807,7 +1807,7 @@ MainActor.assumeIsolated {
         let mathPara = tv.headingParagraph(title: titles[0], occurrence: 0).map { ns.substring(with: $0).trimmingCharacters(in: .newlines) } ?? "无"
         let imgPara = tv.headingParagraph(title: titles[1], occurrence: 0).map { ns.substring(with: $0).trimmingCharacters(in: .newlines) } ?? "无"
         check("含行内公式的标题：headingParagraph", mathPara, "公式 \u{FFFC}")
-        check("含图片的标题：headingParagraph", imgPara, "图标 找不到图片：logo 说明")
+        check("含图片的标题：headingParagraph", imgPara, "图标 \u{FFFC} 说明")
     }
     // 别的程序复制来的多行代码（剪贴板有 RTF，末尾没有换行）贴进代码块中间的空行：仍是一整块，语言不变
     do {
@@ -2221,13 +2221,14 @@ MainActor.assumeIsolated {
     do {
         UserDefaults.standard.set(false, forKey: RemoteImages.settingKey)
         let s = RichBridge.imageString(path: "https://example.com/badge.svg?style=flat", alt: "徽章", baseURL: nil)
-        check("网络图片：开关关闭时显示占位框", "\(s.containsAttachments) \(s.string)", "false 网络图片未加载：徽章")
+        let cell = (s.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)?.attachmentCell as? PlaceholderAttachmentCell
+        check("网络图片：开关关闭时显示占位框（整块）", "\(s.length) \(cell?.label ?? "无")", "1 网络图片未加载：徽章")
         check("网络图片：开关关闭时不下载", "\(RemoteImages.image(for: "https://example.com/x.png") == nil)", "true")
         check("网络图片：只认 http 和 https", "\(RemoteImages.url(for: "ftp://example.com/a.png") == nil) \(RemoteImages.url(for: "//example.com/a.png")?.scheme ?? "")", "true https")
         let tv = makeView("前文\n")
         tv.setSelectedRange(NSRange(location: 2, length: 0))
         tv.insertImage(path: "https://example.com/a.png?x=1", alt: "a", encodePath: false)
-        check("插入网络图片：网址原样保存", md(tv), "前文![a](https://example.com/a.png?x=1)\n")
+        check("插入网络图片：网址原样保存、独占一行", md(tv), "前文\n\n![a](https://example.com/a.png?x=1)\n")
     }
 
     // 单页图片排版：正文里插入真实图片时独占一行居中，且后续打字自动落在图片下方新段落；多帧 GIF 动图正确识别帧数

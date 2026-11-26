@@ -456,7 +456,6 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
     override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
         drawCodeBlocks(glyphsToShow, origin: origin)
         drawCallouts(glyphsToShow, origin: origin)
-        drawImagePlaceholders(glyphsToShow, origin: origin)
         // 收起的内容不画背景：隐藏的表格边框会缩成一个小方块画在左上角
         let hiddenList = hiddenRanges
         if hiddenList.isEmpty {
@@ -607,28 +606,6 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
     }
 
     /// 提示框：Apple DocC Aside 风格全圆角卡片 + 左强调条 + 细边框
-    /// 没显示出来的图片（网络图片、找不到的图片）：占位文字外画虚线圆角框，与快速查看一致
-    private func drawImagePlaceholders(_ glyphsToShow: NSRange, origin: NSPoint) {
-        guard let storage = textStorage, let container = textContainers.first else { return }
-        let chars = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
-        storage.enumerateAttribute(DMKey.image, in: chars) { value, range, _ in
-            guard value != nil, storage.attribute(.attachment, at: range.location, effectiveRange: nil) == nil else { return }
-            let glyphs = glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-            let lastLine = lineFragmentRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
-            enumerateEnclosingRects(forGlyphRange: glyphs, withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
-                                    in: container) { rect, _ in
-                var box = rect.offsetBy(dx: origin.x, dy: origin.y).insetBy(dx: -4, dy: 0)   // 框比文字略宽，不贴字
-                // 末尾字距是框外的空隙
-                if rect.intersects(lastLine) { box.size.width -= RichStyle.placeholderGap }
-                let path = NSBezierPath(roundedRect: box, xRadius: 5, yRadius: 5)
-                path.lineWidth = 1
-                path.setLineDash([3, 2], count: 2, phase: 0)
-                NSColor.separatorColor.setStroke()
-                path.stroke()
-            }
-        }
-    }
-
     private func drawCallouts(_ glyphsToShow: NSRange, origin: NSPoint) {
         guard let storage = textStorage, storage.length > 0 else { return }
         let ns = storage.string as NSString
