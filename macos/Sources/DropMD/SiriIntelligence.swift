@@ -617,6 +617,21 @@ enum SiriAIManager {
         #endif
     }
 
+    /// 文档问答的要求：只按文档回答，不自我介绍；文档里没有就直说
+    static func qaInstructions(context: String) -> String {
+        """
+        You answer the user's questions about the document below.
+        - Use only the content of the document. If the document does not contain the answer, say so in one short sentence.
+        - Reply in the same language as the user's question.
+        - Be brief and direct. Do not introduce yourself, do not mention being an AI model or Apple, and do not repeat the question.
+        - Use a short bullet list only when listing several items; otherwise answer in one or two sentences.
+
+        --- Document ---
+        \(context)
+        --- End of document ---
+        """
+    }
+
     /// 针对当前文档回答用户提问（支持最近几轮追问上下文）
     @available(macOS 26.0, *)
     static func answerQuestion(
@@ -629,7 +644,7 @@ enum SiriAIManager {
             && shouldUsePrivateCloud(preference: AIModelPreference.current, contentLength: document.count)
         let maxChars = useCloud ? 20000 : 5500
         let context = prepareContextForQA(document: document, question: question, maxChars: maxChars)
-        let instructions = context
+        let instructions = qaInstructions(context: context)
         var promptParts: [String] = []
         let recent = history.suffix(3).filter { !$0.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         if !recent.isEmpty {

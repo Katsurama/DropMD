@@ -2169,6 +2169,8 @@ MainActor.assumeIsolated {
         check("问答待办框显示为勾选框符号", String(taskAnswer.displayAnswer.characters), "☐ 确认酒店\n☑ 预订会议室")
         check("问答加粗的待办框也显示为勾选框符号", String(DocumentQAItem(question: "问题", answer: "- **[ ] 确认酒店**").displayAnswer.characters), "☐ 确认酒店")
         check("摘要显示：行内格式与高亮标记", String((SiriAIManager.displayText("定下 ==**路线图**==") ?? "").characters), "定下 路线图")
+        let qa = SiriAIManager.qaInstructions(context: "预算 34,000 元")
+        check("问答要求：只按文档回答、不自我介绍、附上文档", "\(qa.contains("Use only the content of the document")) \(qa.contains("Do not introduce yourself")) \(qa.contains("预算 34,000 元"))", "true true true")
         check("摘要解析：去掉 HTML 标签与脚注标记",
               SiriAIManager.parseSummaryBullets(from: "- 含 <kbd>⌘S</kbd> 和脚注[^1]").joined(), "含 ⌘S 和脚注")
     }
