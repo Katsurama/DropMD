@@ -256,7 +256,7 @@ struct ParagraphStyleMenu: View {
 /// 侧边栏“摘要”标签页：上半区文章摘要（或所选内容摘要），下半区 Apple Intelligence 问答（支持中间分隔线上下拖动）
 private struct SummaryInspectorView: View {
     @ObservedObject var editor: EditorController
-    @AppStorage("summaryTopFraction") private var topFraction: Double = 0.42
+    @AppStorage("summaryTopFraction") private var topFraction: Double = 0.5
     @State private var copied = false
     @State private var questionText = ""
     @State private var dividerHovered = false
@@ -290,7 +290,7 @@ private struct SummaryInspectorView: View {
                         let next = clampedTopHeight(h, proposed: cur + deltaY)
                         topFraction = next / h
                     },
-                    onDoubleClick: { topFraction = 0.42 }
+                    onDoubleClick: { topFraction = 0.5 }
                 ))
                 .zIndex(1)
                 qaSection
