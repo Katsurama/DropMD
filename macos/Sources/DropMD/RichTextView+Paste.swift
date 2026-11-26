@@ -162,6 +162,11 @@ extension RichTextView {
     }
 
     override func readSelection(from pboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Bool {
+        // 落点在展示型 HTML 块里：整次粘贴、拖放都不接受。返回 false，拖动时原处的内容不会被删掉
+        if Self.editsInsideHTMLBlock(textStorage, selectedRange(), "x") {
+            NSSound.beep()
+            return false
+        }
         guard type == Self.richType else {
             // 粘贴和拖入都走这里：别的程序来的内容去掉保存不了的格式，链接、列表转成单页的写法
             let sel = selectedRange(), before = textStorage?.length ?? 0

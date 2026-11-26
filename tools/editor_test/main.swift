@@ -2573,6 +2573,23 @@ MainActor.assumeIsolated {
         check("通用实体解码", MarkdownCodec.decodeHTMLEntities("A&amp;B &#39;C&#x2014;D&nbsp;E", nbspAsSpace: true), "A&B 'C—D E")
     }
 
-    print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
+    // 落在展示型 HTML 块里的粘贴、拖放：整次不接受并返回 false（以前插入被拦却返回成功，拖动时原处的图片被删掉）
+do {
+    let src = "<p align=\"right\">🌐 <b>English</b> | <a href=\"x.md\">abc简体中文</a></p>\n\n正文\n"
+    let tv = makeView(src), before = tv.string
+    let pb = NSPasteboard(name: .init("dropmd-test-\(UUID().uuidString)"))
+    pb.clearContents(); pb.setString("拖来的字", forType: .string)
+    tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "abc").location + 1, length: 0))
+    let ok = tv.readSelection(from: pb, type: .string)
+    check("落在 HTML 块里的粘贴/拖放：拒绝且不改动", "\(ok) \(tv.string == before)", "false true")
+    pb.releaseGlobally()
+    let t2 = makeView(src)
+    t2.setSelectedRange(NSRange(location: (t2.string as NSString).range(of: "abc").location + 1, length: 0))
+    t2.insertImage(path: "gen.png", alt: "生成")
+    let md2 = md(t2)
+    check("光标在 HTML 块里插图：插到块后面", "\(md2.contains("gen.png")) \(md2.hasPrefix("<p align=\"right\">"))", "true true")
+}
+
+print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }
