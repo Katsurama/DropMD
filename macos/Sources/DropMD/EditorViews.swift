@@ -18,7 +18,8 @@ struct MarkdownTextView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let storage = NSTextStorage()
         let layout = NSLayoutManager()
-        layout.allowsNonContiguousLayout = true
+        // 不用非连续排版：滚动时补排版改变高度又触发滚动，会转圈卡死
+        layout.allowsNonContiguousLayout = false
         storage.addLayoutManager(layout)
         let container = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
         container.widthTracksTextView = true
@@ -435,19 +436,39 @@ struct EditorView: View {
     private func toolbarGroup(_ actions: [EditorAction]) -> some View {
         ControlGroup {
             ForEach(actions) { action in
-                Button { editor.perform(action) } label: { Label(action.title, systemImage: action.symbol) }
-                    .help(action.title)
-                    .accessibilityLabel(action.title)
+                if action == .image {
+                    imageMenu
+                } else {
+                    Button { editor.perform(action) } label: { Label(action.title, systemImage: action.symbol) }
+                        .help(action.title)
+                        .accessibilityLabel(action.title)
+                }
             }
         }
         .controlGroupStyle(.navigation)
+    }
+
+    /// 图片按钮：本机图片、在线图片、生成图像
+    private var imageMenu: some View {
+        Menu {
+            Button("此设备上的图片…") { editor.perform(.image) }
+            Button(EditorAction.webImage.menuTitle) { editor.perform(.webImage) }
+            if SiriAIManager.isImagePlaygroundAvailable {
+                Button(EditorAction.imagePlayground.menuTitle) { editor.perform(.imagePlayground) }
+            }
+        } label: {
+            Label(EditorAction.image.title, systemImage: EditorAction.image.symbol)
+        }
+        .menuIndicator(.visible)
+        .help(EditorAction.image.title)
+        .accessibilityLabel(EditorAction.image.title)
     }
 
     /// “+”菜单：工具栏上没有的插入命令，分组与菜单栏“插入”相同
     private var insertMoreMenu: some View {
         Menu {
             ForEach(Array(EditorAction.insertGroups.enumerated()), id: \.offset) { i, group in
-                let rest = group.filter { ![.image, .table, .link].contains($0) }
+                let rest = group.filter { ![.image, .webImage, .table, .link].contains($0) }
                 if !rest.isEmpty {
                     Divider()
                     if group.contains(.details) {
@@ -462,10 +483,6 @@ struct EditorView: View {
                     }
                     ForEach(rest) { action in Button(action.menuTitle) { editor.perform(action) } }
                 }
-            }
-            if SiriAIManager.isImagePlaygroundAvailable {
-                Divider()
-                Button(EditorAction.imagePlayground.menuTitle) { editor.perform(.imagePlayground) }
             }
         } label: {
             Label("插入", systemImage: "plus")

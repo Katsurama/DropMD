@@ -86,7 +86,7 @@ struct RichTextEditor: NSViewRepresentable {
             forName: NSView.boundsDidChangeNotification, object: scroll.contentView, queue: .main) { [weak controller] _ in
             MainActor.assumeIsolated { controller?.richScrolled() }
         }
-        // 网络图片下载完成或“显示网络图片”开关改变：重新排版（连续多张只排一次）
+        // 在线图片下载完成或“显示在线图片”开关改变：重新排版（连续多张只排一次）
         context.coordinator.remoteImageObserver = NotificationCenter.default.addObserver(
             forName: RemoteImages.changed, object: nil, queue: .main) { [weak coordinator = context.coordinator, weak tv] _ in
             MainActor.assumeIsolated {
@@ -144,7 +144,7 @@ struct RichTextEditor: NSViewRepresentable {
         var remoteImageObserver: NSObjectProtocol?
         private var textBeforeWritingTools: String?
 
-        /// force：文字没变也重新排版（网络图片下载完成）
+        /// force：文字没变也重新排版（在线图片下载完成）
         func scheduleReload(_ tv: RichTextView, force: Bool = false) {
             reloadWork?.cancel()
             forceReload = forceReload || force

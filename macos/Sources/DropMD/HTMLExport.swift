@@ -18,7 +18,7 @@ enum HTMLExport {
         return nil
     }
 
-    /// src 指向的本机图片；网络图片、已嵌入的图片和其他文件返回 nil
+    /// src 指向的本机图片；在线图片、已嵌入的图片和其他文件返回 nil
     private static func localImage(_ rawSrc: Substring, base: URL?) -> (url: URL, mime: String)? {
         let src = rawSrc.replacingOccurrences(of: "&amp;", with: "&")
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -37,7 +37,7 @@ enum HTMLExport {
     }
 
     /// 把正文里引用的本机图片直接嵌进 HTML（data:）：导出的文件放到哪个文件夹都能显示，也不会写进本机路径。
-    /// base 是文档所在的文件夹；网络图片、超大图片（> 50 MB）和读不到的图片保持原样
+    /// base 是文档所在的文件夹；在线图片、超大图片（> 50 MB）和读不到的图片保持原样
     static func embedLocalImages(_ html: String, base: URL?) -> String {
         var out = html
         for m in imagePattern.matches(in: html, range: NSRange(html.startIndex..., in: html)).reversed() {

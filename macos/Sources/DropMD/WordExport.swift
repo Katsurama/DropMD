@@ -121,7 +121,7 @@ enum WordExport {
 
     local function blocked_placeholder(el)
       local alt = pandoc.utils.stringify(el.caption)
-      local label = os.getenv("DROPMD_BLOCKED_IMAGE") or "Web image not loaded"
+      local label = os.getenv("DROPMD_BLOCKED_IMAGE") or "Online picture not loaded"
       local colon = os.getenv("DROPMD_COLON") or ": "
       return pandoc.Emph({pandoc.Str("[" .. label .. (alt ~= "" and (colon .. alt) or "") .. "]")})
     end
@@ -357,7 +357,7 @@ enum WordExport {
         proc.currentDirectoryURL = tempDir
         var env = ProcessInfo.processInfo.environment
         for c in MDCallout.allCases { env["DROPMD_CALLOUT_\(c.rawValue)"] = c.title }
-        env["DROPMD_BLOCKED_IMAGE"] = String(localized: "网络图片未加载（隐私保护）")
+        env["DROPMD_BLOCKED_IMAGE"] = String(localized: "在线图片未加载（隐私保护）")
         env["DROPMD_COLON"] = String(localized: "：")
         env["DROPMD_IMAGE_LABEL"] = String(localized: "图片")
         if let base {

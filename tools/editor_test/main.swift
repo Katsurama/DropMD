@@ -687,7 +687,7 @@ MainActor.assumeIsolated {
                 "| 左 | 中 | 右 |\n| :-- | :-: | --: |\n| 1 | 2 | 3 |\n"] {
         check("单页原样保存 \(src.prefix(8).debugDescription)", md(makeView(src)), src)
     }
-    // 导出 HTML：本机图片嵌进文件；网络图片、找不到的图片保持原样
+    // 导出 HTML：本机图片嵌进文件；在线图片、找不到的图片保持原样
     do {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("dropmd-export-\(ProcessInfo.processInfo.processIdentifier)")
         try? FileManager.default.createDirectory(at: dir.appendingPathComponent("图 片"), withIntermediateDirectories: true)
@@ -2021,7 +2021,7 @@ MainActor.assumeIsolated {
             ("Word 导出紧贴表格与网格边框", tblCount >= 2 && res.doc.contains("紧贴A") && !res.doc.contains("| 紧贴A |") && res.styles.contains("w:insideH") && res.styles.contains("w:insideV")),
             ("Word 导出折叠块标题与正文", ["折叠标题一", "折叠正文一", "折叠标题二", "折叠正文二"].allSatisfy { res.doc.contains($0) }),
             ("Word 导出嵌入本地图与百分号文件名", res.doc.contains("r:embed=") && res.media.count == 3),
-            ("Word 导出拦截所有外部/异常图片方案", !leaked && res.doc.contains("网络图片未加载（隐私保护）") && res.doc.contains("缺失图") && !res.doc.contains("missing.png")),
+            ("Word 导出拦截所有外部/异常图片方案", !leaked && res.doc.contains("在线图片未加载（隐私保护）") && res.doc.contains("缺失图") && !res.doc.contains("missing.png")),
             ("Word 导出超链接", res.doc.contains("Hyperlink") && res.rels.contains("https://example.com")),
             ("Word 导出代码块与浅灰底色", res.doc.contains("SourceCode") && res.styles.contains("F6F8FA") && res.styles.contains("1D1D1F") && res.styles.contains("w:line=\"324\"")),
             ("Word 导出行内样式与 HTML 标签", res.doc.contains("w:u ") && res.doc.contains("subscript") && res.doc.contains("superscript") && res.doc.contains("w:highlight") && res.doc.contains("<w:b") && res.doc.contains("<w:i") && res.doc.contains("<w:strike") && ["相邻粗", "相邻斜", "粗标签", "斜标签", "删标签", "删二"].allSatisfy { res.doc.contains($0) }),
@@ -2240,7 +2240,7 @@ MainActor.assumeIsolated {
         check("HTML 块可以整块删除", "\(md(tv3).contains("<p")) \(md(tv3).contains("正文"))", "false true")
     }
 
-    // 网络图片：开关关闭时不下载，显示占位框；插入网址原样保存（? 后的参数不编码）
+    // 在线图片：开关关闭时不下载，显示占位框；插入网址原样保存（? 后的参数不编码）
     do {
         UserDefaults.standard.set(false, forKey: RemoteImages.settingKey)
         let s = RichBridge.imageString(path: "https://example.com/badge.svg?style=flat", alt: "徽章", baseURL: nil)
@@ -2254,13 +2254,13 @@ MainActor.assumeIsolated {
         check("找不到的图片写了宽度：按原大小留框（高按 4:3 估）", "\(sizedCell?.cellSize() ?? .zero) \(sizedCell?.label ?? "")", "(240.0, 180.0) 赞赏码")
         let plainCell = (RichBridge.imageString(path: "no-such.png", alt: "图", baseURL: nil).attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)?.attachmentCell as? PlaceholderAttachmentCell
         check("找不到的图片没写大小：一行高的小框", "\(plainCell?.frameSize == nil) \(plainCell?.label ?? "")", "true 找不到图片：图")
-        check("网络图片：开关关闭时显示占位框（整块）", "\(s.length) \(cell?.label ?? "无")", "1 网络图片未加载：徽章")
-        check("网络图片：开关关闭时不下载", "\(RemoteImages.image(for: "https://example.com/x.png") == nil)", "true")
-        check("网络图片：只认 http 和 https", "\(RemoteImages.url(for: "ftp://example.com/a.png") == nil) \(RemoteImages.url(for: "//example.com/a.png")?.scheme ?? "")", "true https")
+        check("在线图片：开关关闭时显示占位框（整块）", "\(s.length) \(cell?.label ?? "无")", "1 在线图片未加载：徽章")
+        check("在线图片：开关关闭时不下载", "\(RemoteImages.image(for: "https://example.com/x.png") == nil)", "true")
+        check("在线图片：只认 http 和 https", "\(RemoteImages.url(for: "ftp://example.com/a.png") == nil) \(RemoteImages.url(for: "//example.com/a.png")?.scheme ?? "")", "true https")
         let tv = makeView("前文\n")
         tv.setSelectedRange(NSRange(location: 2, length: 0))
         tv.insertImage(path: "https://example.com/a.png?x=1", alt: "a", encodePath: false)
-        check("插入网络图片：网址原样保存、独占一行", md(tv), "前文\n\n![a](https://example.com/a.png?x=1)\n")
+        check("插入在线图片：网址原样保存、独占一行", md(tv), "前文\n\n![a](https://example.com/a.png?x=1)\n")
     }
 
     // 单页图片排版：正文里插入真实图片时独占一行居中，且后续打字自动落在图片下方新段落；多帧 GIF 动图正确识别帧数

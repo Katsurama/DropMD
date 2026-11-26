@@ -122,7 +122,7 @@
   // ---------------------------------------------------------------- 提示框 > [!NOTE]（GitHub 写法）
   // 界面文字：默认中文，App 每次渲染时传入界面语言的文字（render 的 ui 参数）
   const ui = { NOTE: "注意", TIP: "提示", IMPORTANT: "重要", WARNING: "警告", CAUTION: "小心",
-               blockedImage: "网络图片未加载", colon: "：" };
+               blockedImage: "在线图片未加载", colon: "：" };
   function calloutPlugin(md) {
     md.core.ruler.after("inline", "callout", function (state) {
       const tokens = state.tokens;
@@ -150,7 +150,7 @@
     });
   }
 
-  // ---------------------------------------------------------------- 网络图片：为保护隐私不加载
+  // ---------------------------------------------------------------- 在线图片：为保护隐私不加载
   function blockRemoteImages(md) {
     const image = md.renderer.rules.image;
     md.renderer.rules.image = function (tokens, idx, options, env, self) {
@@ -210,7 +210,7 @@
   }
 
   const previewMD = makeRenderer("htmlAndMathml", true);
-  // 导出 HTML 用 MathML，无需字体文件，浏览器可直接显示；网络图片保留（是否加载由打开它的浏览器决定）
+  // 导出 HTML 用 MathML，无需字体文件，浏览器可直接显示；在线图片保留（是否加载由打开它的浏览器决定）
   const exportMD = makeRenderer("mathml", false);
 
   // 文件开头的 YAML 信息（--- … ---，Obsidian、Hugo 等用）：显示为代码块，不当成分隔线和标题。

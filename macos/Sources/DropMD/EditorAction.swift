@@ -59,7 +59,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
         case .indent: return String(localized: "增加缩进")
         case .link: return String(localized: "链接")
         case .image: return String(localized: "图片")
-        case .webImage: return String(localized: "网络图片")
+        case .webImage: return String(localized: "在线图片")
         case .table: return String(localized: "表格")
         case .rule: return String(localized: "分隔线")
         case .details: return String(localized: "折叠块")

@@ -420,7 +420,7 @@ enum RichBridge {
         let embedded = lower.hasPrefix("data:")
         if embedded {
             image = URL(string: path).flatMap { try? Data(contentsOf: $0) }.flatMap { NSImage(data: $0) }
-        // 网络图片为保护隐私默认不加载；设置里打开“显示网络图片”后在后台下载
+        // 在线图片为保护隐私默认不加载；设置里打开“显示在线图片”后在后台下载
         } else if RemoteImages.isRemote(path) {
             image = RemoteImages.image(for: path)
         } else if !path.isEmpty {
@@ -437,7 +437,7 @@ enum RichBridge {
             // 找不到或没下载的图片：显示虚线占位框（整块，不会被折行拆开），保存时仍写回原来的图片地址
             let base = RichStyle.baseFont(for: .body)
             let name = alt.isEmpty ? (embedded ? "data:" : (path as NSString).lastPathComponent) : alt
-            let label = RemoteImages.isRemote(path) ? String(localized: "网络图片未加载：\(name)") : String(localized: "找不到图片：\(name)")
+            let label = RemoteImages.isRemote(path) ? String(localized: "在线图片未加载：\(name)") : String(localized: "找不到图片：\(name)")
             let attachment = NSTextAttachment()
             // 找不到的本地图片写了宽或高：和快速查看一样，按图片原本的大小留出一个框
             let sized = !RemoteImages.isRemote(path) && (htmlWidth?.isEmpty == false || htmlHeight?.isEmpty == false)
@@ -916,7 +916,7 @@ enum RichBridge {
     }
 }
 
-/// 没显示出来的图片。网络图片和不知道大小的本地图片：虚线圆角框加一行灰字；
+/// 没显示出来的图片。在线图片和不知道大小的本地图片：虚线圆角框加一行灰字；
 /// 写了宽或高的本地图片：和快速查看一样，按原本的大小画一个细边框，左上角写说明、中间一个问号
 final class PlaceholderAttachmentCell: NSTextAttachmentCell {
     let label: String

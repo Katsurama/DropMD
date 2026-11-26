@@ -143,13 +143,13 @@ struct PageMarginMenu: View {
     }
 }
 
-/// 设置：显示网络图片（默认关闭，打开后才联网下载）
+/// 设置：显示在线图片（默认关闭，打开后才联网下载）
 struct RemoteImagesToggle: View {
     @AppStorage(RemoteImages.settingKey) private var isOn = false
 
     var body: some View {
         Toggle(isOn: $isOn) {
-            Text("显示网络图片")
+            Text("显示在线图片")
             Text("开启后会从网上下载文档里的图片。快速查看不受影响。")
         }
         .onChange(of: isOn) { _, _ in

@@ -224,7 +224,7 @@ extension RichTextView {
         setSelectedRange(NSRange(location: NSMaxRange(r), length: 0))
     }
 
-    /// 本机图片文件（网络图片、内嵌图片、找不到的文件为 nil）
+    /// 本机图片文件（在线图片、内嵌图片、找不到的文件为 nil）
     private func imageFile(_ path: String) -> URL? {
         let lower = path.lowercased()
         guard !path.isEmpty, !lower.hasPrefix("http:"), !lower.hasPrefix("https:"), !lower.hasPrefix("//"), !lower.hasPrefix("data:") else { return nil }

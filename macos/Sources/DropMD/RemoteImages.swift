@@ -1,6 +1,6 @@
 import AppKit
 
-/// 网络图片：设置里打开“显示网络图片”后才下载。下载在后台进行，完成后通知单页重新排版。
+/// 在线图片：设置里打开“显示在线图片”后才下载。下载在后台进行，完成后通知单页重新排版。
 enum RemoteImages {
     static let settingKey = "showRemoteImages"
     /// 有图片下载完成，或开关改变：单页需要重新排版

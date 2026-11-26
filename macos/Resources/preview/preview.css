@@ -46,7 +46,7 @@ a {
 }
 a:hover { text-decoration-color: var(--accent); }
 img { max-width: 100%; border-radius: 8px; }
-/* 预览里网络图片被内容安全策略拦截，隐藏破图标记（导出的 HTML 没有 #content，网络图片照常显示） */
+/* 预览里在线图片被内容安全策略拦截，隐藏破图标记（导出的 HTML 没有 #content，在线图片照常显示） */
 #content img[src^="http:"], #content img[src^="https:"], #content img[src^="//"] { display: none; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
 blockquote { margin-left: 0; padding: .25em 1.1em; color: var(--quote); border-left: 2.5px solid var(--line); }

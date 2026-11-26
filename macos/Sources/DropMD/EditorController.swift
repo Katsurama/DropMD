@@ -803,9 +803,9 @@ final class EditorController: ObservableObject {
         replaceSelection(with: "![\(alt)](\(MarkdownCodec.encodeURL(RichTextView.encodedImagePath(path))))")
     }
 
-    /// 插入网络图片：填写网址；说明文字取网址里的文件名
+    /// 插入在线图片：填写网址；说明文字取网址里的文件名
     func webImage() {
-        guard let address = askText(String(localized: "插入网络图片"), info: String(localized: "填写图片的网址（http 或 https）。"),
+        guard let address = askText(String(localized: "插入在线图片"), info: String(localized: "填写图片的网址（http 或 https）。"),
                                     placeholder: "https://"), RemoteImages.url(for: address) != nil else { return }
         insertWebImage(address)
     }
