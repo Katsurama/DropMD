@@ -232,7 +232,7 @@ struct ParagraphStyleMenu: View {
             }
         } label: {
             // 宽度按最长的样式名固定：切换样式时按钮不变宽，不压到旁边的按钮组
-            ZStack(alignment: .leading) {
+            ZStack {
                 ForEach(Self.allTitles, id: \.self) { Text($0).hidden() }
                 Text(currentTitle)
             }
