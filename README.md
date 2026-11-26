@@ -18,7 +18,7 @@ It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all o
 
 <br>
 
-<img src="docs/images/demo.en.gif" alt="Demo: formatting as you type in Page view, source and preview side by side in Split view, and converting a Word file by dragging it in" width="100%">
+<img src="docs/images/demo.en.gif" alt="Demo: typing and formatting in Page view, switching to Split view to see the source, then opening Apple Intelligence for a summary" width="100%">
 
 </div>
 
@@ -41,6 +41,17 @@ It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all o
 - **Export and share**: PDF, Word and HTML, or send the file via AirDrop or Mail with the Share button
 - **Auto save & version history**: changes are saved automatically; choose **File → Version History → Browse All Versions…** to open a Time Machine-style viewer to compare and restore any earlier version
 - **Software updates**: check for new versions in the app; downloads are checked for integrity, then click Restart to finish
+
+### 🆕 Apple Intelligence
+
+<p align="center"><img src="docs/images/ai-inspector.en.jpg" alt="The Apple Intelligence pane on the right: a summary and questions about the document" width="80%"></p>
+
+On Macs that support Apple Intelligence (macOS 26 or later), click ✨ at the top right of the toolbar to open the side pane:
+
+- **Summary**: sums up the whole document (or the selected text) in a few bullet points
+- **Ask about this document**: ask things like “What is still left to do?” and get answers based on the document
+- **Writing tools**: translate the whole document while keeping its formatting, turn text into a table, pull out a task list, or generate front matter (YAML)
+- **On-device or private cloud**: the default is Automatic — short documents stay on this Mac, and long ones can use Apple Private Cloud Compute. You can switch to On-Device Only in Settings
 
 ## 📦 Install
 
@@ -118,7 +129,7 @@ High Accuracy mode can now use [Xiaomi-OCR-0](https://github.com/xiaomi-research
 ## 🔒 Privacy
 
 - File conversion runs on this Mac without uploading or modifying the source files. DropMD has no analytics or ads.
-- DropMD’s document AI features default to **On-Device Only**. On supported Macs, choosing **Automatic** or **Prefer Private Cloud** in Settings → General → Apple Intelligence can send relevant document text to Apple Private Cloud Compute. If the cloud model is unavailable, DropMD falls back to the on-device model. System features such as Writing Tools are managed separately by macOS.
+- DropMD’s document AI features default to **Automatic**: on supported Macs, relevant text from long documents may be sent to Apple Private Cloud Compute, and DropMD falls back to the on-device model when the cloud model is unavailable. You can switch to **On-Device Only** in Settings → General → Apple Intelligence. System features such as Writing Tools are managed separately by macOS.
 - DropMD asks for your consent to download the High Accuracy recognition models or check for updates online.
 
 ## 🛠️ Build from source
