@@ -7,6 +7,20 @@ extension RichTextView {
         if selectedRange().length == 0, !hasMarkedText() { moveCaretOutOfObjects(newline: true) } else { expandSelectionToObjects() }
         let para = paragraphRange(at: selectedRange().location)
         let attrs = paragraphAttributes(para)
+        // 展示型 HTML 块里不能打字：回车在块前（光标在块首）或块后另起一段正文
+        if attrs[DMKey.htmlRaw] != nil, selectedRange().length == 0, !hasMarkedText(), let storage = textStorage {
+            let ns = storage.string as NSString
+            let before = selectedRange().location == para.location && para.length > 1
+            let endsWithNewline = para.length > 0 && ns.character(at: NSMaxRange(para) - 1) == 0x0A
+            let at = before ? para.location : NSMaxRange(para)
+            let body = RichStyle.typingAttributes(for: .body)
+            guard shouldChangeText(in: NSRange(location: at, length: 0), replacementString: "\n") else { return }
+            storage.replaceCharacters(in: NSRange(location: at, length: 0), with: NSAttributedString(string: "\n", attributes: body))
+            didChangeText()
+            setSelectedRange(NSRange(location: before || endsWithNewline ? at : at + 1, length: 0))
+            typingAttributes = body
+            return
+        }
         // 表格中回车移到下一格（每个单元格只能有一个段落）
         if RichBridge.tableBlock(of: attrs) != nil, moveCell(forward: true, addRow: false) { return }
         let kind = RichBridge.kind(of: attrs)

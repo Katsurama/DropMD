@@ -319,6 +319,8 @@ final class RichTextView: NSTextView {
             newValue[DMKey.softBreak] = nil   // 在换行后输入的空格不是换行
             newValue[DMKey.htmlInline] = nil  // 在行内 HTML / &nbsp; 旁输入的文字是普通文字
             newValue[DMKey.htmlInlineID] = nil
+            newValue[DMKey.htmlRaw] = nil     // 在展示型 HTML 块后面输入的文字是普通正文，否则整段被当成块、保存时丢字
+            newValue[DMKey.htmlBlockID] = nil
             // 在原样内容（<span>、[^1] 等）后面输入的是普通文字：不跟着原样保存，否则打的 *字* 下次打开变成斜体。在它中间输入才算修改它
             if newValue[DMKey.literal] != nil, let storage = textStorage {
                 let at = selectedRange().location
@@ -998,43 +1000,68 @@ final class RichTextView: NSTextView {
         updateCopyButton(at: nil)
     }
 
-    /// 展示型 HTML 块保存时写回原来的 HTML，块里打的字会丢：不接受落在块里的修改。
-    /// 整块删除、在块前后按回车另起一段照常可以；撤销、重做不拦
+    /// 展示型 HTML 块保存时写回原来的 HTML，块里打的字会丢：不接受落在块里的修改，也不让旁边的段落并进块里。
+    /// 整块删除、在块前后按回车另起一段、删掉块旁边的空段落照常可以；撤销、重做不拦
     override func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool {
-        if !(undoManager?.isUndoing ?? false), !(undoManager?.isRedoing ?? false),
-           Self.editsInsideHTMLBlock(textStorage, affectedCharRange, replacementString ?? "") {
-            NSSound.beep()
-            return false
-        }
+        if blocksHTMLEdit([affectedCharRange], [replacementString ?? ""]) { return false }
         return super.shouldChangeText(in: affectedCharRange, replacementString: replacementString)
+    }
+
+    // 全部替换、写作工具、拼写更正等一次改多处时走这里
+    override func shouldChangeText(inRanges affectedRanges: [NSValue], replacementStrings: [String]?) -> Bool {
+        let strings = replacementStrings ?? Array(repeating: "", count: affectedRanges.count)
+        if blocksHTMLEdit(affectedRanges.map(\.rangeValue), strings) { return false }
+        return super.shouldChangeText(inRanges: affectedRanges, replacementStrings: replacementStrings)
+    }
+
+    private func blocksHTMLEdit(_ ranges: [NSRange], _ strings: [String]) -> Bool {
+        guard !(undoManager?.isUndoing ?? false), !(undoManager?.isRedoing ?? false) else { return false }
+        for (i, r) in ranges.enumerated() where Self.editsInsideHTMLBlock(textStorage, r, i < strings.count ? strings[i] : "") {
+            NSSound.beep()
+            return true
+        }
+        return false
     }
 
     static func editsInsideHTMLBlock(_ storage: NSAttributedString?, _ range: NSRange, _ replacement: String) -> Bool {
         guard let storage, storage.length > 0 else { return false }
         let ns = storage.string as NSString
-        let probe = NSRange(location: max(0, range.location - 1), length: min(storage.length, NSMaxRange(range) + 1) - max(0, range.location - 1))
-        var hit = false
-        storage.enumerateAttribute(DMKey.htmlRaw, in: probe) { value, run, stop in
-            guard value != nil else { return }
-            // 块的内容（不含段尾换行）
-            var content = ns.paragraphRange(for: NSRange(location: run.location, length: 0))
-            content = NSRange(location: content.location, length: max(run.location, NSMaxRange(run)) - content.location)
-            if content.length > 0, ns.character(at: NSMaxRange(content) - 1) == 0x0A { content.length -= 1 }
-            if range.length > 0 {
-                // 删除或替换：碰到块但没把块整个盖住
-                let overlaps = NSIntersectionRange(range, content).length > 0
-                    || (content.length == 0 && range.location <= content.location && content.location < NSMaxRange(range))
-                hit = overlaps && !(range.location <= content.location && NSMaxRange(content) <= NSMaxRange(range))
-            } else {
-                // 插入：块中间不行；块首只能插入以换行结尾的内容，块尾只能插入以换行开头的内容
-                let loc = range.location
-                if loc > content.location && loc < NSMaxRange(content) { hit = true }
-                else if loc == content.location && !replacement.hasSuffix("\n") { hit = true }
-                else if loc == NSMaxRange(content) && !replacement.hasPrefix("\n") { hit = true }
-            }
-            if hit { stop.pointee = true }
+        let endProbe = min(ns.length, NSMaxRange(range) + 1)
+        var loc = ns.paragraphRange(for: NSRange(location: min(max(0, range.location - 1), ns.length - 1), length: 0)).location
+        while loc < endProbe {
+            let p = ns.paragraphRange(for: NSRange(location: loc, length: 0))
+            loc = NSMaxRange(p)
+            guard p.length > 0, storage.attribute(DMKey.htmlRaw, at: p.location, effectiveRange: nil) != nil else { continue }
+            let hasNewline = ns.character(at: NSMaxRange(p) - 1) == 0x0A
+            let content = NSRange(location: p.location, length: p.length - (hasNewline ? 1 : 0))
+            if htmlBlockHit(ns, block: p, content: content, hasNewline: hasNewline, range, replacement) { return true }
         }
-        return hit
+        return false
+    }
+
+    private static func htmlBlockHit(_ ns: NSString, block p: NSRange, content: NSRange, hasNewline: Bool,
+                                     _ range: NSRange, _ replacement: String) -> Bool {
+        let start = range.location, end = NSMaxRange(range)
+        if range.length == 0 {
+            // 插入：块中间不行；块首只能插入以换行结尾的内容，块尾只能插入以换行开头的内容
+            if start > content.location && start < NSMaxRange(content) { return true }
+            if start == content.location { return !replacement.hasSuffix("\n") }
+            if start == NSMaxRange(content) { return !replacement.hasPrefix("\n") }
+            return false
+        }
+        if end < p.location || start >= NSMaxRange(p) { return false }       // 没碰到这一块
+        if start <= p.location && end >= NSMaxRange(p) { return false }      // 整块都在删除范围里
+        if end == p.location {
+            // 删掉块前面的换行：前一段剩下的字会并进块里
+            let prevStart = ns.paragraphRange(for: NSRange(location: start, length: 0)).location
+            return start > prevStart
+        }
+        if start < p.location { return end < NSMaxRange(content) }           // 从前面删到块里：块的内容全删掉才行
+        if hasNewline && start == NSMaxRange(content) {
+            // 删掉块的换行：后一段的字会并进块里；后一段是空段落时没关系
+            return end < ns.length && ns.character(at: end) != 0x0A
+        }
+        return true
     }
 
     override func didChangeText() {

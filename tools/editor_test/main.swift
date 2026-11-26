@@ -2193,6 +2193,29 @@ MainActor.assumeIsolated {
         type(tv, "二")
         check("HTML 块外的正文照常打字", md(tv), "<p align=\"right\">右边</p>\n\n正文二\n")
     }
+    do {
+        let src = "<p align=\"right\">右边</p>\n\n正文\n"
+        // 块后面一段的开头按退格：不把这段并进块里（并进去就会丢字）
+        let tv = makeView(src)
+        let body = (tv.string as NSString).range(of: "正文")
+        tv.setSelectedRange(NSRange(location: body.location, length: 0))
+        tv.deleteBackward(nil)
+        tv.deleteBackward(nil)
+        check("HTML 块后一段开头退格不并进块里", "\(md(tv) == src || md(tv).hasSuffix("</p>\n\n正文\n") || md(tv).hasSuffix("</p>\n正文\n")) \(tv.string.contains("正文"))", "true true")
+        // 块尾回车：另起一段正文，接着打的字能保存
+        let tv2 = makeView(src)
+        let blockEnd = (tv2.string as NSString).range(of: "右边")
+        tv2.setSelectedRange(NSRange(location: NSMaxRange(blockEnd), length: 0))
+        tv2.insertNewline(nil)
+        type(tv2, "新段")
+        check("HTML 块尾回车后打字能保存", "\(md(tv2).contains("新段")) \(md(tv2).hasPrefix("<p align=\"right\">右边</p>"))", "true true")
+        // 整块选中删除可以
+        let tv3 = makeView(src)
+        let whole = (tv3.string as NSString).paragraphRange(for: NSRange(location: 0, length: 0))
+        tv3.setSelectedRange(whole)
+        tv3.deleteBackward(nil)
+        check("HTML 块可以整块删除", "\(md(tv3).contains("<p")) \(md(tv3).contains("正文"))", "false true")
+    }
 
     // 网络图片：开关关闭时不下载，显示占位框；插入网址原样保存（? 后的参数不编码）
     do {
