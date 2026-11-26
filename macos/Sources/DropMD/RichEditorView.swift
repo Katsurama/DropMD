@@ -11,10 +11,11 @@ struct RichTextEditor: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeNSView(context: Context) -> NSScrollView {
-        // 使用 TextKit 1（NSLayoutManager），以便支持表格并自行绘制列表符号；开启按需非连续排版，保证长文档 120Hz 滚动流畅
+        // 使用 TextKit 1（NSLayoutManager），以便支持表格并自行绘制列表符号。
+        // 不用非连续排版：表格和图片的高度估不准，打开时会停在文档中间、滚动位置乱跳
         let storage = NSTextStorage()
         let layout = RichLayoutManager()
-        layout.allowsNonContiguousLayout = true
+        layout.allowsNonContiguousLayout = false
         storage.addLayoutManager(layout)
         let container = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
         container.widthTracksTextView = true
