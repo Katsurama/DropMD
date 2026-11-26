@@ -24,7 +24,7 @@ enum DefaultApp {
             a.alertStyle = .warning
             a.messageText = String(localized: "无法设为默认")
             a.informativeText = error.localizedDescription
-            a.addButton(withTitle: String(localized: "好"))
+            a.addButton(withTitle: String(localized: "确认"))
             a.runModal()
         }
     }

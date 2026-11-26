@@ -51,7 +51,7 @@ struct ContentView: View {
             }
         }
         .alert("隐私说明", isPresented: $showPrivacy) {
-            Button("好", role: .cancel) {}
+            Button("确认", role: .cancel) {}
         } message: {
             Text(privacyText)
         }

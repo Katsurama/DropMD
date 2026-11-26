@@ -60,7 +60,7 @@ struct DropMDApp: App {
                     let a = NSAlert()
                     a.messageText = String(localized: "隐私说明")
                     a.informativeText = privacyText
-                    a.addButton(withTitle: String(localized: "好"))
+                    a.addButton(withTitle: String(localized: "确认"))
                     a.runModal()
                 }
                 if let url = HelpDocs.repoURL(path: "/issues") {

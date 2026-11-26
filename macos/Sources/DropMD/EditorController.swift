@@ -831,7 +831,7 @@ final class EditorController: ObservableObject {
         let a = NSAlert()
         a.messageText = title
         a.informativeText = info
-        a.addButton(withTitle: String(localized: "好"))
+        a.addButton(withTitle: String(localized: "确认"))
         a.addButton(withTitle: String(localized: "取消"))
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
         field.placeholderString = placeholder

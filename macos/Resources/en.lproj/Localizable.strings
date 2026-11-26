@@ -23,7 +23,7 @@
 "选择文件夹（包含所有子文件夹）" = "Choose Folders (including all subfolders)";
 "选择输出文件夹" = "Choose Output Folder";
 "选择" = "Choose";
-"好" = "OK";
+"确认" = "OK";
 "高精度模型" = "High-Accuracy Models";
 "当前设置所需的模型都已下载。" = "All models needed for the current settings are already downloaded.";
 "需要下载识别模型" = "Recognition Models Needed";

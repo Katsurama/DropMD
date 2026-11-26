@@ -9,7 +9,7 @@ extension EditorController {
         a.alertStyle = .warning
         a.messageText = title
         a.informativeText = text
-        a.addButton(withTitle: String(localized: "好"))
+        a.addButton(withTitle: String(localized: "确认"))
         a.runModal()
     }
 

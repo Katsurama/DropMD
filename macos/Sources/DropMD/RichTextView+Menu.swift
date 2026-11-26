@@ -253,7 +253,7 @@ extension RichTextView {
         let initial = storage.attribute(DMKey.alt, at: r.location, effectiveRange: nil) as? String ?? ""
         field.stringValue = initial
         alert.accessoryView = field
-        alert.addButton(withTitle: String(localized: "好"))
+        alert.addButton(withTitle: String(localized: "确认"))
         alert.addButton(withTitle: String(localized: "取消"))
         alert.window.initialFirstResponder = field
 
@@ -290,7 +290,7 @@ extension RichTextView {
                 guard let extracted else {
                     let alert = NSAlert()
                     alert.messageText = String(localized: "未在图片中识别到文字")
-                    alert.addButton(withTitle: String(localized: "好"))
+                    alert.addButton(withTitle: String(localized: "确认"))
                     if let window = self.window { alert.beginSheetModal(for: window) } else { alert.runModal() }
                     return
                 }

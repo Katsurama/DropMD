@@ -356,7 +356,7 @@ struct RichTextEditor: NSViewRepresentable {
             alert.alertStyle = .warning
             alert.messageText = title
             alert.informativeText = detail
-            alert.addButton(withTitle: String(localized: "好"))
+            alert.addButton(withTitle: String(localized: "确认"))
             if let window = NSApp.keyWindow { alert.beginSheetModal(for: window) } else { alert.runModal() }
         }
     }
