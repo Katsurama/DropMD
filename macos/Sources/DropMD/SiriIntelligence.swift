@@ -17,7 +17,7 @@ enum AIModelPreference: String, CaseIterable, Identifiable {
     case preferCloud
 
     static let storageKey = "aiModelPreference"
-    static let defaultValue: Self = .onDeviceOnly
+    static let defaultValue: Self = .auto
 
     var id: String { rawValue }
 

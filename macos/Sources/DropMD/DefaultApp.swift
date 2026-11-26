@@ -192,7 +192,7 @@ private struct AIModelPicker: View {
             ForEach(AIModelPreference.allCases) { Text($0.title).tag($0) }
         } label: {
             Text("智能模型")
-            Text("默认为仅本机。选择“自动”或“优先私有云”后，智能功能可能将相关文档内容发送给 Apple 私有云计算；云端不可用时改用本机模型。")
+            Text("默认为“自动”：处理长文档时，相关内容可能发送给 Apple 私有云计算；云端不可用时改用本机模型。选择“仅本机”则全部在这台 Mac 上处理。")
         }
     }
 }

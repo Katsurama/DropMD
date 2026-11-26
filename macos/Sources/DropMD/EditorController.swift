@@ -182,6 +182,7 @@ final class EditorController: ObservableObject {
     var summaryTask: Task<Void, Never>?
     var summaryToken: Int = 0
     var lastSummarizedKey: (isSelection: Bool, text: String)?
+    var summaryPendingKey: (isSelection: Bool, text: String)?
     @Published var qaMessages: [DocumentQAItem] = []
     @Published var isAnsweringQA = false
     var qaTask: Task<Void, Never>?

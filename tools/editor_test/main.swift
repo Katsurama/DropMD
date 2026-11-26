@@ -2300,9 +2300,9 @@ MainActor.assumeIsolated {
         // 模型偏好与私有云策略
         if let defaults = UserDefaults(suiteName: "DropMD.AIModelPreference.tests.\(UUID())") {
             let key = AIModelPreference.storageKey
-            check("模型偏好：未设置时仅本机", AIModelPreference.stored(in: defaults).rawValue, "onDeviceOnly")
+            check("模型偏好：未设置时自动", AIModelPreference.stored(in: defaults).rawValue, "auto")
             defaults.set("invalid", forKey: key)
-            check("模型偏好：无效值回退仅本机", AIModelPreference.stored(in: defaults).rawValue, "onDeviceOnly")
+            check("模型偏好：无效值回退自动", AIModelPreference.stored(in: defaults).rawValue, "auto")
             for explicit in [AIModelPreference.auto, .preferCloud, .onDeviceOnly] {
                 defaults.set(explicit.rawValue, forKey: key)
                 check("模型偏好：保留明确选择 \(explicit.rawValue)", AIModelPreference.stored(in: defaults).rawValue, explicit.rawValue)

@@ -383,10 +383,15 @@ extension EditorController {
         if !force, let last = lastSummarizedKey, last.isSelection == isSelection, last.text == source, !summaryBullets.isEmpty {
             return
         }
+        // 切回摘要页时，同一内容的摘要仍在生成：接着等，不重新开始
+        if !force, summaryTask != nil, let pending = summaryPendingKey, pending.isSelection == isSelection, pending.text == source {
+            return
+        }
 
         summaryTask?.cancel()
         summaryToken &+= 1
         let token = summaryToken
+        summaryPendingKey = (isSelection, source)
         summaryIsSelection = isSelection
         isSummarizing = true
         summaryError = nil
@@ -397,6 +402,7 @@ extension EditorController {
                 if self.summaryToken == token {
                     self.isSummarizing = false
                     self.summaryTask = nil
+                    self.summaryPendingKey = nil
                 }
             }
             do {
@@ -421,6 +427,7 @@ extension EditorController {
         summaryToken &+= 1
         summaryTask?.cancel()
         summaryTask = nil
+        summaryPendingKey = nil
         isSummarizing = false
     }
 

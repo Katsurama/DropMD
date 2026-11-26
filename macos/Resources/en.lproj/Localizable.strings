@@ -62,7 +62,7 @@
 "正在停止…" = "Stopping…";
 
 /* ContentView.swift */
-"文件转换全程在这台 Mac 上完成，不会上传源文件。\n\n• DropMD 的文档智能功能默认仅在本机运行。选择“自动”或“优先私有云”后，相关文档内容可能发送给 Apple 私有云计算。系统写作工具等由 macOS 管理，不受此选项控制。\n• 经您同意后，可联网下载识别模型或检查更新。\n• 没有统计或广告；转换不修改原始文件。" = "File conversion runs on this Mac without uploading the source files.\n\n• DropMD’s document AI features run on-device by default. Choosing Automatic or Prefer Private Cloud can send relevant document content to Apple Private Cloud Compute. System features such as Writing Tools are managed separately by macOS.\n• DropMD asks for your consent to download recognition models or check for updates online.\n• No analytics or ads. Conversion does not modify the original files.";
+"文件转换全程在这台 Mac 上完成，不会上传源文件。\n\n• DropMD 的文档智能功能默认为“自动”：处理长文档时，相关内容可能发送给 Apple 私有云计算；可在设置中改为“仅本机”。系统写作工具等由 macOS 管理，不受此选项控制。\n• 经您同意后，可联网下载识别模型或检查更新。\n• 没有统计或广告；转换不修改原始文件。" = "File conversion runs on this Mac without uploading the source files.\n\n• DropMD’s document AI features default to Automatic: for long documents, relevant content may be sent to Apple Private Cloud Compute. You can switch to On-Device Only in Settings. System features such as Writing Tools are managed separately by macOS.\n• DropMD asks for your consent to download recognition models or check for updates online.\n• No analytics or ads. Conversion does not modify the original files.";
 "隐私说明" = "Privacy";
 "本机离线处理" = "Works Offline on This Mac";
 "拖入文件或文件夹" = "Drag Files or Folders Here";
@@ -498,5 +498,5 @@
 "转换为表格失败" = "Failed to Convert to Table";
 "转换为表格已取消" = "Convert to Table Canceled";
 "针对本文提问…" = "Ask about this document…";
-"默认为仅本机。选择“自动”或“优先私有云”后，智能功能可能将相关文档内容发送给 Apple 私有云计算；云端不可用时改用本机模型。" = "The default is On-Device Only. Choosing Automatic or Prefer Private Cloud can send relevant document content to Apple Private Cloud Compute. DropMD falls back to the on-device model when the cloud model is unavailable.";
+"默认为“自动”：处理长文档时，相关内容可能发送给 Apple 私有云计算；云端不可用时改用本机模型。选择“仅本机”则全部在这台 Mac 上处理。" = "The default is Automatic: for long documents, relevant content may be sent to Apple Private Cloud Compute. DropMD falls back to the on-device model when the cloud model is unavailable. Choose On-Device Only to keep all processing on this Mac.";
 "导出 Word 超时，请稍后重试。" = "Word export timed out. Please try again later.";

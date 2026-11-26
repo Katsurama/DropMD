@@ -29,7 +29,6 @@ struct FormatInspector: View {
             case .summary:
                 SummaryInspectorView(editor: editor)
                     .onAppear { editor.generateDocumentSummary(force: false) }
-                    .onDisappear { editor.cancelDocumentSummary() }
             case .none:
                 EmptyView()
             }
