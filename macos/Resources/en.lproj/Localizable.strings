@@ -258,9 +258,10 @@
 "折叠的内容" = "Hidden content";
 
 /* UpdateChecker.swift */
-"是否自动检查更新？" = "Check for Updates Automatically?";
-"每次启动时查询一次，不发送任何文件或个人信息。可随时在“检查更新…”中更改。" = "DropMD checks each time it starts and never sends any files or personal information. You can change this anytime in “Check for Updates…”.";
+"是否自动检查更新？" = "Check for updates automatically?";
+"DropMD 将在每次启动时向 GitHub 查询是否有新版本，不会发送文件或个人信息。此设置可随时在“设置”中更改。" = "DropMD will check GitHub for a new version each time it starts. No files or personal information are sent. You can change this at any time in Settings.";
 "自动检查" = "Check Automatically";
+"不检查" = "Don’t Check";
 "暂不" = "Not Now";
 "此版本没有配置更新来源。" = "This version has no update source.";
 "DropMD 有新版本：%@" = "A new version of DropMD is available: %@";

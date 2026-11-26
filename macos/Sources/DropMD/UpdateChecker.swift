@@ -142,8 +142,15 @@ final class UpdateChecker: ObservableObject {
     @Published var progress: Double = 0
     @Published var lastChecked: Date?
 
+    nonisolated static let autoCheckKey = "autoCheckUpdates"
+
+    /// 未保存自动检查设置且配置了更新来源时，启动时需要先弹窗询问
+    nonisolated static func shouldAskAutoCheck(storedValue: Any?, hasRepository: Bool = true) -> Bool {
+        hasRepository && storedValue == nil
+    }
+
     private let defaults = UserDefaults.standard
-    @Published var autoCheck: Bool { didSet { defaults.set(autoCheck, forKey: "autoCheckUpdates") } }
+    @Published var autoCheck: Bool { didSet { defaults.set(autoCheck, forKey: Self.autoCheckKey) } }
     @Published var includeBeta: Bool {
         didSet {
             defaults.set(includeBeta, forKey: "includeBetaUpdates")
@@ -174,7 +181,7 @@ final class UpdateChecker: ObservableObject {
 
     private init() {
         // 没设置过时默认启动时检查更新（只读 GitHub 上的版本列表，不下载、不安装）
-        autoCheck = defaults.object(forKey: "autoCheckUpdates") as? Bool ?? true
+        autoCheck = defaults.object(forKey: Self.autoCheckKey) as? Bool ?? true
         // 默认只提示正式版（新版本先发测试版、再发正式版），装着测试版也一样；用户在更新窗口里勾选后才提示测试版
         includeBeta = defaults.bool(forKey: "includeBetaUpdates")
         lastChecked = defaults.object(forKey: "lastUpdateCheck") as? Date
@@ -186,15 +193,13 @@ final class UpdateChecker: ObservableObject {
     func launchCheck() {
         cleanUpOldFiles()
         guard Self.repository != nil else { return }
-        if !defaults.bool(forKey: "askedAutoUpdate") {
-            defaults.set(true, forKey: "askedAutoUpdate")
+        if Self.shouldAskAutoCheck(storedValue: defaults.object(forKey: Self.autoCheckKey),
+                                   hasRepository: Self.repository != nil) {
             let a = NSAlert()
             a.messageText = String(localized: "是否自动检查更新？")
-            a.informativeText = String(localized: """
-            每次启动时查询一次，不发送任何文件或个人信息。可随时在“检查更新…”中更改。
-            """)
+            a.informativeText = String(localized: "DropMD 将在每次启动时向 GitHub 查询是否有新版本，不会发送文件或个人信息。此设置可随时在“设置”中更改。")
             a.addButton(withTitle: String(localized: "自动检查"))
-            a.addButton(withTitle: String(localized: "暂不"))
+            a.addButton(withTitle: String(localized: "不检查"))
             autoCheck = a.runModal() == .alertFirstButtonReturn
         }
         guard autoCheck else { return }

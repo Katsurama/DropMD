@@ -230,8 +230,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             MainActor.assumeIsolated {
                 DefaultApp.askOnFirstLaunch()
-                HelpDocs.openGuideOnFirstLaunch()
                 UpdateChecker.shared.launchCheck()
+                HelpDocs.openGuideOnFirstLaunch()
             }
         }
     }

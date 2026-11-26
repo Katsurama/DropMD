@@ -183,5 +183,23 @@ do {
 check(releaseNoteLines("## DropMD 1.0.0\n\n- 表格可以删行\n  - 选中整行按退格\n* 右键菜单\n普通的一行 - 不是列表") ==
       [.heading("DropMD 1.0.0"), .blank, .bullet(level: 0, text: "表格可以删行"), .bullet(level: 1, text: "选中整行按退格"),
        .bullet(level: 0, text: "右键菜单"), .text("普通的一行 - 不是列表")], "更新说明拆成行")
+
+// 首次启动是否询问自动检查更新：只有未保存 autoCheckUpdates 且配置了更新来源时才询问
+do {
+    check(UpdateChecker.shouldAskAutoCheck(storedValue: nil, hasRepository: true), "未设置自动检查且有更新来源时询问")
+    check(!UpdateChecker.shouldAskAutoCheck(storedValue: true, hasRepository: true), "已设为自动检查时不询问")
+    check(!UpdateChecker.shouldAskAutoCheck(storedValue: false, hasRepository: true), "已设为不检查时不询问")
+    check(!UpdateChecker.shouldAskAutoCheck(storedValue: nil, hasRepository: false), "无更新来源时不询问")
+
+    let suite = "dropmd.update_test.\(UUID().uuidString)"
+    let d = UserDefaults(suiteName: suite)!
+    defer { d.removePersistentDomain(forName: suite) }
+    check(UpdateChecker.shouldAskAutoCheck(storedValue: d.object(forKey: UpdateChecker.autoCheckKey)), "全新 UserDefaults 需要询问")
+    d.set(true, forKey: UpdateChecker.autoCheckKey)
+    check(!UpdateChecker.shouldAskAutoCheck(storedValue: d.object(forKey: UpdateChecker.autoCheckKey)), "写入 true 后不再询问")
+    d.set(false, forKey: UpdateChecker.autoCheckKey)
+    check(!UpdateChecker.shouldAskAutoCheck(storedValue: d.object(forKey: UpdateChecker.autoCheckKey)), "写入 false 后不再询问")
+}
+
 print(failures == 0 ? "全部通过" : "\(failures) 项失败")
 exit(failures == 0 ? 0 : 1)
