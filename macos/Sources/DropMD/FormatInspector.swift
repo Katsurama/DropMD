@@ -256,7 +256,10 @@ struct ParagraphStyleMenu: View {
 /// 侧边栏“摘要”标签页：上半区文章摘要（或所选内容摘要），下半区 Apple Intelligence 问答（支持中间分隔线上下拖动）
 private struct SummaryInspectorView: View {
     @ObservedObject var editor: EditorController
-    @AppStorage("summaryTopFraction") private var topFraction: Double = 0.5
+    /// 0 表示没拖过：摘要和对话区域一样高。旧的 summaryTopFraction 多是点到分隔线时误存的，不再沿用
+    @AppStorage("summarySplitFraction") private var topFraction: Double = 0
+    private static let dividerHeight = 9.0
+    private static let inputBarHeight = 54.0   // 底部提问输入框连上下留白
     @State private var copied = false
     @State private var questionText = ""
     @State private var dividerHovered = false
@@ -280,7 +283,7 @@ private struct SummaryInspectorView: View {
                             .frame(width: 28, height: 3)
                     }
                 }
-                .frame(height: 9)
+                .frame(height: Self.dividerHeight)
                 .contentShape(Rectangle())
                 .onHover { dividerHovered = $0 }
                 .overlay(VerticalSplitHandle(
@@ -290,7 +293,7 @@ private struct SummaryInspectorView: View {
                         let next = clampedTopHeight(h, proposed: cur + deltaY)
                         topFraction = next / h
                     },
-                    onDoubleClick: { topFraction = 0.5 }
+                    onDoubleClick: { topFraction = 0 }
                 ))
                 .zIndex(1)
                 qaSection
@@ -302,7 +305,8 @@ private struct SummaryInspectorView: View {
     private func clampedTopHeight(_ totalHeight: Double, proposed: Double? = nil) -> Double {
         let minTop = 110.0
         let minBottom = 160.0
-        let raw = (proposed ?? totalHeight * topFraction).rounded()
+        let even = (totalHeight - Self.dividerHeight - Self.inputBarHeight) / 2
+        let raw = (proposed ?? (topFraction > 0 ? totalHeight * topFraction : even)).rounded()
         if totalHeight <= minTop + minBottom {
             return max(40.0, min((totalHeight * 0.45).rounded(), totalHeight - 40.0))
         }
