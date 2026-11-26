@@ -122,7 +122,7 @@
   // ---------------------------------------------------------------- 提示框 > [!NOTE]（GitHub 写法）
   // 界面文字：默认中文，App 每次渲染时传入界面语言的文字（render 的 ui 参数）
   const ui = { NOTE: "注意", TIP: "提示", IMPORTANT: "重要", WARNING: "警告", CAUTION: "小心",
-               blockedImage: "网络图片未加载", missingImage: "找不到图片", colon: "：" };
+               blockedImage: "网络图片未加载", colon: "：" };
   function calloutPlugin(md) {
     md.core.ruler.after("inline", "callout", function (state) {
       const tokens = state.tokens;
@@ -276,23 +276,7 @@
           }
         }
       });
-      const content = document.getElementById("content");
-      // 找不到的本地图片换成和网络图片一样的占位框，不留浏览器的空图片框。
-      // 监听挂在容器上：快速查看之后会整体替换 innerHTML，换进来的图片同样生效。
-      if (!content.dataset.missingImageWatch) {
-        content.dataset.missingImageWatch = "1";
-        content.addEventListener("error", function (event) {
-          const img = event.target;
-          if (!img || img.tagName !== "IMG") return;
-          const span = document.createElement("span");
-          span.className = "blocked-image";
-          span.title = img.getAttribute("src") || "";
-          const alt = img.getAttribute("alt") || "";
-          span.textContent = ui.missingImage + (alt ? ui.colon + alt : "");
-          img.replaceWith(span);
-        }, true);
-      }
-      content.replaceChildren(...doc.body.childNodes);
+      document.getElementById("content").replaceChildren(...doc.body.childNodes);
       return true;
     },
 

@@ -503,7 +503,6 @@
 "网络图片未加载：%@" = "Web image not loaded: %@";
 "找不到图片：%@" = "Image not found: %@";
 "网络图片未加载" = "Web image not loaded";
-"找不到图片" = "Image not found";
 "网络图片" = "Web Image";
 "插入网络图片" = "Insert Web Image";
 "填写图片的网址（http 或 https）。" = "Enter the image's web address (http or https).";

@@ -439,7 +439,11 @@ enum RichBridge {
             let name = alt.isEmpty ? (embedded ? "data:" : (path as NSString).lastPathComponent) : alt
             let label = RemoteImages.isRemote(path) ? String(localized: "网络图片未加载：\(name)") : String(localized: "找不到图片：\(name)")
             let attachment = NSTextAttachment()
-            let cell = PlaceholderAttachmentCell(label: label, font: base.withSize(base.pointSize * 0.85))
+            // 找不到的本地图片写了宽或高：和快速查看一样，按图片原本的大小留出一个框
+            let sized = !RemoteImages.isRemote(path) && (htmlWidth?.isEmpty == false || htmlHeight?.isEmpty == false)
+                ? fittedImageSize(natural: NSSize(width: 4, height: 3), htmlWidth: htmlWidth, htmlHeight: htmlHeight) : nil
+            let cell = PlaceholderAttachmentCell(label: sized == nil ? label : name, font: base.withSize(base.pointSize * 0.85),
+                                                 frameSize: sized?.0, widthFraction: sized?.1)
             cell.setAccessibilityLabel(label)   // 旁白读出“找不到图片：…”
             attachment.attachmentCell = cell
             let s = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
@@ -912,16 +916,22 @@ enum RichBridge {
     }
 }
 
-/// 没显示出来的图片：画成和快速查看一样的虚线圆角框加灰字；太长时不超过文字区宽度，末尾显示省略号
+/// 没显示出来的图片。网络图片和不知道大小的本地图片：虚线圆角框加一行灰字；
+/// 写了宽或高的本地图片：和快速查看一样，按原本的大小画一个细边框，左上角写说明、中间一个问号
 final class PlaceholderAttachmentCell: NSTextAttachmentCell {
     let label: String
     let labelFont: NSFont
+    /// 原本的大小（来自 HTML 的 width / height）；nil 时是一行高的小框
+    let frameSize: NSSize?
+    let widthFraction: CGFloat?
     private static let padding = NSSize(width: 8, height: 3)
     private static let gap: CGFloat = 3   // 框外左右各留的空隙：相邻的框不贴在一起
 
-    init(label: String, font: NSFont) {
+    init(label: String, font: NSFont, frameSize: NSSize? = nil, widthFraction: CGFloat? = nil) {
         self.label = label
         self.labelFont = font
+        self.frameSize = frameSize
+        self.widthFraction = widthFraction
         super.init()
     }
 
@@ -937,6 +947,11 @@ final class PlaceholderAttachmentCell: NSTextAttachmentCell {
     }
 
     override func cellSize() -> NSSize {
+        if let size = frameSize {
+            let width = widthFraction.map { min(maxWidth, (maxWidth * $0).rounded(.down) - ($0 < 0.99 ? 4 : 0)) } ?? min(size.width, maxWidth)
+            let w = max(40, width.isFinite ? width : size.width)
+            return NSSize(width: w, height: max(24, (size.height * w / max(size.width, 1)).rounded()))
+        }
         let text = (label as NSString).size(withAttributes: textAttributes)
         let width = ceil(text.width) + 2 * (Self.padding.width + Self.gap)
         return NSSize(width: min(width, maxWidth), height: ceil(text.height) + 2 * Self.padding.height)
@@ -951,18 +966,35 @@ final class PlaceholderAttachmentCell: NSTextAttachmentCell {
     }
 
     override func cellBaselineOffset() -> NSPoint {
-        NSPoint(x: 0, y: labelFont.descender - Self.padding.height)
+        frameSize == nil ? NSPoint(x: 0, y: labelFont.descender - Self.padding.height) : .zero
     }
 
     override func draw(withFrame cellFrame: NSRect, in controlView: NSView?) {
+        let flipped = controlView?.isFlipped ?? true
+        let textHeight = ceil((label as NSString).size(withAttributes: textAttributes).height)
+        if frameSize != nil {
+            let box = cellFrame.insetBy(dx: 0.5, dy: 0.5)
+            let path = NSBezierPath(roundedRect: box, xRadius: 3, yRadius: 3)
+            path.lineWidth = 1
+            NSColor.separatorColor.setStroke()
+            path.stroke()
+            let y = flipped ? cellFrame.minY + 6 : cellFrame.maxY - 6 - textHeight
+            let textRect = NSRect(x: cellFrame.minX + 8, y: y, width: max(0, cellFrame.width - 16), height: textHeight)
+            (label as NSString).draw(with: textRect, options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], attributes: textAttributes)
+            if cellFrame.height >= 60, let mark = NSImage(systemSymbolName: "questionmark.square", accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: 18, weight: .regular).applying(.init(paletteColors: [.tertiaryLabelColor]))) {
+                let s = mark.size
+                mark.draw(in: NSRect(x: cellFrame.midX - s.width / 2, y: cellFrame.midY - s.height / 2, width: s.width, height: s.height),
+                          from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            }
+            return
+        }
         let box = cellFrame.insetBy(dx: Self.gap + 0.5, dy: 0.5)
         let path = NSBezierPath(roundedRect: box, xRadius: 6, yRadius: 6)
         path.lineWidth = 1
         path.setLineDash([3, 2], count: 2, phase: 0)
         NSColor.separatorColor.setStroke()
         path.stroke()
-        let flipped = controlView?.isFlipped ?? true
-        let textHeight = ceil((label as NSString).size(withAttributes: textAttributes).height)
         let y = flipped ? cellFrame.minY + Self.padding.height : cellFrame.maxY - Self.padding.height - textHeight
         let textRect = NSRect(x: cellFrame.minX + Self.gap + Self.padding.width, y: y,
                               width: max(0, cellFrame.width - 2 * (Self.gap + Self.padding.width)), height: textHeight)

@@ -2228,6 +2228,11 @@ MainActor.assumeIsolated {
         let narrow = NSTextContainer(size: NSSize(width: 200, height: 1000))
         let frame = longCell.cellFrame(for: narrow, proposedLineFragment: NSRect(x: 0, y: 0, width: 200, height: 20), glyphPosition: .zero, characterIndex: 0)
         check("占位框太长时不超过文字区宽度", "\(frame.width <= 200)", "true")
+        let sizedImage = RichBridge.imageString(path: "no-such.png", alt: "赞赏码", htmlWidth: "240", baseURL: nil)
+        let sizedCell = (sizedImage.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)?.attachmentCell as? PlaceholderAttachmentCell
+        check("找不到的图片写了宽度：按原大小留框（高按 4:3 估）", "\(sizedCell?.cellSize() ?? .zero) \(sizedCell?.label ?? "")", "(240.0, 180.0) 赞赏码")
+        let plainCell = (RichBridge.imageString(path: "no-such.png", alt: "图", baseURL: nil).attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)?.attachmentCell as? PlaceholderAttachmentCell
+        check("找不到的图片没写大小：一行高的小框", "\(plainCell?.frameSize == nil) \(plainCell?.label ?? "")", "true 找不到图片：图")
         check("网络图片：开关关闭时显示占位框（整块）", "\(s.length) \(cell?.label ?? "无")", "1 网络图片未加载：徽章")
         check("网络图片：开关关闭时不下载", "\(RemoteImages.image(for: "https://example.com/x.png") == nil)", "true")
         check("网络图片：只认 http 和 https", "\(RemoteImages.url(for: "ftp://example.com/a.png") == nil) \(RemoteImages.url(for: "//example.com/a.png")?.scheme ?? "")", "true https")
