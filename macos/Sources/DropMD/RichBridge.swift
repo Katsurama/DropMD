@@ -439,7 +439,9 @@ enum RichBridge {
             let name = alt.isEmpty ? (embedded ? "data:" : (path as NSString).lastPathComponent) : alt
             let label = RemoteImages.isRemote(path) ? String(localized: "网络图片未加载：\(name)") : String(localized: "找不到图片：\(name)")
             let attachment = NSTextAttachment()
-            attachment.attachmentCell = PlaceholderAttachmentCell(label: label, font: base.withSize(base.pointSize * 0.85))
+            let cell = PlaceholderAttachmentCell(label: label, font: base.withSize(base.pointSize * 0.85))
+            cell.setAccessibilityLabel(label)   // 旁白读出“找不到图片：…”
+            attachment.attachmentCell = cell
             let s = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
             s.addAttributes(marks, range: NSRange(location: 0, length: s.length))
             return s
@@ -910,8 +912,7 @@ enum RichBridge {
     }
 }
 
-/// 单页中的图片（支持圆角、细边框、容器自适应缩放、HTML 百分比并排以及 GIF 动图自动播放）
-/// 没显示出来的图片：画成和快速查看一样的虚线圆角框加灰字
+/// 没显示出来的图片：画成和快速查看一样的虚线圆角框加灰字；太长时不超过文字区宽度，末尾显示省略号
 final class PlaceholderAttachmentCell: NSTextAttachmentCell {
     let label: String
     let labelFont: NSFont
@@ -926,13 +927,27 @@ final class PlaceholderAttachmentCell: NSTextAttachmentCell {
 
     required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    /// 文字区可用的宽度（排版时更新）：框不超过它
+    private var maxWidth: CGFloat = .greatestFiniteMagnitude
+
     private var textAttributes: [NSAttributedString.Key: Any] {
-        [.font: labelFont, .foregroundColor: NSColor.secondaryLabelColor]
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byTruncatingTail
+        return [.font: labelFont, .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: style]
     }
 
     override func cellSize() -> NSSize {
         let text = (label as NSString).size(withAttributes: textAttributes)
-        return NSSize(width: ceil(text.width) + 2 * (Self.padding.width + Self.gap), height: ceil(text.height) + 2 * Self.padding.height)
+        let width = ceil(text.width) + 2 * (Self.padding.width + Self.gap)
+        return NSSize(width: min(width, maxWidth), height: ceil(text.height) + 2 * Self.padding.height)
+    }
+
+    override func cellFrame(for textContainer: NSTextContainer, proposedLineFragment lineFrag: NSRect,
+                            glyphPosition position: NSPoint, characterIndex charIndex: Int) -> NSRect {
+        let pad = textContainer.lineFragmentPadding * 2
+        let available = lineFrag.width > 0 ? lineFrag.width - pad : textContainer.size.width - pad
+        maxWidth = max(60, available)
+        return super.cellFrame(for: textContainer, proposedLineFragment: lineFrag, glyphPosition: position, characterIndex: charIndex)
     }
 
     override func cellBaselineOffset() -> NSPoint {
@@ -949,10 +964,13 @@ final class PlaceholderAttachmentCell: NSTextAttachmentCell {
         let flipped = controlView?.isFlipped ?? true
         let textHeight = ceil((label as NSString).size(withAttributes: textAttributes).height)
         let y = flipped ? cellFrame.minY + Self.padding.height : cellFrame.maxY - Self.padding.height - textHeight
-        (label as NSString).draw(at: NSPoint(x: cellFrame.minX + Self.gap + Self.padding.width, y: y), withAttributes: textAttributes)
+        let textRect = NSRect(x: cellFrame.minX + Self.gap + Self.padding.width, y: y,
+                              width: max(0, cellFrame.width - 2 * (Self.gap + Self.padding.width)), height: textHeight)
+        (label as NSString).draw(with: textRect, options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], attributes: textAttributes)
     }
 }
 
+/// 单页中的图片（支持圆角、细边框、容器自适应缩放、HTML 百分比并排以及 GIF 动图自动播放）
 final class ImageAttachmentCell: NSTextAttachmentCell {
     private let maxSize: NSSize
     private let widthFraction: CGFloat?

@@ -2224,6 +2224,10 @@ MainActor.assumeIsolated {
         UserDefaults.standard.set(false, forKey: RemoteImages.settingKey)
         let s = RichBridge.imageString(path: "https://example.com/badge.svg?style=flat", alt: "徽章", baseURL: nil)
         let cell = (s.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)?.attachmentCell as? PlaceholderAttachmentCell
+        let longCell = PlaceholderAttachmentCell(label: String(repeating: "很长的说明文字", count: 30), font: .systemFont(ofSize: 12))
+        let narrow = NSTextContainer(size: NSSize(width: 200, height: 1000))
+        let frame = longCell.cellFrame(for: narrow, proposedLineFragment: NSRect(x: 0, y: 0, width: 200, height: 20), glyphPosition: .zero, characterIndex: 0)
+        check("占位框太长时不超过文字区宽度", "\(frame.width <= 200)", "true")
         check("网络图片：开关关闭时显示占位框（整块）", "\(s.length) \(cell?.label ?? "无")", "1 网络图片未加载：徽章")
         check("网络图片：开关关闭时不下载", "\(RemoteImages.image(for: "https://example.com/x.png") == nil)", "true")
         check("网络图片：只认 http 和 https", "\(RemoteImages.url(for: "ftp://example.com/a.png") == nil) \(RemoteImages.url(for: "//example.com/a.png")?.scheme ?? "")", "true https")

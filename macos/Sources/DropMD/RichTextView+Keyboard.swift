@@ -158,7 +158,7 @@ extension RichTextView {
     }
 
     /// 在列表项、待办、引用的开头按退格：先减少缩进 / 变回正文（与 Notion、Word 相同），再按一次才与上一段合并
-    /// 一整块、不能只改一部分的东西：找不到的图片的占位文字、提示框的标题（保存时整个写回原文）
+    /// 一整块、不能只改一部分的东西：提示框的标题（保存时整个写回原文）；图片和占位框是一个附件字符，本来就是一整块
     func objectRange(at index: Int) -> NSRange? {
         guard let storage = textStorage, index >= 0, index < storage.length else { return nil }
         let all = NSRange(location: 0, length: storage.length)
