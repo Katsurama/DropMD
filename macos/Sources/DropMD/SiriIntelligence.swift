@@ -46,7 +46,17 @@ struct DocumentQAItem: Identifiable, Equatable {
 
     var displayAnswer: AttributedString {
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        guard !isError, var rendered = try? AttributedString(markdown: answer, options: options) else {
+        // 只解析行内格式：行首的列表标记换成圆点，标题去掉 #
+        let text = answer.components(separatedBy: "\n").map { line -> String in
+            var s = SiriAIManager.stripMarkupForDisplay(line)
+            if let r = s.range(of: #"^[-*+]\s+"#, options: .regularExpression) {
+                s.replaceSubrange(r, with: "• ")
+            } else if let r = s.range(of: #"^#{1,6}\s+"#, options: .regularExpression) {
+                s.removeSubrange(r)
+            }
+            return s
+        }.joined(separator: "\n")
+        guard !isError, var rendered = try? AttributedString(markdown: text, options: options) else {
             return AttributedString(answer)
         }
         // 生成的回答是可选取的文字，不把模型给出的地址变成可点击的链接。
@@ -349,9 +359,16 @@ enum SiriAIManager {
                         break
                     }
                 }
-                return s
+                return stripMarkupForDisplay(s)
             }
             .filter { !$0.isEmpty }
+    }
+
+    /// 模型常照抄原文的 HTML 标签与脚注标记，显示时去掉
+    static func stripMarkupForDisplay(_ text: String) -> String {
+        text.replacingOccurrences(of: #"</?[A-Za-z][A-Za-z0-9-]*(\s[^<>]*)?/?>"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\[\^[^\]\s]+\]"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
     }
 
     // MARK: - 结构化写作小工具（@Generable）与文档内问答

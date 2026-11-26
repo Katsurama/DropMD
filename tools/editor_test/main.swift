@@ -2163,6 +2163,10 @@ MainActor.assumeIsolated {
         check("问答格式化粗体、保留换行、不激活生成的链接", "\(String(rendered.characters)) \(isBold) \(rendered.runs.allSatisfy { $0.link == nil })", "重点\n\n说明 true true")
         let error = DocumentQAItem(question: "问题", answer: answer, isError: true)
         check("问答错误提示保留原文", String(error.displayAnswer.characters), answer)
+        let listAnswer = DocumentQAItem(question: "问题", answer: "## 待办\n- 确认 **酒店**\n  * 发 H<sub>2</sub>O 议程[^1]")
+        check("问答列表显示圆点、去掉标题符号与 HTML 标签", String(listAnswer.displayAnswer.characters), "待办\n• 确认 酒店\n• 发 H2O 议程")
+        check("摘要解析：去掉 HTML 标签与脚注标记",
+              SiriAIManager.parseSummaryBullets(from: "- 含 <kbd>⌘S</kbd> 和脚注[^1]").joined(), "含 ⌘S 和脚注")
     }
 
     // 双页对照表（LineMap）：无序列表（含 -）、有序列表、待办列表每一项各自对应原文行，不把整段列表并成一项
