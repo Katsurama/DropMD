@@ -193,7 +193,11 @@ private struct AIModelPicker: View {
             ForEach(AIModelPreference.allCases) { Text($0.title).tag($0) }
         } label: {
             Text("智能模型")
-            Text("长文档的相关内容可能发送给 Apple 私有云计算。")
+            switch preference {
+            case .auto: Text("长文档的相关内容可能发送给 Apple 私有云计算。")
+            case .onDeviceOnly: Text("全部在这台 Mac 上处理，不发送给 Apple。")
+            case .preferCloud: Text("文档的相关内容会优先发送给 Apple 私有云计算处理。")
+            }
         }
     }
 }
