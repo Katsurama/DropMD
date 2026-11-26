@@ -2181,6 +2181,19 @@ MainActor.assumeIsolated {
         check("双页对照表精确到每個列表项与引用行", lines, "0..<1 2..<3 3..<4 4..<5 6..<7 7..<8")
     }
 
+    // 展示型 HTML 块：块里打的字保存时会丢，所以不接受；块外照常
+    do {
+        let src = "<p align=\"right\">右边</p>\n\n正文\n"
+        let tv = makeView(src)
+        tv.setSelectedRange(NSRange(location: 1, length: 0))
+        type(tv, "一")
+        check("HTML 块中间打字不接受（不会显示了却保存不了）", "\(tv.string.contains("一")) \(md(tv) == src)", "false true")
+        let body = (tv.string as NSString).range(of: "正文")
+        tv.setSelectedRange(NSRange(location: NSMaxRange(body), length: 0))
+        type(tv, "二")
+        check("HTML 块外的正文照常打字", md(tv), "<p align=\"right\">右边</p>\n\n正文二\n")
+    }
+
     // 网络图片：开关关闭时不下载，显示占位框；插入网址原样保存（? 后的参数不编码）
     do {
         UserDefaults.standard.set(false, forKey: RemoteImages.settingKey)

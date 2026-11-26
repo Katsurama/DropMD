@@ -998,6 +998,45 @@ final class RichTextView: NSTextView {
         updateCopyButton(at: nil)
     }
 
+    /// 展示型 HTML 块保存时写回原来的 HTML，块里打的字会丢：不接受落在块里的修改。
+    /// 整块删除、在块前后按回车另起一段照常可以；撤销、重做不拦
+    override func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool {
+        if !(undoManager?.isUndoing ?? false), !(undoManager?.isRedoing ?? false),
+           Self.editsInsideHTMLBlock(textStorage, affectedCharRange, replacementString ?? "") {
+            NSSound.beep()
+            return false
+        }
+        return super.shouldChangeText(in: affectedCharRange, replacementString: replacementString)
+    }
+
+    static func editsInsideHTMLBlock(_ storage: NSAttributedString?, _ range: NSRange, _ replacement: String) -> Bool {
+        guard let storage, storage.length > 0 else { return false }
+        let ns = storage.string as NSString
+        let probe = NSRange(location: max(0, range.location - 1), length: min(storage.length, NSMaxRange(range) + 1) - max(0, range.location - 1))
+        var hit = false
+        storage.enumerateAttribute(DMKey.htmlRaw, in: probe) { value, run, stop in
+            guard value != nil else { return }
+            // 块的内容（不含段尾换行）
+            var content = ns.paragraphRange(for: NSRange(location: run.location, length: 0))
+            content = NSRange(location: content.location, length: max(run.location, NSMaxRange(run)) - content.location)
+            if content.length > 0, ns.character(at: NSMaxRange(content) - 1) == 0x0A { content.length -= 1 }
+            if range.length > 0 {
+                // 删除或替换：碰到块但没把块整个盖住
+                let overlaps = NSIntersectionRange(range, content).length > 0
+                    || (content.length == 0 && range.location <= content.location && content.location < NSMaxRange(range))
+                hit = overlaps && !(range.location <= content.location && NSMaxRange(content) <= NSMaxRange(range))
+            } else {
+                // 插入：块中间不行；块首只能插入以换行结尾的内容，块尾只能插入以换行开头的内容
+                let loc = range.location
+                if loc > content.location && loc < NSMaxRange(content) { hit = true }
+                else if loc == content.location && !replacement.hasSuffix("\n") { hit = true }
+                else if loc == NSMaxRange(content) && !replacement.hasPrefix("\n") { hit = true }
+            }
+            if hit { stop.pointee = true }
+        }
+        return hit
+    }
+
     override func didChangeText() {
         super.didChangeText()
         rawNewlineAt = nil
