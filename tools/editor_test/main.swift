@@ -2165,6 +2165,10 @@ MainActor.assumeIsolated {
         check("问答错误提示保留原文", String(error.displayAnswer.characters), answer)
         let listAnswer = DocumentQAItem(question: "问题", answer: "## 待办\n- 确认 **酒店**\n  * 发 H<sub>2</sub>O 议程[^1]")
         check("问答列表显示圆点、去掉标题符号与 HTML 标签", String(listAnswer.displayAnswer.characters), "待办\n• 确认 酒店\n• 发 H2O 议程")
+        let taskAnswer = DocumentQAItem(question: "问题", answer: "- [ ] 确认酒店\n- [x] 预订会议室")
+        check("问答待办框显示为勾选框符号", String(taskAnswer.displayAnswer.characters), "☐ 确认酒店\n☑ 预订会议室")
+        check("问答加粗的待办框也显示为勾选框符号", String(DocumentQAItem(question: "问题", answer: "- **[ ] 确认酒店**").displayAnswer.characters), "☐ 确认酒店")
+        check("摘要显示：行内格式与高亮标记", String((SiriAIManager.displayText("定下 ==**路线图**==") ?? "").characters), "定下 路线图")
         check("摘要解析：去掉 HTML 标签与脚注标记",
               SiriAIManager.parseSummaryBullets(from: "- 含 <kbd>⌘S</kbd> 和脚注[^1]").joined(), "含 ⌘S 和脚注")
     }

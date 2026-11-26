@@ -393,7 +393,7 @@ private struct SummaryInspectorView: View {
                             Text(verbatim: "•")
                                 .font(.system(size: 14.5))
                                 .foregroundStyle(.secondary)
-                            Text(verbatim: item)
+                            Text(SiriAIManager.displayText(item) ?? AttributedString(item))
                                 .font(.system(size: 14.5))
                                 .lineSpacing(4)
                                 .textSelection(.enabled)
