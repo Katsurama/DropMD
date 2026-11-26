@@ -68,6 +68,13 @@ let calls = [
     if (c2.includes('<source') || c2.includes('srcset') || !c2.includes('blocked-image') || !c2.includes('高清图') || !c2.includes('<img src="local.png">')) throw new Error('原始 HTML 远程 srcset 没有在预览里拦截：' + c2);
     if (!DropMD.exportBody('<img srcset="https://example.com/a.png 1x" alt="高清图">').includes('https://example.com/a.png')) throw new Error('导出时远程 srcset 丢了');
     return true
+    """,    // 找不到的本地图片换成占位框，不留空图片框
+    """
+    DropMD.render('![微信赞赏码](no-such-dir/missing.png)', '', 'zh-Hans', {missingImage: '找不到图片', colon: '：'});
+    for (let i = 0; i < 50 && document.querySelector('#content img'); i++) await new Promise(r => setTimeout(r, 20));
+    const c = document.getElementById('content').innerHTML;
+    if (c.includes('<img') || !c.includes('找不到图片：微信赞赏码')) throw new Error('找不到的图片没有换成占位框：' + c);
+    return true
     """,
 ]
 

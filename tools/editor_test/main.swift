@@ -1807,7 +1807,7 @@ MainActor.assumeIsolated {
         let mathPara = tv.headingParagraph(title: titles[0], occurrence: 0).map { ns.substring(with: $0).trimmingCharacters(in: .newlines) } ?? "无"
         let imgPara = tv.headingParagraph(title: titles[1], occurrence: 0).map { ns.substring(with: $0).trimmingCharacters(in: .newlines) } ?? "无"
         check("含行内公式的标题：headingParagraph", mathPara, "公式 \u{FFFC}")
-        check("含图片的标题：headingParagraph", imgPara, "图标 ［图片：logo］ 说明")
+        check("含图片的标题：headingParagraph", imgPara, "图标 找不到图片：logo 说明")
     }
     // 别的程序复制来的多行代码（剪贴板有 RTF，末尾没有换行）贴进代码块中间的空行：仍是一整块，语言不变
     do {

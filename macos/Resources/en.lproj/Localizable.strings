@@ -252,7 +252,6 @@
 "服务器返回了无法识别的数据：%@" = "The server returned data that couldn't be read: %@";
 
 /* RichBridge.swift */
-"［图片：%@］" = "[Image: %@]";
 
 /* RichTextView.swift */
 "标题 %lld" = "Column %lld";
@@ -500,3 +499,8 @@
 "针对本文提问…" = "Ask about this document…";
 "默认为“自动”：处理长文档时，相关内容可能发送给 Apple 私有云计算；云端不可用时改用本机模型。选择“仅本机”则全部在这台 Mac 上处理。" = "The default is Automatic: for long documents, relevant content may be sent to Apple Private Cloud Compute. DropMD falls back to the on-device model when the cloud model is unavailable. Choose On-Device Only to keep all processing on this Mac.";
 "导出 Word 超时，请稍后重试。" = "Word export timed out. Please try again later.";
+
+"网络图片未加载：%@" = "Web image not loaded: %@";
+"找不到图片：%@" = "Image not found: %@";
+"网络图片未加载" = "Web image not loaded";
+"找不到图片" = "Image not found";

@@ -435,8 +435,15 @@ enum RichBridge {
             // 找不到图片时显示占位文字，保存时仍写回原来的图片地址
             var a = RichStyle.attributes(for: MDRun(), kind: .body)
             a[.foregroundColor] = NSColor.secondaryLabelColor
+            if let font = a[.font] as? NSFont { a[.font] = font.withSize(font.pointSize * 0.85) }
             for (k, v) in marks { a[k] = v }
-            return NSAttributedString(string: String(localized: "［图片：\(alt.isEmpty ? (embedded ? "data:" : path) : alt)］"), attributes: a)
+            let name = alt.isEmpty ? (embedded ? "data:" : (path as NSString).lastPathComponent) : alt
+            let remote = lower.hasPrefix("http:") || lower.hasPrefix("https:") || lower.hasPrefix("//")
+            let label = remote ? String(localized: "网络图片未加载：\(name)") : String(localized: "找不到图片：\(name)")
+            // 最后一个字后加字距：相邻的占位框之间留出空隙（不加字符，保存和复制不受影响）
+            let s = NSMutableAttributedString(string: label, attributes: a)
+            s.addAttribute(.kern, value: RichStyle.placeholderGap, range: NSRange(location: s.length - 1, length: 1))
+            return s
         }
         let attachment = NSTextAttachment()
         let (size, widthFraction) = fittedImageSize(natural: loaded.size, htmlWidth: htmlWidth, htmlHeight: htmlHeight)
@@ -516,6 +523,7 @@ enum RichBridge {
         let s = NSMutableAttributedString(attributedString: source)
         let whole = NSRange(location: 0, length: s.length)
         var jobs: [(NSRange, NSAttributedString)] = []
+        var lastImageID: String?
         s.enumerateAttributes(in: whole, options: []) { a, range, _ in
             if let math = a[DMKey.math] as? String {
                 // 每个公式一个字符
@@ -524,6 +532,13 @@ enum RichBridge {
                                  mathString(math, display: isMathBlock(math), attributes: a)))
                 }
             } else if let path = a[DMKey.image] as? String {
+                // 同一张图片的占位文字可能分成几段属性（如末尾字距）：并成一段，只重建一次
+                let id = a[DMKey.imageID] as? String
+                if let id, id == lastImageID, let last = jobs.last, NSMaxRange(last.0) == range.location {
+                    jobs[jobs.count - 1].0.length += range.length
+                    return
+                }
+                lastImageID = id
                 let image = NSMutableAttributedString(attributedString: imageString(path: path, alt: (a[DMKey.alt] as? String) ?? "",
                                                                                          title: a[DMKey.title] as? String, link: a[DMKey.link] as? String,
                                                                                          linkTitle: a[DMKey.linkTitle] as? String,

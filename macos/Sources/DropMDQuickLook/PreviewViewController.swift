@@ -48,7 +48,8 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
         guard ready else { throw CocoaError(.fileReadUnknown) }   // 页面没加载成功：交给访达显示它自己的预览
         let lang = DocLanguage.detect(text)
         let titles = Dictionary(uniqueKeysWithValues: MDCallout.allCases.map { ($0.rawValue, $0.title) })
-            .merging(["blockedImage": String(localized: "网络图片未加载（隐私保护）"), "colon": String(localized: "：")]) { a, _ in a }
+            .merging(["blockedImage": String(localized: "网络图片未加载"), "missingImage": String(localized: "找不到图片"),
+                      "colon": String(localized: "：")]) { a, _ in a }
         let dir = url.deletingLastPathComponent().absoluteString
         _ = try await webView.callAsyncJavaScript("DropMD.render(t, b, l, u); window.scrollTo(0, 0)",
                                                   arguments: ["t": text, "b": dir, "l": lang.tag, "u": titles],

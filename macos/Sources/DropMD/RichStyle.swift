@@ -276,9 +276,8 @@ enum RichStyle {
     static let codeSize: CGFloat = 14
     /// 行内代码：略小于正文，行高与正文自然对齐
     static let inlineCodeSize: CGFloat = 14.5
-    static let inlineCodeColor = NSColor(name: "DropMD.inlineCode") { a in
-        isDark(a) ? NSColor(srgbRed: 1, green: 0.47, blue: 0.44, alpha: 1) : NSColor(srgbRed: 0.84, green: 0.25, blue: 0.25, alpha: 1)
-    }
+    /// 行内代码用正文颜色，只靠底色区分（与快速查看一致）
+    static let inlineCodeColor = NSColor.labelColor
     static let headingSizes: [CGFloat] = [30, 23, 19, 17, 15.5, 14.5]
     static let indent: CGFloat = 24
     static let taskTodo = "☐"
@@ -286,6 +285,7 @@ enum RichStyle {
     static let italicObliqueness = 0.18   // 系统字体（苹方等）没有斜体，用倾斜代替
     static let detailsIndent: CGFloat = 22
     static let codePadding: CGFloat = 16   // 代码块左右的内边距
+    static let placeholderGap: CGFloat = 10   // 未显示图片的占位框之间的空隙
 
     /// 行内代码底色：轻量半透明填充
     static let codeBackground = NSColor(name: "DropMD.inlineCodeBackground") { a in
