@@ -715,8 +715,12 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         let other = storage.attributes(at: neighbor, effectiveRange: nil)
         let kind = RichBridge.kind(of: attrs)
         var extra: CGFloat = 0
-        // 表格前后：表格上面留一点，下面留得和代码块一样多（表格后的文字不贴着表格）
-        if RichBridge.tableBlock(of: other) != nil { extra = after ? 6 : 14 }
+        // 表格前后：表格上面留一点；下面和普通两段之间看起来一样宽。
+        // 普通两段之间除了段距、行距，上一行字下面还有字的下沿；表格边框下面没有，所以补上
+        if RichBridge.tableBlock(of: other) != nil {
+            let font = (attrs[.font] as? NSFont) ?? RichStyle.baseFont(for: .body)
+            extra = after ? 6 : 8 + (style?.lineSpacing ?? 6) + abs(font.descender).rounded()
+        }
         // 列表结束后：列表项之间比较紧，整个列表结束时补足一段正常的空
         if after, kind.isList, !RichBridge.kind(of: other).isList { extra = max(extra, 6) }
         // 折叠块（收起或展开）后面的文字

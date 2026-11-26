@@ -2183,6 +2183,27 @@ MainActor.assumeIsolated {
         check("双页对照表精确到每個列表项与引用行", lines, "0..<1 2..<3 3..<4 4..<5 6..<7 7..<8")
     }
 
+    // 表格下面一段与表格的距离，和普通两段之间的距离一样
+    do {
+        let tv = makeView("第一段文字\n\n第二段文字\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n第三段文字\n")
+        tv.frame = NSRect(x: 0, y: 0, width: 600, height: 800)
+        let lm = tv.layoutManager!, tc = tv.textContainer!
+        lm.ensureLayout(for: tc)
+        let ns = tv.string as NSString
+        func textRect(_ s: String) -> NSRect {
+            lm.boundingRect(forGlyphRange: lm.glyphRange(forCharacterRange: ns.range(of: s), actualCharacterRange: nil), in: tc)
+        }
+        let normalGap = textRect("第二段文字").minY - textRect("第一段文字").maxY
+        let cell = ns.range(of: "2")
+        let block = (tv.textStorage!.attribute(.paragraphStyle, at: cell.location, effectiveRange: nil) as! NSParagraphStyle).textBlocks[0]
+        let frag = lm.lineFragmentRect(forGlyphAt: lm.glyphIndexForCharacter(at: cell.location), effectiveRange: nil)
+        let tableBottom = frag.maxY + 9 + 1   // 格子下内边距 9、边框 1
+        let descent = abs(RichStyle.baseFont(for: .body).descender)
+        // 普通两段：上一行字下沿到下一行顶部 = 段距 + 行距 + 字下沿；表格后：边框到下一行顶部
+        let normal = normalGap + 6 + descent
+        let afterTable = textRect("第三段文字").minY - tableBottom
+        check("表格下一段与表格的距离和普通段距一致（差不超过 2 点）", "\(abs(afterTable - normal) <= 2) \(Int(afterTable)) \(Int(normal))", "true \(Int(afterTable)) \(Int(normal))")
+    }
     // 展示型 HTML 块：块里打的字保存时会丢，所以不接受；块外照常
     do {
         let src = "<p align=\"right\">右边</p>\n\n正文\n"
