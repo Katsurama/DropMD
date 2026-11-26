@@ -99,3 +99,9 @@ kbd {
   padding: .1em .45em; border-bottom-width: 2px; border-radius: 5px;
 }
 blockquote > :last-child, li > :last-child { margin-bottom: 0; }
+/* 快速查看窗口小，段距和标题间距收紧（导出的 HTML 没有 #content，不受影响） */
+#content :is(p, ul, ol, blockquote, table, pre, .math-block) { margin-bottom: .75em; }
+#content :is(h1, h2, h3, h4, h5, h6) { margin: 1.25em 0 .45em; }
+#content h2 { margin-top: 1.35em; }
+#content > :first-child { margin-top: 0; }
+#content :is(blockquote, li) > :last-child { margin-bottom: 0; }

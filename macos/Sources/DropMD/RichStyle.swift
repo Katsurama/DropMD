@@ -61,14 +61,14 @@ enum PageMargin: String, CaseIterable, Identifiable {
         }
     }
 
-    /// 编辑区这么宽时，左右各留多少。自动：窗口越大文字栏越宽，但一行不超过 900
+    /// 编辑区这么宽时，左右各留多少。自动：窗口越大文字栏越宽，但一行不超过 720（16 号字约 40 个汉字）
     func margin(for width: CGFloat) -> CGFloat {
         let column: CGFloat
         switch self {
-        case .auto: column = min(max(672, width * 0.62), 900)
-        case .wide: column = 672
-        case .standard: column = 800
-        case .narrow: column = 960
+        case .auto: column = min(max(600, width * 0.62), 720)
+        case .wide: column = 600
+        case .standard: column = 720
+        case .narrow: column = 840
         case .none: column = .greatestFiniteMagnitude
         }
         return max(32, ((width - column) / 2).rounded())   // 窗口再窄也留 32
@@ -273,6 +273,8 @@ enum RichKind: Equatable {
 
 enum RichStyle {
     static let bodySize: CGFloat = 16
+    /// 普通两段之间的段距：和快速查看一样约一个字高
+    static let bodyParagraphSpacing: CGFloat = 16
     static let codeSize: CGFloat = 14
     /// 行内代码：略小于正文，行高与正文自然对齐
     static let inlineCodeSize: CGFloat = 14.5
@@ -412,21 +414,22 @@ enum RichStyle {
     static func paragraphStyle(_ kind: RichKind, block: NSTextBlock? = nil, inDetails: Bool = false) -> NSParagraphStyle {
         let p = NSMutableParagraphStyle()
         p.lineSpacing = 6
-        p.paragraphSpacing = 8
+        p.paragraphSpacing = bodyParagraphSpacing
         switch kind {
         case .heading(let level):
             // 参照 Apple HIG / Pages：大标题前留出足够区隔、后紧跟所管正文
-            p.paragraphSpacingBefore = level == 1 ? 28 : level == 2 ? 24 : level == 3 ? 18 : 14
-            p.paragraphSpacing = level == 1 ? 10 : level == 2 ? 8 : level == 3 ? 6 : 5
+            // 和快速查看一致：加上上一段的段距后，标题上方约 49 / 41 / 31 / 27，下方约 16 / 12 / 10 / 9
+            p.paragraphSpacingBefore = level == 1 ? 33 : level == 2 ? 25 : level == 3 ? 15 : 11
+            p.paragraphSpacing = level == 1 ? 16 : level == 2 ? 12 : level == 3 ? 10 : 9
         case .bullet(let d), .ordered(let d):
             // 项目符号和编号由 RichLayoutManager 画在缩进区内，不是正文的一部分
             p.firstLineHeadIndent = CGFloat(d + 1) * indent
             p.headIndent = CGFloat(d + 1) * indent
-            p.paragraphSpacing = 5
+            p.paragraphSpacing = 0   // 列表项之间和快速查看一样只有行距；整个列表结束后由 RichLayoutManager 补足段距
         case .task(let d, _):
             p.firstLineHeadIndent = CGFloat(d) * indent
             p.headIndent = CGFloat(d + 1) * indent   // 方框和后面的空格正好占一格缩进（RichLayoutManager），折行和第一行文字对齐
-            p.paragraphSpacing = 5
+            p.paragraphSpacing = 0
         case .quote:
             p.firstLineHeadIndent = 28
             p.headIndent = 28

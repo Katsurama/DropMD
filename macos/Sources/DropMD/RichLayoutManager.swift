@@ -53,11 +53,11 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             invalidateDisplay(forCharacterRange: table)
         }
         // 段后间距看下一段是什么（codeEdgeSpacing）：在一段后面加了段落，上一段也要重排，否则卡片下面不留空
-        // 只在加减了段落（改动里有换行，或改在段首）时才需要，段落中间打字不重排
-        if editMask.contains(.editedCharacters), newCharRange.location > 0 {
+        // 只在加减了段落（改动里有换行，或改在段首）或改了段落样式（如退出列表）时才需要，段落中间打字不重排
+        if newCharRange.location > 0 {
             let ns = textStorage.string as NSString
             let atStart = ns.character(at: newCharRange.location - 1) == 0x0A
-            if atStart || ns.substring(with: newCharRange).contains("\n") {
+            if !editMask.contains(.editedCharacters) || atStart || ns.substring(with: newCharRange).contains("\n") {
                 let prev = ns.paragraphRange(for: NSRange(location: newCharRange.location - 1, length: 0))
                 invalidateLayout(forCharacterRange: prev, actualCharacterRange: nil)
             }
@@ -677,6 +677,15 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         }
     }
 
+    /// 第一层列表项是不是有序列表；不是第一层列表项时为 nil
+    static func topLevelOrdered(_ kind: RichKind) -> Bool? {
+        switch kind {
+        case .ordered(0): return true
+        case .bullet(0), .task(0, _): return false
+        default: return nil
+        }
+    }
+
     /// 两段引用属于同一段引用（空行隔开的两段编号不同；新打的、没有编号的算同一段；折叠块里外不是同一段）
     static func sameQuote(_ a: [NSAttributedString.Key: Any], _ b: [NSAttributedString.Key: Any]) -> Bool {
         guard (a[DMKey.inDetails] != nil) == (b[DMKey.inDetails] != nil) else { return false }
@@ -719,10 +728,19 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         // 普通两段之间除了段距、行距，上一行字下面还有字的下沿；表格边框下面没有，所以补上
         if RichBridge.tableBlock(of: other) != nil {
             let font = (attrs[.font] as? NSFont) ?? RichStyle.baseFont(for: .body)
-            extra = after ? 6 : 8 + (style?.lineSpacing ?? 6) + abs(font.descender).rounded()
+            extra = after ? 6 : RichStyle.bodyParagraphSpacing + (style?.lineSpacing ?? 6) + abs(font.descender).rounded()
         }
         // 列表结束后：列表项之间比较紧，整个列表结束时补足一段正常的空
-        if after, kind.isList, !RichBridge.kind(of: other).isList { extra = max(extra, 6) }
+        // 列表项自己的段后是 0，所以直接加上，表格前多留的空也不丢。列表项里的代码块不算结束；进出折叠块算结束
+        // 第一层的有序列表和无序 / 待办列表紧挨着是两个列表，也算结束
+        // shortcut: 只比较两边都在第一层的项，嵌套项后面紧接另一种列表时不补，遇到再改
+        if after, kind.isList, other[DMKey.listCode] == nil {
+            let otherKind = RichBridge.kind(of: other)
+            let switchesList = Self.topLevelOrdered(kind).flatMap { a in Self.topLevelOrdered(otherKind).map { $0 != a } } ?? false
+            if !otherKind.isList || switchesList || (attrs[DMKey.inDetails] != nil) != (other[DMKey.inDetails] != nil) {
+                extra += RichStyle.bodyParagraphSpacing
+            }
+        }
         // 折叠块（收起或展开）后面的文字
         if !after, attrs[DMKey.inDetails] == nil, attrs[DMKey.summary] == nil,
            other[DMKey.inDetails] != nil || other[DMKey.summary] != nil { extra = max(extra, 10) }
@@ -739,11 +757,11 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             }
             if !same {
                 if isCode {
-                    extra = max(extra, after ? 18 : 16)
+                    extra = max(extra, after ? 28 : 12)   // 卡片上下内边距 12：看得见的空和正文段距相近
                 } else if callout(at: para.location, in: storage) != nil {
-                    extra = max(extra, after ? 14 : 12)
+                    extra = max(extra, after ? 20 : 12)   // 卡片内边距 10
                 } else {
-                    extra = max(extra, 8)
+                    extra = max(extra, after ? 10 : 8)   // 引用段后 6 + 10 = 正文段距
                 }
             }
         }

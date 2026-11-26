@@ -287,8 +287,8 @@ MainActor.assumeIsolated {
         check("跨格选中后打字", save(tv, s).contains("1") && save(tv, s).contains("字") ? "都在" : save(tv, s), "都在")
     }
     // 页边距：窗口窄时最少留 32；自动时窗口越宽文字栏越宽，但不超过 900；最窄时铺满
-    for (m, w, want) in [(PageMargin.auto, 700, 32), (.auto, 1000, 164), (.auto, 1357, 258), (.auto, 1700, 400), (.auto, 2400, 750),
-                         (.wide, 1700, 514), (.standard, 1700, 450), (.narrow, 1700, 370), (.none, 1700, 32), (.wide, 500, 32)] as [(PageMargin, CGFloat, CGFloat)] {
+    for (m, w, want) in [(PageMargin.auto, 700, 50), (.auto, 1000, 190), (.auto, 1357, 319), (.auto, 1700, 490), (.auto, 2400, 840),
+                         (.wide, 1700, 550), (.standard, 1700, 490), (.narrow, 1700, 430), (.none, 1700, 32), (.wide, 500, 32)] as [(PageMargin, CGFloat, CGFloat)] {
         check("页边距 \(m.rawValue) \(Int(w))", "\(Int(m.margin(for: w)))", "\(Int(want))")
     }
     // 双页原文的列表按钮：缩进保留，空行不加标记，勾选状态不丢
@@ -838,7 +838,7 @@ MainActor.assumeIsolated {
         for (name, src) in [("代码块后留空", "```\na\n```\n后文\n"), ("网页代码后留空", "<div>\n</div>\n\n后文\n")] {
             let tv = makeView(src), lm = tv.layoutManager as! RichLayoutManager
             let end = lm.glyphIndexForCharacter(at: (tv.string as NSString).range(of: "后文").location - 1)
-            check(name, "\(lm.layoutManager(lm, paragraphSpacingAfterGlyphAt: end, withProposedLineFragmentRect: .zero))", "18.0")
+            check(name, "\(lm.layoutManager(lm, paragraphSpacingAfterGlyphAt: end, withProposedLineFragmentRect: .zero))", "28.0")
         }
         // 表格、列表、折叠块后面的文字和上面留出空隙
         for (name, src, anchor) in [("表格后留空", "| a | b |\n| --- | --- |\n| 1 | 2 |\n\n后文\n", "后文"),
@@ -849,9 +849,15 @@ MainActor.assumeIsolated {
         }
         let list = makeView("- 一\n- 二\n\n后文\n"), llm = list.layoutManager as! RichLayoutManager
         let last = llm.glyphIndexForCharacter(at: (list.string as NSString).range(of: "后文").location - 1)
-        check("列表结束后留空", llm.layoutManager(llm, paragraphSpacingAfterGlyphAt: last, withProposedLineFragmentRect: .zero) > 5 ? "有" : "无", "有")
+        check("列表结束后留空", "\(llm.layoutManager(llm, paragraphSpacingAfterGlyphAt: last, withProposedLineFragmentRect: .zero))", "16.0")
+        for (name, src, anchor, want) in [("有序列表后接待办列表留空", "1. 一\n2. 二\n\n- [ ] 待办\n", "二", "有"),
+                                           ("同一列表的项之间不留空", "- 一\n- 二\n", "一", "无")] {
+            let t = makeView(src), tlm = t.layoutManager as! RichLayoutManager
+            let g = tlm.glyphIndexForCharacter(at: (t.string as NSString).range(of: anchor).location + 1)   // 上一项末尾的换行
+            check(name, tlm.layoutManager(tlm, paragraphSpacingAfterGlyphAt: g, withProposedLineFragmentRect: .zero) > 5 ? "有" : "无", want)
+        }
         let body = makeView("一\n\n后文\n"), blm = body.layoutManager as! RichLayoutManager
-        check("正文段后不变", "\(blm.layoutManager(blm, paragraphSpacingAfterGlyphAt: 1, withProposedLineFragmentRect: .zero))", "8.0")
+        check("正文段后不变", "\(blm.layoutManager(blm, paragraphSpacingAfterGlyphAt: 1, withProposedLineFragmentRect: .zero))", "16.0")
         let tv = makeView("```\na\nb\n```\n后文\n")
         let lm = tv.layoutManager as! RichLayoutManager
         check("复制的代码块", lm.codeBlock(at: 0).map { (tv.string as NSString).substring(with: $0) } ?? "无", "a\nb\n")

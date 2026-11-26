@@ -107,7 +107,7 @@ enum RichBridge {
                    let style = (p.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle {
                     style.alignment = .center
                     style.paragraphSpacingBefore = 8
-                    style.paragraphSpacing = 12
+                    style.paragraphSpacing = RichStyle.bodyParagraphSpacing
                     p.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: p.length))
                 } else if let divAlign = divInfo.alignments[idx],
                           let style = (p.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle {

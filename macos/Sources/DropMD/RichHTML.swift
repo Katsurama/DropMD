@@ -134,7 +134,7 @@ enum RichHTML {
                 style.alignment = paraAlign
                 if content.containsAttachments {
                     style.paragraphSpacingBefore = 6
-                    style.paragraphSpacing = 10
+                    style.paragraphSpacing = RichStyle.bodyParagraphSpacing
                 }
                 p.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: p.length))
             }
@@ -267,7 +267,7 @@ enum RichHTML {
         if let style = (p.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle {
             style.alignment = inheritedAlignment ?? .center
             style.paragraphSpacingBefore = 8
-            style.paragraphSpacing = 12
+            style.paragraphSpacing = RichStyle.bodyParagraphSpacing
             p.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: p.length))
         }
         return p
