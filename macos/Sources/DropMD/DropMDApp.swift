@@ -152,7 +152,10 @@ struct RemoteImagesToggle: View {
             Text("显示网络图片")
             Text("开启后会从网上下载文档里的图片。快速查看不受影响。")
         }
-        .onChange(of: isOn) { _, _ in NotificationCenter.default.post(name: RemoteImages.changed, object: nil) }
+        .onChange(of: isOn) { _, _ in
+            RemoteImages.settingChanged()
+            NotificationCenter.default.post(name: RemoteImages.changed, object: nil)
+        }
     }
 }
 

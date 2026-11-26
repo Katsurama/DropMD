@@ -90,7 +90,8 @@ struct RichTextEditor: NSViewRepresentable {
         context.coordinator.remoteImageObserver = NotificationCenter.default.addObserver(
             forName: RemoteImages.changed, object: nil, queue: .main) { [weak coordinator = context.coordinator, weak tv] _ in
             MainActor.assumeIsolated {
-                guard let coordinator, let tv else { return }
+                // 已经编辑过就不重排：重排会清掉撤销记录。图片在下次载入（重新打开、切换显示）时出现
+                guard let coordinator, let tv, tv.undoManager?.canUndo != true else { return }
                 coordinator.scheduleReload(tv, force: true)
             }
         }
