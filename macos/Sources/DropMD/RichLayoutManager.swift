@@ -731,14 +731,14 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             extra = after ? 6 : RichStyle.bodyParagraphSpacing + (style?.lineSpacing ?? 6) + abs(font.descender).rounded()
         }
         // 列表结束后：列表项之间比较紧，整个列表结束时补足一段正常的空
-        // 列表项自己的段后是 0，所以直接加上，表格前多留的空也不丢。列表项里的代码块不算结束；进出折叠块算结束
+        // 列表项自己的段后很小，补到正文段距；加在表格前多留的空上，不丢。列表项里的代码块不算结束；进出折叠块算结束
         // 第一层的有序列表和无序 / 待办列表紧挨着是两个列表，也算结束
         // shortcut: 只比较两边都在第一层的项，嵌套项后面紧接另一种列表时不补，遇到再改
         if after, kind.isList, other[DMKey.listCode] == nil {
             let otherKind = RichBridge.kind(of: other)
             let switchesList = Self.topLevelOrdered(kind).flatMap { a in Self.topLevelOrdered(otherKind).map { $0 != a } } ?? false
             if !otherKind.isList || switchesList || (attrs[DMKey.inDetails] != nil) != (other[DMKey.inDetails] != nil) {
-                extra += RichStyle.bodyParagraphSpacing
+                extra += max(0, RichStyle.bodyParagraphSpacing - base)
             }
         }
         // 折叠块（收起或展开）后面的文字
@@ -757,11 +757,11 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             }
             if !same {
                 if isCode {
-                    extra = max(extra, after ? 28 : 12)   // 卡片上下内边距 12：看得见的空和正文段距相近
+                    extra += after ? RichStyle.bodyParagraphSpacing + 12 : 12   // 卡片上下内边距 12：看得见的空和正文段距相近；相加，表格、折叠块旁多留的空不被吞掉
                 } else if callout(at: para.location, in: storage) != nil {
-                    extra = max(extra, after ? 20 : 12)   // 卡片内边距 10
+                    extra += after ? RichStyle.bodyParagraphSpacing + 4 : 12   // 卡片内边距 10，段后 6
                 } else {
-                    extra = max(extra, after ? 10 : 8)   // 引用段后 6 + 10 = 正文段距
+                    extra = after ? extra + RichStyle.bodyParagraphSpacing - 6 : max(extra, 8)   // 引用段后 6，补到正文段距；引用没有卡片内边距，段前取较大值
                 }
             }
         }

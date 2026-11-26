@@ -838,7 +838,7 @@ MainActor.assumeIsolated {
         for (name, src) in [("代码块后留空", "```\na\n```\n后文\n"), ("网页代码后留空", "<div>\n</div>\n\n后文\n")] {
             let tv = makeView(src), lm = tv.layoutManager as! RichLayoutManager
             let end = lm.glyphIndexForCharacter(at: (tv.string as NSString).range(of: "后文").location - 1)
-            check(name, "\(lm.layoutManager(lm, paragraphSpacingAfterGlyphAt: end, withProposedLineFragmentRect: .zero))", "28.0")
+            check(name, "\(lm.layoutManager(lm, paragraphSpacingAfterGlyphAt: end, withProposedLineFragmentRect: .zero))", "24.0")
         }
         // 表格、列表、折叠块后面的文字和上面留出空隙
         for (name, src, anchor) in [("表格后留空", "| a | b |\n| --- | --- |\n| 1 | 2 |\n\n后文\n", "后文"),
@@ -849,7 +849,7 @@ MainActor.assumeIsolated {
         }
         let list = makeView("- 一\n- 二\n\n后文\n"), llm = list.layoutManager as! RichLayoutManager
         let last = llm.glyphIndexForCharacter(at: (list.string as NSString).range(of: "后文").location - 1)
-        check("列表结束后留空", "\(llm.layoutManager(llm, paragraphSpacingAfterGlyphAt: last, withProposedLineFragmentRect: .zero))", "16.0")
+        check("列表结束后留空", "\(llm.layoutManager(llm, paragraphSpacingAfterGlyphAt: last, withProposedLineFragmentRect: .zero))", "12.0")
         for (name, src, anchor, want) in [("有序列表后接待办列表留空", "1. 一\n2. 二\n\n- [ ] 待办\n", "二", "有"),
                                            ("同一列表的项之间不留空", "- 一\n- 二\n", "一", "无")] {
             let t = makeView(src), tlm = t.layoutManager as! RichLayoutManager
@@ -857,7 +857,7 @@ MainActor.assumeIsolated {
             check(name, tlm.layoutManager(tlm, paragraphSpacingAfterGlyphAt: g, withProposedLineFragmentRect: .zero) > 5 ? "有" : "无", want)
         }
         let body = makeView("一\n\n后文\n"), blm = body.layoutManager as! RichLayoutManager
-        check("正文段后不变", "\(blm.layoutManager(blm, paragraphSpacingAfterGlyphAt: 1, withProposedLineFragmentRect: .zero))", "16.0")
+        check("正文段后不变", "\(blm.layoutManager(blm, paragraphSpacingAfterGlyphAt: 1, withProposedLineFragmentRect: .zero))", "12.0")
         let tv = makeView("```\na\nb\n```\n后文\n")
         let lm = tv.layoutManager as! RichLayoutManager
         check("复制的代码块", lm.codeBlock(at: 0).map { (tv.string as NSString).substring(with: $0) } ?? "无", "a\nb\n")
@@ -2206,7 +2206,7 @@ MainActor.assumeIsolated {
         let tableBottom = frag.maxY + 9 + 1   // 格子下内边距 9、边框 1
         let descent = abs(RichStyle.baseFont(for: .body).descender)
         // 普通两段：上一行字下沿到下一行顶部 = 段距 + 行距 + 字下沿；表格后：边框到下一行顶部
-        let normal = normalGap + 6 + descent
+        let normal = normalGap + RichStyle.paragraphStyle(.body).lineSpacing + descent
         let afterTable = textRect("第三段文字").minY - tableBottom
         check("表格下一段与表格的距离和普通段距一致（差不超过 2 点）", "\(abs(afterTable - normal) <= 2) \(Int(afterTable)) \(Int(normal))", "true \(Int(afterTable)) \(Int(normal))")
     }
