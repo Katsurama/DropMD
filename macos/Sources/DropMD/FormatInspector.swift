@@ -231,11 +231,19 @@ struct ParagraphStyleMenu: View {
                 Button(action.title) { editor.perform(action) }
             }
         } label: {
-            Text(currentTitle)
+            // 宽度按最长的样式名固定：切换样式时按钮不变宽，不压到旁边的按钮组
+            ZStack(alignment: .leading) {
+                ForEach(Self.allTitles, id: \.self) { Text($0).hidden() }
+                Text(currentTitle)
+            }
         }
         .fixedSize()
         .help("段落样式")
         .accessibilityLabel("段落样式")
+    }
+
+    private static var allTitles: [String] {
+        [String(localized: "样式")] + EditorAction.paragraphStyles.map(\.title)
     }
 
     private var currentTitle: String {
