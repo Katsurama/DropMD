@@ -291,6 +291,11 @@ MainActor.assumeIsolated {
                          (.wide, 1700, 514), (.standard, 1700, 450), (.narrow, 1700, 370), (.none, 1700, 32), (.wide, 500, 32)] as [(PageMargin, CGFloat, CGFloat)] {
         check("页边距 \(m.rawValue) \(Int(w))", "\(Int(m.margin(for: w)))", "\(Int(want))")
     }
+    // 屏幕显示宽度：1920 及以上不变，14 寸（1512）约八成，再小最少七成；只影响“自动”
+    check("自动页边距 1920 屏", "\(Int(PageMargin.auto.margin(for: 1700, screenWidth: 1920)))", "400")
+    check("自动页边距 1512 屏", "\(Int(PageMargin.auto.margin(for: 1400, screenWidth: 1512)))", "\(Int((266 * 1512.0 / 1920).rounded()))")
+    check("自动页边距 1024 屏", "\(Int(PageMargin.auto.margin(for: 1000, screenWidth: 1024)))", "\(Int((164 * 0.7).rounded()))")
+    check("标准页边距不受屏幕影响", "\(Int(PageMargin.standard.margin(for: 1700, screenWidth: 1280)))", "450")
     // 双页原文的列表按钮：缩进保留，空行不加标记，勾选状态不丢
     for (name, lines, prefix, numbered, want) in [
         ("加列表", ["a", "", "b"], "- ", false, ["- a", "", "- b"]),
@@ -838,7 +843,7 @@ MainActor.assumeIsolated {
         for (name, src) in [("代码块后留空", "```\na\n```\n后文\n"), ("网页代码后留空", "<div>\n</div>\n\n后文\n")] {
             let tv = makeView(src), lm = tv.layoutManager as! RichLayoutManager
             let end = lm.glyphIndexForCharacter(at: (tv.string as NSString).range(of: "后文").location - 1)
-            check(name, "\(lm.layoutManager(lm, paragraphSpacingAfterGlyphAt: end, withProposedLineFragmentRect: .zero))", "24.0")
+            check(name, "\(lm.layoutManager(lm, paragraphSpacingAfterGlyphAt: end, withProposedLineFragmentRect: .zero))", "28.0")
         }
         // 表格、列表、折叠块后面的文字和上面留出空隙
         for (name, src, anchor) in [("表格后留空", "| a | b |\n| --- | --- |\n| 1 | 2 |\n\n后文\n", "后文"),
@@ -849,7 +854,7 @@ MainActor.assumeIsolated {
         }
         let list = makeView("- 一\n- 二\n\n后文\n"), llm = list.layoutManager as! RichLayoutManager
         let last = llm.glyphIndexForCharacter(at: (list.string as NSString).range(of: "后文").location - 1)
-        check("列表结束后留空", "\(llm.layoutManager(llm, paragraphSpacingAfterGlyphAt: last, withProposedLineFragmentRect: .zero))", "12.0")
+        check("列表结束后留空", "\(llm.layoutManager(llm, paragraphSpacingAfterGlyphAt: last, withProposedLineFragmentRect: .zero))", "16.0")
         for (name, src, anchor, want) in [("有序列表后接待办列表留空", "1. 一\n2. 二\n\n- [ ] 待办\n", "二", "有"),
                                            ("同一列表的项之间不留空", "- 一\n- 二\n", "一", "无")] {
             let t = makeView(src), tlm = t.layoutManager as! RichLayoutManager
@@ -857,7 +862,7 @@ MainActor.assumeIsolated {
             check(name, tlm.layoutManager(tlm, paragraphSpacingAfterGlyphAt: g, withProposedLineFragmentRect: .zero) > 5 ? "有" : "无", want)
         }
         let body = makeView("一\n\n后文\n"), blm = body.layoutManager as! RichLayoutManager
-        check("正文段后不变", "\(blm.layoutManager(blm, paragraphSpacingAfterGlyphAt: 1, withProposedLineFragmentRect: .zero))", "12.0")
+        check("正文段后不变", "\(blm.layoutManager(blm, paragraphSpacingAfterGlyphAt: 1, withProposedLineFragmentRect: .zero))", "16.0")
         let tv = makeView("```\na\nb\n```\n后文\n")
         let lm = tv.layoutManager as! RichLayoutManager
         check("复制的代码块", lm.codeBlock(at: 0).map { (tv.string as NSString).substring(with: $0) } ?? "无", "a\nb\n")

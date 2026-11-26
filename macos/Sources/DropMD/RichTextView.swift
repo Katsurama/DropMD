@@ -106,7 +106,7 @@ final class RichTextView: NSTextView {
     override func layout() {
         super.layout()
         TextScale.apply(to: enclosingScrollView)
-        let inset = NSSize(width: PageMargin.current.margin(for: bounds.width), height: Self.topMargin)
+        let inset = NSSize(width: PageMargin.current.margin(for: bounds.width, screenWidth: window?.screen?.frame.width), height: Self.topMargin)
         if abs(textContainerInset.width - inset.width) > 0.5 || textContainerInset.height != inset.height {
             textContainerInset = inset
         }

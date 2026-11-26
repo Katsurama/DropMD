@@ -105,3 +105,6 @@ blockquote > :last-child, li > :last-child { margin-bottom: 0; }
 #content h2 { margin-top: 1.35em; }
 #content > :first-child { margin-top: 0; }
 #content :is(blockquote, li) > :last-child { margin-bottom: 0; }
+/* 快速查看窗口不大：字号、行高略收，两边留白随窗口宽度变（导出的 HTML 没有 #content，不受影响） */
+body:has(#content) { font-size: 15px; line-height: 1.6; }
+#content.markdown-body { padding: 28px clamp(28px, 7vw, 64px) 80px; }

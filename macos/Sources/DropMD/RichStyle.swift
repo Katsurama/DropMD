@@ -62,7 +62,8 @@ enum PageMargin: String, CaseIterable, Identifiable {
     }
 
     /// 编辑区这么宽时，左右各留多少。自动：窗口越大文字栏越宽，但一行不超过 900
-    func margin(for width: CGFloat) -> CGFloat {
+    /// screenWidth：屏幕显示宽度（点）。只影响“自动”：屏幕小于 1920 时留白按比例减少，最少七成
+    func margin(for width: CGFloat, screenWidth: CGFloat? = nil) -> CGFloat {
         let column: CGFloat
         switch self {
         case .auto: column = min(max(672, width * 0.62), 900)
@@ -71,7 +72,13 @@ enum PageMargin: String, CaseIterable, Identifiable {
         case .narrow: column = 960
         case .none: column = .greatestFiniteMagnitude
         }
-        return max(32, ((width - column) / 2).rounded())   // 窗口再窄也留 32
+        let factor = self == .auto ? Self.screenFactor(screenWidth) : 1
+        return max(32, ((width - column) / 2 * factor).rounded())   // 窗口再窄也留 32
+    }
+
+    static func screenFactor(_ screenWidth: CGFloat?) -> CGFloat {
+        guard let screenWidth, screenWidth > 0 else { return 1 }
+        return min(max(screenWidth / 1920, 0.7), 1)
     }
 }
 
@@ -273,8 +280,8 @@ enum RichKind: Equatable {
 
 enum RichStyle {
     static let bodySize: CGFloat = 16
-    /// 普通两段之间的段距：参照 GitHub（16）与 Typora（约 13）取 12
-    static let bodyParagraphSpacing: CGFloat = 12
+    /// 普通两段之间的段距：和 GitHub 一样 16
+    static let bodyParagraphSpacing: CGFloat = 16
     static let codeSize: CGFloat = 14
     /// 行内代码：略小于正文，行高与正文自然对齐
     static let inlineCodeSize: CGFloat = 14.5
@@ -413,23 +420,23 @@ enum RichStyle {
 
     static func paragraphStyle(_ kind: RichKind, block: NSTextBlock? = nil, inDetails: Bool = false) -> NSParagraphStyle {
         let p = NSMutableParagraphStyle()
-        p.lineSpacing = 4   // 行高约 1.5（GitHub、Obsidian 为 1.5，Typora 1.6）
+        p.lineSpacing = 6   // 看起来和 GitHub 的行高 1.5 相近
         p.paragraphSpacing = bodyParagraphSpacing
         switch kind {
         case .heading(let level):
             // 参照 Apple HIG / Pages：大标题前留出足够区隔、后紧跟所管正文
-            // 加上上一段的段距后，标题上方约 32 / 28 / 24 / 20，下方 12 / 10 / 8 / 8
-            p.paragraphSpacingBefore = level == 1 ? 20 : level == 2 ? 16 : level == 3 ? 12 : 8
-            p.paragraphSpacing = level == 1 ? 12 : level == 2 ? 10 : 8
+            // 加上上一段的段距后，标题上方约 32 / 28 / 24 / 20，下方 14 / 12 / 10 / 10
+            p.paragraphSpacingBefore = level == 1 ? 16 : level == 2 ? 12 : level == 3 ? 8 : 4
+            p.paragraphSpacing = level == 1 ? 14 : level == 2 ? 12 : 10
         case .bullet(let d), .ordered(let d):
             // 项目符号和编号由 RichLayoutManager 画在缩进区内，不是正文的一部分
             p.firstLineHeadIndent = CGFloat(d + 1) * indent
             p.headIndent = CGFloat(d + 1) * indent
-            p.paragraphSpacing = 2   // 列表项之间只留一点（Obsidian 约 2、GitHub 4）；整个列表结束后由 RichLayoutManager 补足段距
+            p.paragraphSpacing = 4   // 列表项之间只留一点（和 GitHub 一样 4）；整个列表结束后由 RichLayoutManager 补足段距
         case .task(let d, _):
             p.firstLineHeadIndent = CGFloat(d) * indent
             p.headIndent = CGFloat(d + 1) * indent   // 方框和后面的空格正好占一格缩进（RichLayoutManager），折行和第一行文字对齐
-            p.paragraphSpacing = 2
+            p.paragraphSpacing = 4
         case .quote:
             p.firstLineHeadIndent = 28
             p.headIndent = 28
