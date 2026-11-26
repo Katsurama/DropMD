@@ -504,3 +504,8 @@
 "找不到图片：%@" = "Image not found: %@";
 "网络图片未加载" = "Web image not loaded";
 "找不到图片" = "Image not found";
+"网络图片" = "Web Image";
+"插入网络图片" = "Insert Web Image";
+"填写图片的网址（http 或 https）。" = "Enter the image's web address (http or https).";
+"显示网络图片" = "Show Web Images";
+"开启后会从网上下载文档里的图片。快速查看不受影响。" = "Downloads images in the document from the web. Quick Look is not affected.";

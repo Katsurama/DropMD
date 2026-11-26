@@ -840,11 +840,12 @@ final class RichTextView: NSTextView {
         replace(at, with: s, caret: afterRef)
     }
 
-    func insertImage(path: String, alt: String) {
+    /// encodePath：本机路径要编码 % # ?；网址原样保留（? 后面是参数）
+    func insertImage(path: String, alt: String, encodePath: Bool = true) {
         let sel = selectedRange()
         let para = paragraphRange(at: sel.location)
         let dest = paragraphAttributes(para)
-        let image = RichBridge.imageString(path: Self.encodedImagePath(path), alt: alt, baseURL: baseURL)
+        let image = RichBridge.imageString(path: encodePath ? Self.encodedImagePath(path) : path, alt: alt, baseURL: baseURL)
         // 在普通正文段落里插入真实图片时独占一行（上下自动分段），避免文字直接紧贴在图片后面
         if RichBridge.kind(of: dest) == .body, RichBridge.tableBlock(of: dest) == nil, dest[DMKey.inDetails] == nil, image.containsAttachments {
             let p = NSMutableAttributedString(attributedString: RichBridge.paragraph(image, kind: .body))

@@ -2181,6 +2181,19 @@ MainActor.assumeIsolated {
         check("双页对照表精确到每個列表项与引用行", lines, "0..<1 2..<3 3..<4 4..<5 6..<7 7..<8")
     }
 
+    // 网络图片：开关关闭时不下载，显示占位框；插入网址原样保存（? 后的参数不编码）
+    do {
+        UserDefaults.standard.set(false, forKey: RemoteImages.settingKey)
+        let s = RichBridge.imageString(path: "https://example.com/badge.svg?style=flat", alt: "徽章", baseURL: nil)
+        check("网络图片：开关关闭时显示占位框", "\(s.containsAttachments) \(s.string)", "false 网络图片未加载：徽章")
+        check("网络图片：开关关闭时不下载", "\(RemoteImages.image(for: "https://example.com/x.png") == nil)", "true")
+        check("网络图片：只认 http 和 https", "\(RemoteImages.url(for: "ftp://example.com/a.png") == nil) \(RemoteImages.url(for: "//example.com/a.png")?.scheme ?? "")", "true https")
+        let tv = makeView("前文\n")
+        tv.setSelectedRange(NSRange(location: 2, length: 0))
+        tv.insertImage(path: "https://example.com/a.png?x=1", alt: "a", encodePath: false)
+        check("插入网络图片：网址原样保存", md(tv), "前文![a](https://example.com/a.png?x=1)\n")
+    }
+
     // 单页图片排版：正文里插入真实图片时独占一行居中，且后续打字自动落在图片下方新段落；多帧 GIF 动图正确识别帧数
     do {
         let pngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="

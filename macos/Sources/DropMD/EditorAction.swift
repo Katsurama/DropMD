@@ -9,7 +9,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
     // 列表
     case bullet, numbered, task, outdent, indent
     // 插入
-    case link, image, table, rule, details, callout, footnote, inlineMath, mathBlock, lineBreak, date, emoji
+    case link, image, webImage, table, rule, details, callout, footnote, inlineMath, mathBlock, lineBreak, date, emoji
     // 导出
     case exportPDF, exportWord, exportHTML
     // 系统智能
@@ -26,7 +26,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
     static let lists: [EditorAction] = [.bullet, .numbered, .task, .outdent, .indent]
     /// 插入菜单的分组（按用途：图表、链接与注释、块、文字中）
     static let insertGroups: [[EditorAction]] = [
-        [.image, .table],
+        [.image, .webImage, .table],
         [.link, .footnote],
         [.details, .mathBlock, .rule],
         [.inlineMath, .date, .lineBreak, .emoji],
@@ -59,6 +59,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
         case .indent: return String(localized: "增加缩进")
         case .link: return String(localized: "链接")
         case .image: return String(localized: "图片")
+        case .webImage: return String(localized: "网络图片")
         case .table: return String(localized: "表格")
         case .rule: return String(localized: "分隔线")
         case .details: return String(localized: "折叠块")
@@ -85,7 +86,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
     /// 菜单中的标题（需要弹出对话框的命令加“…”）
     var menuTitle: String {
         switch self {
-        case .link, .image, .footnote, .inlineMath, .mathBlock, .emoji: return title + "…"
+        case .link, .image, .webImage, .footnote, .inlineMath, .mathBlock, .emoji: return title + "…"
         default: return title
         }
     }
@@ -112,6 +113,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
         case .indent: return "increase.indent"
         case .link: return "link"
         case .image: return "photo"
+        case .webImage: return "photo.badge.arrow.down"
         case .table: return "tablecells"
         case .rule: return "minus"
         case .details: return "chevron.right.square"
@@ -144,7 +146,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
         case .inlineCode: return KeyboardShortcut("c", modifiers: [.command, .option])
         case .superscriptText: return KeyboardShortcut("=", modifiers: [.command, .control])
         case .subscriptText: return KeyboardShortcut("-", modifiers: [.command, .control])
-        case .kbd, .callout, .date, .emoji: return nil
+        case .kbd, .callout, .date, .emoji, .webImage: return nil
         case .body: return KeyboardShortcut("0", modifiers: [.command, .option])
         case .heading1: return KeyboardShortcut("1", modifiers: [.command, .option])
         case .heading2: return KeyboardShortcut("2", modifiers: [.command, .option])

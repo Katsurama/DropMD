@@ -584,6 +584,7 @@ final class EditorController: ObservableObject {
         case .indent: indent()
         case .link: link()
         case .image: image()
+        case .webImage: webImage()
         case .table: table()
         case .rule: horizontalRule()
         case .details: details()
@@ -800,6 +801,23 @@ final class EditorController: ObservableObject {
         }
         // 和单页写法相同：只编码 % # ? 空格和不成对的括号，中文保持原样
         replaceSelection(with: "![\(alt)](\(MarkdownCodec.encodeURL(RichTextView.encodedImagePath(path))))")
+    }
+
+    /// 插入网络图片：填写网址；说明文字取网址里的文件名
+    func webImage() {
+        guard let address = askText(String(localized: "插入网络图片"), info: String(localized: "填写图片的网址（http 或 https）。"),
+                                    placeholder: "https://"), RemoteImages.url(for: address) != nil else { return }
+        insertWebImage(address)
+    }
+
+    func insertWebImage(_ address: String) {
+        let name = (URL(string: address)?.deletingPathExtension().lastPathComponent).flatMap { $0.removingPercentEncoding ?? $0 }
+        let alt = name.map { ["", "/"].contains($0) ? String(localized: "图片") : $0 } ?? String(localized: "图片")
+        if let r = rich {
+            r.insertImage(path: address, alt: alt, encodePath: false)
+            return
+        }
+        replaceSelection(with: "![\(alt)](\(MarkdownCodec.encodeURL(address)))")
     }
 
     func replaceSelection(with s: String) {

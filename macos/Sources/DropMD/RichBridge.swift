@@ -420,8 +420,10 @@ enum RichBridge {
         let embedded = lower.hasPrefix("data:")
         if embedded {
             image = URL(string: path).flatMap { try? Data(contentsOf: $0) }.flatMap { NSImage(data: $0) }
-        // 网络图片为保护隐私不加载
-        } else if !lower.hasPrefix("http:"), !lower.hasPrefix("https:"), !lower.hasPrefix("//"), !path.isEmpty {
+        // 网络图片为保护隐私默认不加载；设置里打开“显示网络图片”后在后台下载
+        } else if RemoteImages.isRemote(path) {
+            image = RemoteImages.image(for: path)
+        } else if !path.isEmpty {
             image = NSImage(contentsOf: URL(fileURLWithPath: path.removingPercentEncoding ?? path, relativeTo: baseURL))
         }
         var marks: [NSAttributedString.Key: Any] = [DMKey.image: path, DMKey.alt: alt]
@@ -438,8 +440,7 @@ enum RichBridge {
             if let font = a[.font] as? NSFont { a[.font] = font.withSize(font.pointSize * 0.85) }
             for (k, v) in marks { a[k] = v }
             let name = alt.isEmpty ? (embedded ? "data:" : (path as NSString).lastPathComponent) : alt
-            let remote = lower.hasPrefix("http:") || lower.hasPrefix("https:") || lower.hasPrefix("//")
-            let label = remote ? String(localized: "网络图片未加载：\(name)") : String(localized: "找不到图片：\(name)")
+            let label = RemoteImages.isRemote(path) ? String(localized: "网络图片未加载：\(name)") : String(localized: "找不到图片：\(name)")
             // 最后一个字后加字距：相邻的占位框之间留出空隙（不加字符，保存和复制不受影响）
             let s = NSMutableAttributedString(string: label, attributes: a)
             s.addAttribute(.kern, value: RichStyle.placeholderGap, range: NSRange(location: s.length - 1, length: 1))

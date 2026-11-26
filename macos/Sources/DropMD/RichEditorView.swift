@@ -86,6 +86,14 @@ struct RichTextEditor: NSViewRepresentable {
             forName: NSView.boundsDidChangeNotification, object: scroll.contentView, queue: .main) { [weak controller] _ in
             MainActor.assumeIsolated { controller?.richScrolled() }
         }
+        // 网络图片下载完成或“显示网络图片”开关改变：重新排版（连续多张只排一次）
+        context.coordinator.remoteImageObserver = NotificationCenter.default.addObserver(
+            forName: RemoteImages.changed, object: nil, queue: .main) { [weak coordinator = context.coordinator, weak tv] _ in
+            MainActor.assumeIsolated {
+                guard let coordinator, let tv else { return }
+                coordinator.scheduleReload(tv, force: true)
+            }
+        }
         return scroll
     }
 
@@ -112,6 +120,7 @@ struct RichTextEditor: NSViewRepresentable {
 
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
         if let o = coordinator.scrollObserver { NotificationCenter.default.removeObserver(o) }
+        if let o = coordinator.remoteImageObserver { NotificationCenter.default.removeObserver(o) }
         // 关闭窗口前，把尚未写回的修改写回文档
         DispatchQueue.main.async { coordinator.flush() }
     }
@@ -129,11 +138,15 @@ struct RichTextEditor: NSViewRepresentable {
         init(_ parent: RichTextEditor) { self.parent = parent }
 
         private var reloadWork: DispatchWorkItem?
+        private var forceReload = false
         var scrollObserver: NSObjectProtocol?
+        var remoteImageObserver: NSObjectProtocol?
         private var textBeforeWritingTools: String?
 
-        func scheduleReload(_ tv: RichTextView) {
+        /// force：文字没变也重新排版（网络图片下载完成）
+        func scheduleReload(_ tv: RichTextView, force: Bool = false) {
             reloadWork?.cancel()
+            forceReload = forceReload || force
             let item = DispatchWorkItem { [weak self, weak tv] in
                 guard let self, let tv else { return }
                 MainActor.assumeIsolated { self.reload(tv) }
@@ -173,7 +186,9 @@ struct RichTextEditor: NSViewRepresentable {
             guard pendingView == nil, !tv.hasMarkedText(), let storage = tv.textStorage else { return }
             let text = parent.text
             let textChanged = text != lastMarkdown
-            guard textChanged || tv.baseURL != parent.baseURL || storage.length == 0 else { return }
+            let force = forceReload
+            forceReload = false
+            guard textChanged || force || tv.baseURL != parent.baseURL || storage.length == 0 else { return }
             lastMarkdown = text
             tv.baseURL = parent.baseURL
             let clip = tv.enclosingScrollView?.contentView
