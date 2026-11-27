@@ -128,15 +128,21 @@ extension MarkdownCodec {
         var prev: MDBlock?
         var numbering = MDNumbering()
         var listTypes: [Int: Bool] = [:]   // 各层级最近一个列表项是否为有序列表
+        var lastCodeIndent: Int?
         var contentCols: [Int] = []          // 各层级项目文字开始的列：下一层缩进到这里（1. 下面 3 格），否则会被读成同级
         for (blockIndex, block) in blocks.enumerated() {
             var text: String
             var newList = false
             // 列表项里的代码块：缩进到上一项的文字下面
             var codeIndent: Int?
-            if case .code(_, _, .some) = block, case .line(let p)? = prev, let d = p.kind.listDepth, d < contentCols.count {
-                codeIndent = contentCols[d]
+            if case .code(_, _, .some) = block {
+                if case .line(let p)? = prev, let d = p.kind.listDepth, d < contentCols.count {
+                    codeIndent = contentCols[d]
+                } else if case .code(_, _, .some)? = prev {
+                    codeIndent = lastCodeIndent   // 同一项里接着的第二个代码块
+                }
             }
+            lastCodeIndent = codeIndent
             if case .line(let line) = block, let d = line.kind.listDepth {
                 listTypes = listTypes.filter { $0.key <= d }
                 if let wasOrdered = listTypes[d], wasOrdered != line.kind.isOrdered { newList = true }
@@ -318,7 +324,7 @@ extension MarkdownCodec {
         let light = render(runs, heading: heading, inCell: inCell, minimal: true)
         // 原样文字（脚注编号、HTML 标签等）只比文字：单页里脚注显示成上标、提示框标题显示成粗体，这些不算格式
         func plain(_ r: MDRun) -> MDRun {
-            if r.literal { return MDRun(text: r.text, literal: true) }
+            if r.literal { return MDRun(text: r.text, literal: true, link: r.link, title: r.link == nil ? nil : r.title) }
             var r = r
             if heading { r.bold = false }
             return r
@@ -357,11 +363,11 @@ extension MarkdownCodec {
         for (index, r) in parts.enumerated() {
             if let src = r.image {
                 transition(r.link.map { [.link($0, r.linkTitle)] } ?? [])
-                out += "![" + escapeAlt(r.text) + "](" + encodeURL(src) + (r.title.map { " " + $0 } ?? "") + ")"
+                out += "![" + escapeAlt(r.text, inCell: inCell) + "](" + encodeURL(src) + (r.title.map { " " + $0 } ?? "") + ")"
                 continue
             }
             if r.literal {
-                transition([])
+                transition(r.link.map { [.link($0, r.title)] } ?? [])
                 out += r.text
                 continue
             }
@@ -407,9 +413,10 @@ extension MarkdownCodec {
         }
         transition([])
         // 段内换行写成 <br>
-        return (out + pending).trimmingCharacters(in: .whitespacesAndNewlines)
+        // 段内换行（\u{2028}）也算空白：先换成 <br> 再去首尾空白，否则段末的 <br> 被去掉
+        return (out + pending).replacingOccurrences(of: "\u{2028}", with: "<br>")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: #" +\n"#, with: "\n", options: .regularExpression)   // 换行前的空格会变成强制换行
-            .replacingOccurrences(of: "\u{2028}", with: "<br>")
     }
 
     /// 合并样式完全相同的相邻文字
@@ -517,10 +524,11 @@ extension MarkdownCodec {
         return out
     }
 
-    private static func escapeAlt(_ s: String) -> String {
-        s.replacingOccurrences(of: "\\", with: "\\\\")
+    private static func escapeAlt(_ s: String, inCell: Bool) -> String {
+        let out = s.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "[", with: "\\[")
             .replacingOccurrences(of: "]", with: "\\]")
+        return inCell ? out.replacingOccurrences(of: "|", with: "\\|") : out   // 表格里 | 会切开单元格
     }
 
     static func encodeURL(_ s: String) -> String {

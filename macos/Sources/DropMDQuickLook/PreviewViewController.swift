@@ -97,8 +97,10 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
         // 只允许加载预览页面本身（包括脚注等页内锚点）
-        let path = action.request.url?.resolvingSymlinksInPath().path
-        decisionHandler(path == Self.previewURL.resolvingSymlinksInPath().path ? .allow : .cancel)
+        // 只比路径不够：https://某网站/同样的路径 也会放行
+        let url = action.request.url
+        let same = url?.isFileURL == true && url?.resolvingSymlinksInPath().path == Self.previewURL.resolvingSymlinksInPath().path
+        decisionHandler(same ? .allow : .cancel)
     }
 }
 

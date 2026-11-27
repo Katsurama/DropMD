@@ -131,7 +131,7 @@ extension EditorController {
             }
             if requireSelection { return nil }
             let fullRange = NSRange(location: 0, length: storage.length)
-            let markdown = forceFullDocument ? (r.delegate as? RichTextEditor.Coordinator)?.parent.text ?? pendingText : pendingText
+            let markdown = currentText
             return AITextTarget(sourceMarkdown: markdown, startSnapshot: startSnapshot, richSelection: fullRange, sourceSelection: nil, isFullDocument: true)
         } else if let tv = textView {
             let sel = tv.selectedRange()
@@ -369,7 +369,7 @@ extension EditorController {
         flushPendingEdits()
         let selected = selectedTextForSummary()
         let isSelection = selected != nil
-        let fullText = isRichMode ? (pendingText.isEmpty ? (richMarkdown ?? "") : pendingText) : (textView?.string ?? pendingText)
+        let fullText = currentText
         let source = selected ?? fullText
         let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -444,7 +444,7 @@ extension EditorController {
             return
         }
         flushPendingEdits()
-        let document = isRichMode ? (richMarkdown ?? pendingText) : (textView?.string ?? pendingText)
+        let document = currentText
         guard !document.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             qaMessages.append(DocumentQAItem(
                 question: question,
@@ -513,7 +513,7 @@ extension EditorController {
     func translateDocument(to languageID: String) {
         guard !isTranslatingDocument, SiriAIManager.isDocumentTranslationAvailable else { return }
         flushPendingEdits()
-        let source = isRichMode ? (richMarkdown ?? pendingText) : (textView?.string ?? pendingText)
+        let source = currentText
         let segments = MarkdownTranslator.extractSegments(from: source)
         guard !segments.isEmpty else {
             alert(String(localized: "没有可翻译的正文"), String(localized: "当前文档中没有可翻译的自然语言内容。"))

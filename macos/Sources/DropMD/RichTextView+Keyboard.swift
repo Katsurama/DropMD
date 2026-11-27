@@ -10,9 +10,15 @@ extension RichTextView {
         // 展示型 HTML 块里不能打字：回车在块前（光标在块首）或块后另起一段正文
         if attrs[DMKey.htmlRaw] != nil, selectedRange().length == 0, !hasMarkedText(), let storage = textStorage {
             let ns = storage.string as NSString
-            let before = selectedRange().location == para.location && para.length > 1
-            let endsWithNewline = para.length > 0 && ns.character(at: NSMaxRange(para) - 1) == 0x0A
-            let at = before ? para.location : NSMaxRange(para)
+            // 多段的块按整块算：在中间段落回车会把块切成两半，保存时整块写两遍
+            var block = para
+            if attrs[DMKey.htmlBlockID] != nil {
+                _ = storage.attribute(DMKey.htmlBlockID, at: para.location, longestEffectiveRange: &block,
+                                      in: NSRange(location: 0, length: storage.length))
+            }
+            let before = selectedRange().location == block.location && block.length > 1
+            let endsWithNewline = block.length > 0 && ns.character(at: NSMaxRange(block) - 1) == 0x0A
+            let at = before ? block.location : NSMaxRange(block)
             let body = RichStyle.typingAttributes(for: .body)
             guard shouldChangeText(in: NSRange(location: at, length: 0), replacementString: "\n") else { return }
             storage.replaceCharacters(in: NSRange(location: at, length: 0), with: NSAttributedString(string: "\n", attributes: body))

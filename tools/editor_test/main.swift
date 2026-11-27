@@ -652,6 +652,19 @@ MainActor.assumeIsolated {
         board.releaseGlobally()
         check("复制粘贴公式", md(tv), "甲 $x^2$ 乙甲 $x^2$\n")
     }
+    // 复制粘贴行内 HTML（&nbsp;、<a href>）：副本保存时不被当成重复丢掉
+    do {
+        let tv = makeView("A&nbsp;B <a href=\"https://x.com\">Hi</a>\n")
+        let board = NSPasteboard(name: NSPasteboard.Name("DropMDTest3-\(ProcessInfo.processInfo.processIdentifier)"))
+        let end = (tv.string as NSString).length - 1
+        tv.setSelectedRange(NSRange(location: 0, length: end))
+        board.clearContents()
+        _ = tv.writeSelection(to: board, types: tv.writablePasteboardTypes)
+        tv.setSelectedRange(NSRange(location: end, length: 0))
+        _ = tv.readSelection(from: board)
+        board.releaseGlobally()
+        check("复制粘贴行内 HTML", md(tv), "A&nbsp;B <a href=\"https://x.com\">Hi</a>A&nbsp;B <a href=\"https://x.com\">Hi</a>\n")
+    }
     do {
         let src = "# 标题\n\n- 列表 **粗** [链接](https://example.com)\n\n![图](no-such.png)\n\n---\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n<details>\n<summary>折叠</summary>\n\n内容\n\n</details>\n\n$$\nx\n$$\n"
         let from = makeView(src), to = makeView("")
@@ -2620,6 +2633,44 @@ do {
     pb.releaseGlobally()
 }
 
+    // 多段的展示型 HTML 块：中间回车、改段落样式都不把块写两遍；相邻两种语言的代码块不合并
+    do {
+        func at(_ tv: RichTextView, _ word: String) -> Int { (tv.string as NSString).range(of: word).location }
+        let html = "<div align=\"center\">\n<p>First</p>\n<p>Second</p>\n</div>\n\n后\n"
+        var tv = makeView(html)
+        tv.setSelectedRange(NSRange(location: at(tv, "First") + 5, length: 0)); tv.insertNewline(nil)
+        check("多段 HTML 块中间回车不写两遍", "\(md(tv).components(separatedBy: "<p>First</p>").count - 1)", "1")
+        tv = makeView(html)
+        tv.setSelectedRange(NSRange(location: at(tv, "First"), length: 0)); tv.setKind(.heading(1))
+        check("HTML 块不改成标题", md(tv), html)
+        tv = makeView("a\n\nb\n")
+        tv.setSelectedRange(NSRange(location: 0, length: 0)); tv.setKind(.code("python"))
+        tv.setSelectedRange(NSRange(location: at(tv, "b"), length: 0)); tv.setKind(.code("swift"))
+        check("相邻两种语言的代码块不合并", md(tv), "```python\na\n```\n\n```swift\nb\n```\n")
+        tv = makeView("a\n\nb\n\nc\n")
+        tv.setSelectedRange(NSRange(location: 0, length: 0)); tv.setKind(.code("python"))
+        tv.setSelectedRange(NSRange(location: at(tv, "c"), length: 0)); tv.setKind(.code("swift"))
+        tv.setSelectedRange(NSRange(location: at(tv, "b"), length: 2)); tv.deleteBackward(nil)
+        check("两个没编号、语言不同的代码块挨上也不合并", md(tv), "```python\na\n```\n\n```swift\nc\n```\n")
+        tv = makeView(html)
+        tv.setSelectedRange(NSRange(location: at(tv, "First") + 6, length: 0)); tv.insertText("x\n", replacementRange: tv.selectedRange())
+        check("多段 HTML 块被插入的内容隔开也只写一次", "\(md(tv).components(separatedBy: "<p>First</p>").count - 1)", "1")
+        tv = makeView("[<img src=\"a.png\">](https://example.com) 尾\n")
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).length - 1, length: 0)); tv.insertText("巴", replacementRange: tv.selectedRange())
+        check("[<img>](链接) 改字后链接还在", md(tv), "[<img src=\"a.png\">](https://example.com) 尾巴\n")
+        do {
+            tv = makeView(html)
+            let board = NSPasteboard(name: NSPasteboard.Name("DropMDTest4-\(ProcessInfo.processInfo.processIdentifier)"))
+            let blockEnd = at(tv, "后")
+            tv.setSelectedRange(NSRange(location: 0, length: blockEnd))
+            board.clearContents()
+            _ = tv.writeSelection(to: board, types: tv.writablePasteboardTypes)
+            tv.setSelectedRange(NSRange(location: blockEnd, length: 0))
+            _ = tv.readSelection(from: board)
+            board.releaseGlobally()
+            check("HTML 块复制贴在原块后面：两份都保存", "\(md(tv).components(separatedBy: "<p>First</p>").count - 1)", "2")
+        }
+    }
 print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

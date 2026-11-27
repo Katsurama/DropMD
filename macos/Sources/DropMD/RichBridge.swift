@@ -297,7 +297,7 @@ enum RichBridge {
             }
             // 行内 HTML：独立 <img ...>
             if r.literal, !kind.isMonospaced,
-               let img = RichHTML.renderImageTag(r.text, link: r.link, linkTitle: r.linkTitle, baseURL: baseURL) {
+               let img = RichHTML.renderImageTag(r.text, link: r.link, linkTitle: r.linkTitle ?? r.title, baseURL: baseURL) {
                 let marked = NSMutableAttributedString(attributedString: img)
                 let whole = NSRange(location: 0, length: marked.length)
                 marked.addAttribute(DMKey.htmlInline, value: r.text, range: whole)
@@ -527,6 +527,17 @@ enum RichBridge {
     static func restoringAttachments(_ source: NSAttributedString, baseURL: URL?) -> NSAttributedString {
         let s = NSMutableAttributedString(attributedString: source)
         let whole = NSRange(location: 0, length: s.length)
+        // 行内 HTML 换新编号：保存时同一编号只写一次，粘贴出的副本用旧编号会被当成重复丢掉。
+        // 展示型 HTML 块同理：贴在原块旁边时会被当成同一块
+        var freshIDs: [String: String] = [:]
+        for key in [DMKey.htmlInlineID, DMKey.htmlBlockID] {
+            s.enumerateAttribute(key, in: whole) { value, range, _ in
+                guard let old = value as? String else { return }
+                let new = freshIDs[old] ?? UUID().uuidString
+                freshIDs[old] = new
+                s.addAttribute(key, value: new, range: range)
+            }
+        }
         var jobs: [(NSRange, NSAttributedString)] = []
         var lastImageID: String?
         s.enumerateAttributes(in: whole, options: []) { a, range, _ in
@@ -772,6 +783,11 @@ enum RichBridge {
                 } else {
                     var r = MDRun(text: htmlInline)
                     r.literal = true
+                    // [<img …>](链接)：链接在外面的 Markdown 里；<a href> 自己带着链接，不再套一层
+                    if !htmlInline.lowercased().hasPrefix("<a"), let link = a[DMKey.link] as? String {
+                        r.link = link
+                        r.title = a[DMKey.linkTitle] as? String
+                    }
                     out.append(r)
                 }
                 return
@@ -788,7 +804,8 @@ enum RichBridge {
             if let source = a[DMKey.math] as? String {
                 // 每个公式是一个字符；相邻的相同公式各写一次
                 for _ in 0..<sub.length {
-                    var r = MDRun(text: source)
+                    var r = MDRun(text: source, link: a[DMKey.link] as? String)
+                    r.title = r.link == nil ? nil : a[DMKey.title] as? String
                     r.literal = true
                     out.append(r)
                 }
@@ -835,6 +852,7 @@ enum RichBridge {
 
     private static func group(_ entries: [Entry]) -> [MDBlock] {
         var blocks: [MDBlock] = []
+        var seenHTMLBlocks: Set<String> = []
         var i = 0
         while i < entries.count {
             let zone = entries[i].inDetails
@@ -867,7 +885,9 @@ enum RichBridge {
                 var lines: [String] = []
                 var current = id   // 刚设成代码块的段落没有编号：算进紧挨着的代码块，屏幕上它们也连在一起
                 while let item = next(i) {
-                    guard case .code(_, let text, _, let other) = item, other == current || other == nil || current == nil else { break }
+                    // 没有编号的只接同一语言的：语言不同一定是另一块
+                    guard case .code(let otherLang, let text, _, let other) = item,
+                          current != nil && other != nil ? other == current : otherLang == lang else { break }
                     current = current ?? other
                     lines.append(text)
                     i += 1
@@ -890,6 +910,8 @@ enum RichBridge {
                     while let item = next(i), case .htmlRaw(_, let nextID) = item, nextID == id {
                         i += 1
                     }
+                    // 块被插进来的内容隔开时，后半截还是同一块：原 HTML 只写一次
+                    guard seenHTMLBlocks.insert(id).inserted else { continue }
                 }
                 blocks.append(.raw(source))
             case .cell(let table, _, _, _, _):

@@ -36,6 +36,13 @@ private struct InlineStyle {
               sup: sup, sub: sub, kbd: kbd, link: link, title: title)
     }
 
+    /// 原样保留的片段（公式、HTML 标签等）：只带外面的链接，写回时链接不丢
+    func literal(_ text: String) -> MDRun {
+        var r = MDRun(text: text, link: link, title: title)
+        r.literal = true
+        return r
+    }
+
     /// 行内 HTML 标签对应的样式
     func with(tag: String) -> InlineStyle {
         var s = self
@@ -84,9 +91,7 @@ private struct InlineParser {
             // \(公式\)（ChatGPT 等常用）：原样保留，要在反斜杠转义之前判断
             if ch == "\\", i + 1 < hi, c[i + 1] == "(", let end = parenMathEnd(i, hi) {
                 flush()
-                var r = MDRun(text: String(c[i..<end]))
-                r.literal = true
-                out.append(r)
+                out.append(st.literal(String(c[i..<end])))
                 i = end
                 continue
             }
@@ -126,7 +131,7 @@ private struct InlineParser {
             // 图片
             if ch == "!", i + 1 < hi, c[i + 1] == "[", let m = linkAt(i + 1, hi) {
                 flush()
-                var r = MDRun(text: String(c[m.labelLo..<m.labelHi]))
+                var r = MDRun(text: unescaped(m.labelLo, m.labelHi))
                 r.image = m.url
                 r.title = m.title
                 r.link = st.link          // [![图](a.png)](链接)
@@ -140,9 +145,7 @@ private struct InlineParser {
             if ch == "[", i == lo, lo == 0, i + 1 < hi, c[i + 1] == "!", let close = find("]", from: i + 2, hi), close > i + 2,
                c[(i + 2)..<close].allSatisfy({ $0.isLetter }), close + 1 == hi || c[close + 1] == " " {
                 flush()
-                var r = MDRun(text: String(c[i...close]))
-                r.literal = true
-                out.append(r)
+                out.append(st.literal(String(c[i...close])))
                 i = close + 1
                 continue
             }
@@ -151,9 +154,7 @@ private struct InlineParser {
             if ch == "[", i + 1 < hi, c[i + 1] == "^", var end = footnoteEnd(i, hi) {
                 if i == 0, end < hi, c[end] == ":" { end += 1 }
                 flush()
-                var r = MDRun(text: String(c[i..<end]))
-                r.literal = true
-                out.append(r)
+                out.append(st.literal(String(c[i..<end])))
                 i = end
                 continue
             }
@@ -173,9 +174,7 @@ private struct InlineParser {
             if ch == "[", let close = find("]", from: i + 1, hi), close + 1 < hi, c[close + 1] == "[",
                let end = find("]", from: close + 2, hi) {
                 flush()
-                var r = MDRun(text: String(c[i...end]))
-                r.literal = true
-                out.append(r)
+                out.append(st.literal(String(c[i...end])))
                 i = end + 1
                 continue
             }
@@ -212,9 +211,7 @@ private struct InlineParser {
                 // 其他 HTML 标签和注释（<span style=…>、<!-- … -->）：原样保留
                 if let end = htmlTagEnd(i, hi) {
                     flush()
-                    var r = MDRun(text: String(c[i..<end]))
-                    r.literal = true
-                    out.append(r)
+                    out.append(st.literal(String(c[i..<end])))
                     i = end
                     continue
                 }
@@ -223,9 +220,7 @@ private struct InlineParser {
             // $$行内公式$$：原样保留
             if ch == "$", i + 1 < hi, c[i + 1] == "$", let close = find("$$", from: i + 2, hi), close > i + 2 {
                 flush()
-                var r = MDRun(text: String(c[i..<(close + 2)]))
-                r.literal = true
-                out.append(r)
+                out.append(st.literal(String(c[i..<(close + 2)])))
                 i = close + 2
                 continue
             }
@@ -233,9 +228,7 @@ private struct InlineParser {
             // $公式$：原样保留
             if ch == "$", let end = mathEnd(i, hi) {
                 flush()
-                var r = MDRun(text: String(c[i..<end]))
-                r.literal = true
-                out.append(r)
+                out.append(st.literal(String(c[i..<end])))
                 i = end
                 continue
             }
@@ -287,6 +280,16 @@ private struct InlineParser {
     }
 
     // MARK: - 辅助
+
+    /// 图片说明里的反斜杠转义还原成原字，和写回时的转义对应
+    private func unescaped(_ lo: Int, _ hi: Int) -> String {
+        var out = ""
+        var i = lo
+        while i < hi {
+            if c[i] == "\\", i + 1 < hi, isPunct(c[i + 1]) { out.append(c[i + 1]); i += 2 } else { out.append(c[i]); i += 1 }
+        }
+        return out
+    }
 
     private func isPunct(_ ch: Character) -> Bool {
         "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~".contains(ch)

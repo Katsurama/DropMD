@@ -210,6 +210,12 @@ check("空代码块", "```\n```\n")
 check("围栏语言行里有反引号", "~~~a `b`\nx\n~~~\n")
 check("HTML 后接公式块", "<div>hi</div>\n\n$$\nx^2\n$$\n")
 check("折叠块里的代码中有 </details>", "<details>\n<summary>示例</summary>\n\n```html\n</details>\n```\n\n后面文字\n\n</details>\n")
+check("图片说明里的转义", "![figure \\[1\\]](a.png)\n")
+check("链接包着公式", "[$E=mc^2$](https://example.com)\n")
+check("链接里有公式", "[see $x$ here](https://example.com)\n")
+check("段末 <br>", "**Bold**<br>\n")
+check("列表项里两个代码块", "1. Setup\n\n   ```sh\n   a\n   ```\n\n   ```sh\n   b\n   ```\n\n2. Run\n")
+check("表格里图片说明有 |", "| Col |\n| --- |\n| ![a\\|b](a.png) |\n")
 // 列表项下面缩进写引用、标题、HTML、分隔线、公式：以前打开就崩溃（解析没完没了地调用自己），现在整块原样保存
 for s in ["- a\n  > 引用\n", "- a\n  # 标题\n", "1. 步骤\n   <br>\n", "- a\n <div>\n", "- a\n  ---\n", "- a\n  $$x$$\n", "- a\n  - b\n    > q\n", "- a\n <details>\nx\n</details>\n"] {
     check("列表项下的缩进内容 \(s.debugDescription)", s)

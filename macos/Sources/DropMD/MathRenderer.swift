@@ -120,7 +120,7 @@ final class MathRenderer: NSObject, WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
-        decisionHandler(action.request.url?.path == pageURL?.path ? .allow : .cancel)
+        decisionHandler(action.request.url?.isFileURL == true && action.request.url?.path == pageURL?.path ? .allow : .cancel)
     }
 
     private static let script = """

@@ -139,6 +139,7 @@ final class EditorController: ObservableObject {
         didSet { if outlineVisible, !oldValue { refreshHeadings() } }
     }
     private var headingsWork: DispatchWorkItem?
+    private var statsWork: DispatchWorkItem?
     private var headingsGeneration = 0   // 后台找完时文字又变了：旧结果不用
     /// 光标处的样式。单独放在一个对象里：光标移动时只刷新“格式”面板，不刷新整个窗口
     let selection = SelectionModel()
@@ -195,14 +196,23 @@ final class EditorController: ObservableObject {
     func textChanged(_ text: String) {
         pendingText = text
         editVersion &+= 1
-        updateStats(text)
+        // 字数和语言要扫全文：停顿后再算，长文档连续打字不卡
+        statsWork?.cancel()
+        let stats = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.updateStats(self.pendingText)
+                if self.language == .auto { self.updateLanguage() }
+            }
+        }
+        statsWork = stats
+        DispatchQueue.main.asyncAfter(deadline: .now() + (text.utf16.count > 100_000 ? 0.3 : 0), execute: stats)
         if outlineVisible {
             headingsWork?.cancel()
             let work = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.refreshHeadingsInBackground() } }
             headingsWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
         }
-        if language == .auto { updateLanguage() }
         // 单页打的字停一下才交给文档：文件恰好在这之前被删时，监视那一刻还看不出改过，这里补上
         if let url = fileURL, !FileManager.default.fileExists(atPath: url.path) { fileWentAway() }
         scheduleTitleAndMetadataUpdate(text)
@@ -639,21 +649,25 @@ final class EditorController: ObservableObject {
     }
 
     /// 找标题用的文字：与双页对照表同一份，行号对得上
-    private var outlineText: String { isRichMode ? (richMarkdown ?? pendingText) : (textView?.string ?? pendingText) }
+    /// 刚 flush 过的最新原文：两边写回时都同步改文档的 text，pendingText 要等下一轮界面刷新才更新
+    var currentText: String {
+        (richView?.delegate as? RichTextEditor.Coordinator)?.parent.text
+            ?? (isRichMode ? (richMarkdown ?? pendingText) : (textView?.string ?? pendingText))
+    }
 
     @discardableResult
     private func refreshHeadings() -> [DocumentHeading] {
         headingsWork?.cancel()
         headingsWork = nil
         headingsGeneration += 1
-        let h = extractHeadings(outlineText)
+        let h = extractHeadings(currentText)
         if h != headings { headings = h }
         return h
     }
 
     private func refreshHeadingsInBackground() {
         headingsGeneration += 1
-        let generation = headingsGeneration, text = outlineText
+        let generation = headingsGeneration, text = currentText
         Task.detached(priority: .utility) {
             let h = extractHeadings(text)
             await MainActor.run { [weak self] in
@@ -751,7 +765,7 @@ final class EditorController: ObservableObject {
     func footnote() {
         flushPendingEdits()
         var n = 1
-        while pendingText.contains("[^\(n)]") { n += 1 }
+        while currentText.contains("[^\(n)]") { n += 1 }
         guard let note = askText(String(localized: "插入脚注"), info: String(localized: "说明文字放在文档末尾。"), placeholder: String(localized: "脚注说明")) else { return }
         if let r = rich {
             r.insertFootnote(label: "\(n)", note: note)

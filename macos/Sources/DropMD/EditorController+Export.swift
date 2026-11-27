@@ -20,7 +20,7 @@ extension EditorController {
         p.allowedContentTypes = [type]
         p.canCreateDirectories = true
         let base = fileURL?.deletingPathExtension().lastPathComponent
-            ?? DocumentTitleSuggester.fallbackTitle(from: pendingText)
+            ?? DocumentTitleSuggester.fallbackTitle(from: currentText)
             ?? String(localized: "未命名")
         p.nameFieldStringValue = "\(base).\(ext)"
         if let dir = fileURL?.deletingLastPathComponent() { p.directoryURL = dir }
@@ -37,7 +37,7 @@ extension EditorController {
     /// 导出为 Word（.docx，beta）
     func exportWord() {
         flushPendingEdits()
-        let text = pendingText
+        let text = currentText
         let docxType = UTType(filenameExtension: "docx") ?? .data
         guard let url = savePanel(ext: "docx", type: docxType, title: String(localized: "导出为 Word")) else { return }
         let base = fileURL?.deletingLastPathComponent()
@@ -58,7 +58,7 @@ extension EditorController {
     /// 用后台的预览页面（与公式共用）生成 HTML，样式与预览一致
     func exportHTML() {
         flushPendingEdits()
-        let text = pendingText
+        let text = currentText
         guard let url = savePanel(ext: "html", type: .html) else { return }
         let title = url.deletingPathExtension().lastPathComponent
         let baseDir = fileURL?.deletingLastPathComponent()

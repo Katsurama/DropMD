@@ -533,7 +533,7 @@ final class RichLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         let x = storage.attributes(at: a, effectiveRange: nil), y = storage.attributes(at: b, effectiveRange: nil)
         guard (x[DMKey.raw] != nil) == (y[DMKey.raw] != nil), (x[DMKey.inDetails] != nil) == (y[DMKey.inDetails] != nil) else { return false }
         let i = x[DMKey.codeBlock] as? String, j = y[DMKey.codeBlock] as? String
-        return i == nil || j == nil || i == j
+        return i != nil && j != nil ? i == j : x[DMKey.code] as? String == y[DMKey.code] as? String
     }
 
     /// 包含这个位置的整个代码块（连续的代码段落）；不是代码时为 nil
