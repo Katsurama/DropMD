@@ -156,30 +156,37 @@ enum SiriAIManager {
         }
     }
 
+    private static let maxDirectRewriteChars = 12000
+
+    /// 内容太长：模型一次装不下，写回文档又不能截断，请用户选一部分再做
+    struct TooLongError: LocalizedError {
+        var errorDescription: String? { String(localized: "内容太长，请选中其中一部分再试。") }
+    }
+
     #if canImport(FoundationModels)
     /// 统一会话调度：按偏好与字数优先尝试私有云，失败时自动回退到本机模型
     @available(macOS 26.0, *)
     private static func runWithSession<T>(
-        instructions: String,
         contentLength: Int,
-        operation: (LanguageModelSession) async throws -> T
+        instructions: (Bool) -> String,
+        operation: (LanguageModelSession, Bool) async throws -> T
     ) async throws -> T {
         let wantCloud = shouldUsePrivateCloud(preference: AIModelPreference.current, contentLength: contentLength)
         if #available(macOS 27.0, *), wantCloud {
             let cloudModel = PrivateCloudComputeLanguageModel()
             if cloudModel.isAvailable {
                 do {
-                    let cloudSession = LanguageModelSession(model: cloudModel, instructions: instructions)
-                    return try await operation(cloudSession)
+                    let cloudSession = LanguageModelSession(model: cloudModel, instructions: instructions(true))
+                    return try await operation(cloudSession, true)
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch {
-                    // 断网或私有云暂不可用时静默回退到本机端侧模型
+                    // 断网或私有云暂不可用时静默回退到本机端侧模型，并按本机上限重建输入
                 }
             }
         }
-        let localSession = LanguageModelSession(instructions: instructions)
-        return try await operation(localSession)
+        let localSession = LanguageModelSession(instructions: instructions(false))
+        return try await operation(localSession, false)
     }
     #endif
 
@@ -187,13 +194,15 @@ enum SiriAIManager {
     @available(macOS 26.0, *)
     static func smartFormatMarkdown(_ input: String) async throws -> String {
         #if canImport(FoundationModels)
+        // 超出上限时不调用模型：会装不下，截断后写回又会丢内容
+        guard input.count <= maxDirectRewriteChars else { throw TooLongError() }
         let instructions = """
         You are a Markdown formatting assistant.
         Reformat the user's text into clean, well-structured Markdown (with appropriate # headings, lists, bold emphasis, or tables when fitting).
         Keep the exact original language, meaning, and all factual content without adding or deleting information.
         Output only the Markdown body without wrapping it in a ```markdown code fence.
         """
-        let response = try await runWithSession(instructions: instructions, contentLength: input.count) { session in
+        let response = try await runWithSession(contentLength: input.count, instructions: { _ in instructions }) { session, _ in
             try await session.respond(to: input)
         }
         return stripOuterMarkdownFence(response.content)
@@ -203,17 +212,36 @@ enum SiriAIManager {
     }
 
     static func stripOuterMarkdownFence(_ raw: String) -> String {
-        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = raw.replacingOccurrences(of: "\r\n", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.hasPrefix("```") else { return text }
         let lines = text.components(separatedBy: "\n")
         guard lines.count >= 2 else { return text }
         let first = lines[0].trimmingCharacters(in: .whitespaces).lowercased()
         let last = lines[lines.count - 1].trimmingCharacters(in: .whitespaces)
-        if (first == "```" || first == "```markdown" || first == "```md"), last == "```" {
-            text = lines.dropFirst().dropLast().joined(separator: "\n")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (first == "```" || first == "```markdown" || first == "```md"), last == "```" else {
+            return text
         }
-        return text
+        // 扫描内部围栏配对，防止首尾两个独立代码块被误拆
+        var innerFenceTicks: Int?
+        for line in lines.dropFirst().dropLast() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("```") else { continue }
+            let ticks = trimmed.prefix(while: { $0 == "`" }).count
+            let rest = trimmed.dropFirst(ticks).trimmingCharacters(in: .whitespaces)
+            if let openTicks = innerFenceTicks {
+                if rest.isEmpty && ticks >= openTicks {
+                    innerFenceTicks = nil
+                }
+            } else if rest.isEmpty {
+                return text
+            } else if !rest.contains("`") {
+                innerFenceTicks = ticks
+            }
+        }
+        guard innerFenceTicks == nil else { return text }
+        return lines.dropFirst().dropLast().joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// 按段落切分为不超过 maxChars 的块（用于长文档本机端侧大模型分段摘要）
@@ -373,7 +401,12 @@ enum SiriAIManager {
 
     /// 模型常照抄原文的 HTML 标签与脚注标记，显示时去掉
     static func stripMarkupForDisplay(_ text: String) -> String {
-        text.replacingOccurrences(of: #"</?[A-Za-z][A-Za-z0-9-]*(\s[^<>]*)?/?>"#, with: "", options: .regularExpression)
+        // 仅移除常见 HTML 标签，保留 Array<String> 或 <api-key> 等尖括号内容
+        text.replacingOccurrences(
+            of: #"(?i)</?(?:br|sub|sup|kbd|span|div|p|a|b|i|em|strong|u|s|del|ins|mark|code|small|img|details|summary|font|center)(?:\s[^<>]*)?/?>"#,
+            with: "",
+            options: .regularExpression
+        )
             .replacingOccurrences(of: #"\[\^[^\]\s]+\]"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"==(\S(?:[^=]*?\S)?)=="#, with: "$1", options: .regularExpression)
             .trimmingCharacters(in: .whitespaces)
@@ -389,8 +422,9 @@ enum SiriAIManager {
                 .replacingOccurrences(of: "|", with: "\\|")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        let cleanHeaders = headers.map(sanitize).filter { !$0.isEmpty }
-        guard !cleanHeaders.isEmpty else { return "" }
+        // 保留空表头占位，避免后续数据列左移或丢失
+        let cleanHeaders = headers.map(sanitize)
+        guard !cleanHeaders.allSatisfy(\.isEmpty) else { return "" }
         let colCount = cleanHeaders.count
         var lines: [String] = [
             "| " + cleanHeaders.joined(separator: " | ") + " |",
@@ -480,21 +514,27 @@ enum SiriAIManager {
         guard !normalized.isEmpty, maxChars > 0 else { return "" }
         if normalized.count <= maxChars { return normalized }
 
-        let paragraphs = normalized.components(separatedBy: "\n\n")
+        var paragraphs = normalized.components(separatedBy: "\n\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         guard paragraphs.count > 1 else { return String(normalized.prefix(maxChars)) }
 
         let keywords = extractQueryTokens(from: question)
-        let leadBudget = max(400, maxChars / 3)
+        // 首段导语预算不超过总预算一半，确保关键词命中段落始终有空间
+        let leadBudget = min(maxChars / 2, max(400, maxChars / 3))
+        if paragraphs[0].count > leadBudget {
+            paragraphs[0] = String(paragraphs[0].prefix(leadBudget))
+        }
         var selectedIndices: Set<Int> = []
         var usedChars = 0
 
         for i in paragraphs.indices {
             let p = paragraphs[i]
-            if usedChars + p.count + 2 <= leadBudget || i == 0 {
+            if i == 0 && p.isEmpty { continue }
+            let cost = usedChars == 0 ? p.count : p.count + 2
+            if usedChars + cost <= leadBudget || i == 0 {
                 selectedIndices.insert(i)
-                usedChars += p.count + 2
+                usedChars += cost
             } else {
                 break
             }
@@ -515,7 +555,7 @@ enum SiriAIManager {
             }
 
         for item in scored {
-            let len = paragraphs[item.idx].count + 2
+            let len = usedChars == 0 ? paragraphs[item.idx].count : paragraphs[item.idx].count + 2
             if usedChars + len <= maxChars {
                 selectedIndices.insert(item.idx)
                 usedChars += len
@@ -534,8 +574,9 @@ enum SiriAIManager {
         for scalar in lower.unicodeScalars {
             if CharacterSet.alphanumerics.contains(scalar) {
                 let s = String(scalar)
-                if scalar.value >= 0x4E00 && scalar.value <= 0x9FFF
-                    || scalar.value >= 0x3040 && scalar.value <= 0x30FF {
+                if (0x4E00...0x9FFF).contains(scalar.value)
+                    || (0x3400...0x4DBF).contains(scalar.value)
+                    || (0x3040...0x30FF).contains(scalar.value) {
                     if !buffer.isEmpty {
                         tokens.append(buffer)
                         buffer = ""
@@ -550,18 +591,25 @@ enum SiriAIManager {
             }
         }
         if !buffer.isEmpty { tokens.append(buffer) }
-        return Array(Set(tokens.filter { $0.count >= 2 || ($0.unicodeScalars.first.map { $0.value >= 0x4E00 } ?? false) }))
+        // 保留假名与 CJK 扩展 A 单字词元，避免日文与生僻字问答召回失效
+        return Array(Set(tokens.filter {
+            $0.count >= 2 || ($0.unicodeScalars.first.map {
+                $0.value >= 0x4E00 || (0x3400...0x4DBF).contains($0.value) || (0x3040...0x30FF).contains($0.value)
+            } ?? false)
+        }))
     }
 
     /// 将所选混乱文本转换为结构化 Markdown 表格
     @available(macOS 26.0, *)
     static func convertToMarkdownTable(_ input: String) async throws -> String {
         #if canImport(FoundationModels)
+        // 超出上限时不调用模型：会装不下，截断后写回又会丢内容
+        guard input.count <= maxDirectRewriteChars else { throw TooLongError() }
         let instructions = """
         Convert the user's text or data into a structured table with concise column headers and aligned rows.
         Keep the exact original language and factual values.
         """
-        let response = try await runWithSession(instructions: instructions, contentLength: input.count) { session in
+        let response = try await runWithSession(contentLength: input.count, instructions: { _ in instructions }) { session, _ in
             try await session.respond(to: input, generating: GeneratedMarkdownTable.self)
         }
         return formatMarkdownTable(headers: response.content.headers, rows: response.content.rows)
@@ -579,7 +627,7 @@ enum SiriAIManager {
         Keep each item concise and clear. Return an empty list if there are no actionable items.
         """
         let trimmed = String(input.prefix(12000))
-        let response = try await runWithSession(instructions: instructions, contentLength: trimmed.count) { session in
+        let response = try await runWithSession(contentLength: trimmed.count, instructions: { _ in instructions }) { session, _ in
             try await session.respond(to: trimmed, generating: GeneratedTaskList.self)
         }
         return formatTaskList(response.content.items)
@@ -592,14 +640,11 @@ enum SiriAIManager {
     @available(macOS 26.0, *)
     static func generateFrontMatter(for markdown: String, date: Date = Date()) async throws -> String {
         #if canImport(FoundationModels)
-        let preferCloud = isPrivateCloudAvailable
-            && shouldUsePrivateCloud(preference: AIModelPreference.current, contentLength: markdown.count)
-        let excerpt = String(markdown.prefix(preferCloud ? 16000 : 8000))
         let instructions = """
         Generate metadata (concise title, 3 to 5 topical tags, and a one-sentence summary) for the user's Markdown document in the exact same language as the document.
         """
-        let response = try await runWithSession(instructions: instructions, contentLength: excerpt.count) { session in
-            try await session.respond(to: excerpt, generating: GeneratedFrontMatter.self)
+        let response = try await runWithSession(contentLength: markdown.count, instructions: { _ in instructions }) { session, isCloud in
+            try await session.respond(to: String(markdown.prefix(isCloud ? 16000 : 8000)), generating: GeneratedFrontMatter.self)
         }
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
@@ -640,11 +685,6 @@ enum SiriAIManager {
         history: [(question: String, answer: String)]
     ) async throws -> String {
         #if canImport(FoundationModels)
-        let useCloud = isPrivateCloudAvailable
-            && shouldUsePrivateCloud(preference: AIModelPreference.current, contentLength: document.count)
-        let maxChars = useCloud ? 20000 : 5500
-        let context = prepareContextForQA(document: document, question: question, maxChars: maxChars)
-        let instructions = qaInstructions(context: context)
         var promptParts: [String] = []
         let recent = history.suffix(3).filter { !$0.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         if !recent.isEmpty {
@@ -653,7 +693,13 @@ enum SiriAIManager {
         }
         promptParts.append(question)
         let prompt = promptParts.joined(separator: "\n\n")
-        let response = try await runWithSession(instructions: instructions, contentLength: document.count) { session in
+        let response = try await runWithSession(
+            contentLength: document.count,
+            instructions: { isCloud in
+                let context = prepareContextForQA(document: document, question: question, maxChars: isCloud ? 20000 : 5500)
+                return qaInstructions(context: context)
+            }
+        ) { session, _ in
             try await session.respond(to: prompt)
         }
         return response.content.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -666,6 +712,7 @@ enum SiriAIManager {
 /// Writing Tools（写作工具）保护范围：确保润色/改写全文时不改坏代码块、行内代码、数学公式、YAML 头部与附件
 enum WritingToolsGuard {
     static func isExcludedAttribute(_ attrs: [NSAttributedString.Key: Any]) -> Bool {
+        // 同时排除展示型 HTML 与提示框标题，防止写作工具改坏原文
         attrs[DMKey.code] != nil
             || attrs[DMKey.inlineCode] != nil
             || attrs[DMKey.kbd] != nil
@@ -676,6 +723,10 @@ enum WritingToolsGuard {
             || attrs[DMKey.image] != nil
             || attrs[.attachment] != nil
             || attrs[DMKey.codeGap] != nil
+            || attrs[DMKey.htmlRaw] != nil
+            || attrs[DMKey.htmlHidden] != nil
+            || attrs[DMKey.htmlInline] != nil
+            || attrs[DMKey.callout] != nil
     }
 
     /// 单页富文本视图中需要排除在 Writing Tools 之外的区间

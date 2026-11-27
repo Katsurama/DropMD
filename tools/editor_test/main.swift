@@ -747,6 +747,12 @@ MainActor.assumeIsolated {
         let linkedSingle = HTMLExport.linkLocalImages(#"<IMG SRC='no.png'>"#, base: dir, scheme: "dropmd-image")
         check("快速查看支持单引号与大写 img", "\(linkedSingle.html) \(linkedSingle.images.count)",
               #"<img loading="lazy" decoding="async" SRC='dropmd-image:/0'> 1"#)
+        // 属性值里写着 <img …>、alt 里有 >、注释里的 <img>：都不能当成图片改
+        let tricky = HTMLExport.linkLocalImages(#"<img src="no.png" alt="x <img src='no.png'> y"><img alt="a > b" src="no.png"><!-- <img src="no.png"> -->"#, base: dir, scheme: "dropmd-image")
+        check("快速查看自闭合 img 的地址不带 /", HTMLExport.linkLocalImages(#"<img src=no.png/>"#, base: dir, scheme: "dropmd-image").html,
+              #"<img loading="lazy" decoding="async" src=dropmd-image:/0/>"#)
+        check("快速查看只改真正的 img 标签", "\(tricky.html) \(tricky.images.count)",
+              #"<img loading="lazy" decoding="async" src="dropmd-image:/1" alt="x <img src='no.png'> y"><img loading="lazy" decoding="async" alt="a > b" src="dropmd-image:/0"><!-- <img src="no.png"> --> 2"#)
         try? FileManager.default.removeItem(at: dir)
     }
     // 光标在公式后（打字属性取自公式这个字符）：输入的文字不能变成公式
@@ -2055,6 +2061,16 @@ MainActor.assumeIsolated {
             check(name, ok ? "ok" : "fail", "ok")
         }
 
+        // HTML 写的图片也要嵌进 Word；引用里的折叠块按同一套写法读（高亮、待办、~ 不当下标）
+        do {
+            let htmlImg = "<p align=\"center\"><img src=\"图 片/测试 图.png\" width=\"40\" alt=\"居中图\"></p>\n\n行内 <img src=\"图%20片/测试%20图.png\" alt=\"行内图\"> 尾\n\n<!-- <img src=\"图 片/测试 图.png\"> -->\n\n> <details>\n> <summary>清单</summary>\n>\n> ==重点== 和 100~200~\n> </details>\n"
+            let out2 = dir.appendingPathComponent("html-img.docx")
+            try! WordExport.export(markdown: htmlImg, to: out2, base: dir)
+            let r2 = unzipDocx(out2, into: "unpacked-html")
+            check("Word 导出 HTML 写的图片", r2.media.count == 2 && r2.doc.contains("r:embed=") ? "ok" : "media \(r2.media.count)", "ok")
+            check("Word 导出引用里的折叠块保留高亮、不当下标", r2.doc.contains("w:highlight") && !r2.doc.contains("subscript") ? "ok" : "fail", "ok")
+        }
+
         // 覆盖已有文件与悬空符号链接
         try! WordExport.export(markdown: "# 覆盖成功\n", to: outDocx, base: dir)
         check("Word 导出覆盖已有文件", unzipDocx(outDocx, into: "unpacked_overwrite").doc.contains("覆盖成功") ? "ok" : "fail", "ok")
@@ -2682,6 +2698,26 @@ do {
         RichBridge.refreshRemoteImages(in: tv.textStorage!, baseURL: nil)
         check("在线图片就地刷新不改文字", tv.string == before && md(tv) == "![a](https://example.com/a.png) 尾巴\n" ? "ok" : md(tv), "ok")
         check("在线图片就地刷新保留撤销", host.um.canUndo ? "ok" : "lost", "ok")
+        // 导出 PDF 用的副本：图片对象换成新的，不和编辑区共用
+        let copy = NSTextStorage(attributedString: tv.textStorage!)
+        RichBridge.rebuildImages(in: copy, baseURL: nil)
+        let a1 = tv.textStorage!.attribute(.attachment, at: 0, effectiveRange: nil) as AnyObject?
+        let a2 = copy.attribute(.attachment, at: 0, effectiveRange: nil) as AnyObject?
+        check("导出 PDF 的副本不共用图片对象", a1 != nil && a2 != nil && a1 !== a2 && copy.string == tv.string ? "ok" : "shared", "ok")
+    }
+    // 苹果智能辅助函数：首尾两个代码块不拆、空表头不删列、日文假名能找到段落、尖括号词不删、文件名不变成隐藏文件
+    do {
+        let twoBlocks = "```\necho one\n```\n\n说明\n\n```python\nprint(2)\n```"
+        check("去外层围栏不拆首尾两个代码块", SiriAIManager.stripOuterMarkdownFence(twoBlocks), twoBlocks)
+        check("去外层围栏（CRLF）", SiriAIManager.stripOuterMarkdownFence("```markdown\r\n# 标题\r\n```"), "# 标题")
+        check("转表格左上角空表头不删列",
+              SiriAIManager.formatMarkdownTable(headers: ["", "Q1", "Q2"], rows: [["收入", "100", "200"]]),
+              "|  | Q1 | Q2 |\n| --- | --- | --- |\n| 收入 | 100 | 200 |")
+        let jp = (0..<40).map { "前置きの段落\($0)。" }.joined(separator: "\n\n") + "\n\nショートカットの設定方法はこちら。"
+        check("日文假名问答能找到相关段落", SiriAIManager.prepareContextForQA(document: jp, question: "ショートカットは？", maxChars: 200).contains("ショートカット") ? "ok" : "miss", "ok")
+        check("待办不删尖括号里的词", SiriAIManager.stripMarkupForDisplay("把 Array<String> 改成 Set<Int><br>"), "把 Array<String> 改成 Set<Int>")
+        check("文件名不变成隐藏文件", DocumentTitleSuggester.sanitizeFileName(". . .secret") ?? "nil", "secret")
+        check("文件名不会只剩点", DocumentTitleSuggester.sanitizeFileName(". . . .") ?? "nil", "nil")
     }
 print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }

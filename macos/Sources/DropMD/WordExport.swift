@@ -187,10 +187,44 @@ enum WordExport {
       return cur
     end
 
+    -- HTML 写的 <img>：Word 不认 HTML，转成普通图片，交给下面的 handle_image 嵌入（在线图片换成提示）
+    local function html_attr(tag, name)
+      local p = "%s" .. name .. "%s*=%s*"
+      return tag:match(p .. '"([^"]*)"') or tag:match(p .. "'([^']*)'") or tag:match(p .. "([^%s>\"']+)")
+    end
+
+    local function html_images(text)
+      local out = {}
+      text = text:gsub("<!%-%-.-%-%->", "")   -- 注释里的 <img> 不算
+      for tag in text:gmatch("<[Ii][Mm][Gg]%s[^>]*>") do
+        tag = tag:gsub("%s*/>$", " >")   -- <img src=a.png/>：/ 不算地址的一部分
+        local src = html_attr(tag, "[Ss][Rr][Cc]")
+        if src and src ~= "" then
+          local alt = html_attr(tag, "[Aa][Ll][Tt]") or ""
+          local kv = {}
+          local w, h = html_attr(tag, "[Ww][Ii][Dd][Tt][Hh]"), html_attr(tag, "[Hh][Ee][Ii][Gg][Hh][Tt]")
+          -- 纯数字按像素；带单位（%、px、cm 等）原样交给 Pandoc
+          local function size(v) v = v:lower() return v:match("^[%d.]+$") and (v .. "px") or v end
+          if w then table.insert(kv, {"width", size(w)}) end
+          if h then table.insert(kv, {"height", size(h)}) end
+          table.insert(out, pandoc.Image({pandoc.Str(alt)}, src, "", pandoc.Attr("", {}, kv)))
+        end
+      end
+      return out
+    end
+
+    local function handle_raw_inline(el)
+      if el.format ~= "html" or not el.text:lower():match("^<img%s") then return nil end
+      local imgs = html_images(el.text)
+      if #imgs > 0 then return imgs end
+    end
+
     local function handle_raw_block(el)
       if el.format ~= "html" then return nil end
       local lower = el.text:lower()
       if not (lower:match("^%s*</?details[%s/>]") or lower:match("^%s*</?summary[%s/>]")) then
+        local imgs = html_images(el.text)
+        if #imgs > 0 then return pandoc.Para(imgs) end
         return nil
       end
       local out = {}
@@ -209,7 +243,8 @@ enum WordExport {
       end
       rest = trim(strip_tag(strip_tag(rest, "details"), "summary"))
       if rest ~= "" then
-        local doc = pandoc.read(rest, "markdown-yaml_metadata_block-pandoc_title_block")
+        -- 用和整篇相同的写法规则读（高亮、待办、不把 ~ 当下标）
+        local doc = pandoc.read(rest, os.getenv("DROPMD_PANDOC_FROM") or "markdown-yaml_metadata_block-pandoc_title_block")
         for _, b in ipairs(doc.blocks) do
           table.insert(out, b)
         end
@@ -302,7 +337,7 @@ enum WordExport {
     end
 
     return {
-      { RawBlock = handle_raw_block },
+      { RawBlock = handle_raw_block, RawInline = handle_raw_inline },
       { Inlines = handle_inlines, Div = handle_div, Image = handle_image, Table = handle_table },
     }
     """#
@@ -356,6 +391,7 @@ enum WordExport {
         // 工作目录固定为临时目录，避免未保存文档中的相对路径解析到宿主工作目录
         proc.currentDirectoryURL = tempDir
         var env = ProcessInfo.processInfo.environment
+        env["DROPMD_PANDOC_FROM"] = fromFormat
         for c in MDCallout.allCases { env["DROPMD_CALLOUT_\(c.rawValue)"] = c.title }
         env["DROPMD_BLOCKED_IMAGE"] = String(localized: "在线图片未加载（隐私保护）")
         env["DROPMD_COLON"] = String(localized: "：")

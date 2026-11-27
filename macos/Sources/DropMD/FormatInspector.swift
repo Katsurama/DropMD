@@ -9,7 +9,7 @@ enum InspectorPane: String {
 /// 插入类命令在工具栏和菜单“插入”中，这里不重复。
 struct FormatInspector: View {
     let pane: InspectorPane
-    @ObservedObject var editor: EditorController
+    let editor: EditorController   // 不观察：字数等每按一个键都变，这里用不到；目录、摘要各自观察
     @ObservedObject var selection: SelectionModel
 
     var body: some View {
@@ -306,7 +306,8 @@ private struct SummaryInspectorView: View {
         let minTop = 110.0
         let minBottom = 160.0
         let even = (totalHeight - Self.dividerHeight - Self.inputBarHeight) / 2
-        let raw = (proposed ?? (topFraction > 0 ? totalHeight * topFraction : even)).rounded()
+        // 不取整：慢慢拖时每次不到半点，取整后就永远拖不动
+        let raw = proposed ?? (topFraction > 0 ? totalHeight * topFraction : even)
         if totalHeight <= minTop + minBottom {
             return max(40.0, min((totalHeight * 0.45).rounded(), totalHeight - 40.0))
         }

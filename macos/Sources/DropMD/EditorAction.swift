@@ -221,11 +221,12 @@ func toggledPrefixLines(_ lines: [String], prefix: String, numbered: Bool) -> [S
     let any = #"^(\s*)(?:[-*+] \[[ xX]\] |[-*+] |\d+[.)] )?"#
     func has(_ l: String) -> Bool { l.range(of: own, options: .regularExpression) != nil }
     let blank = { (l: String) in l.trimmingCharacters(in: .whitespaces).isEmpty }
-    let content = lines.contains { !blank($0) } ? lines.filter { !blank($0) } : lines
+    let hasContent = lines.contains { !blank($0) }   // 只算一次：几万个空行时逐行重扫会卡
+    let content = hasContent ? lines.filter { !blank($0) } : lines
     let remove = content.allSatisfy(has)
     var n = 0
     return lines.map { l in
-        if blank(l) && lines.contains(where: { !blank($0) }) { return l }
+        if blank(l) && hasContent { return l }
         if remove { return l.replacingOccurrences(of: own, with: "$1", options: .regularExpression) }
         n += 1
         return l.replacingOccurrences(of: any, with: "$1" + NSRegularExpression.escapedTemplate(for: numbered ? "\(n). " : prefix), options: .regularExpression)

@@ -104,7 +104,9 @@ extension EditorController {
     /// 按 A4 纸宽重新排版的离屏文本视图，用于导出 PDF
     private func printableView(of storage: NSTextStorage) -> NSView {
         let width = Self.a4.width - Self.printMargin * 2
+        // 复制编辑区（公式已画好、折叠块按当前展开状态），但图片换成新的：共用的图片对象会被打印排版改掉，编辑区的动图停住
         let copy = NSTextStorage(attributedString: storage)
+        RichBridge.rebuildImages(in: copy, baseURL: fileURL?.deletingLastPathComponent())
         let layout = RichLayoutManager()
         copy.addLayoutManager(layout)
         let container = NSTextContainer(size: NSSize(width: width, height: CGFloat.greatestFiniteMagnitude))
@@ -184,6 +186,7 @@ extension EditorController {
     func exportPDF() {
         flushPendingEdits()
         // 单页、双页都按单页的排版打印（双页的右边就是单页），不管光标在哪边，结果都一样
+        reloadRichIfPending?()   // 双页左边刚改的字先排进单页，导出的才是最新的
         guard let r = richView, let storage = r.textStorage, let window = r.window else { return }
         guard let url = savePanel(ext: "pdf", type: .pdf) else { return }
         let view = printableView(of: storage)   // 确定导出后才复制一份文档，导出完就放掉

@@ -109,6 +109,7 @@ final class MathRenderer: NSObject, WKNavigationDelegate {
 
     /// 系统结束了后台网页（如内存紧张）：复位状态并重新加载，加载完接着画排队的公式
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        generation += 1   // 正在画的那个公式的回调作废：重新加载后已经在画下一个，它再来会打乱队列、截错图
         ready = false
         busy = false
         for (key, callbacks) in waiting where !queue.contains(where: { $0.key == key }) {
@@ -142,30 +143,40 @@ final class MathRenderer: NSObject, WKNavigationDelegate {
     return [r.width, r.height, r.bottom - base];
     """
 
+    private var generation = 0
     private func next() {
         guard ready, !busy, let job = queue.first, let webView else { return }
         busy = true
         queue.removeFirst()
+        let gen = generation
         webView.callAsyncJavaScript(Self.script, arguments: ["latex": job.latex, "display": job.display, "size": job.size],
                                     in: nil, in: .page) { [weak self] result in
             MainActor.assumeIsolated {
-                guard let self else { return }
+                guard let self, gen == self.generation else { return }
                 guard case .success(let value) = result, let a = value as? [Double], a.count == 3, a[0] > 0, a[1] > 0 else {
                     return self.finish(job.key, nil)
                 }
                 let snapW = min(4096.0, ceil(a[0])), snapH = min(4096.0, ceil(a[1]))
-                if snapW > webView.frame.width || snapH > webView.frame.height {
-                    let target = NSSize(width: max(webView.frame.width, snapW), height: max(webView.frame.height, snapH))
-                    self.window?.setContentSize(target)
-                    webView.setFrameSize(target)
-                }
-                let config = WKSnapshotConfiguration()
-                config.rect = NSRect(x: 0, y: 0, width: snapW, height: snapH)
-                webView.takeSnapshot(with: config) { image, _ in
-                    MainActor.assumeIsolated {
-                        let mask = image.flatMap(Self.mask)
-                        self.finish(job.key, mask.map { Result(mask: $0, descent: CGFloat(a[2])) })
+                func snap() {
+                    let config = WKSnapshotConfiguration()
+                    config.rect = NSRect(x: 0, y: 0, width: snapW, height: snapH)
+                    webView.takeSnapshot(with: config) { image, _ in
+                        MainActor.assumeIsolated {
+                            guard gen == self.generation else { return }
+                            let mask = image.flatMap(Self.mask)
+                            self.finish(job.key, mask.map { Result(mask: $0, descent: CGFloat(a[2])) })
+                        }
                     }
+                }
+                guard snapW > webView.frame.width || snapH > webView.frame.height else { return snap() }
+                // 公式比网页大：放大后等一会儿再截图，否则多出来的部分还没画上。
+                // 不用 requestAnimationFrame：屏幕外的窗口不刷新画面，它永远不会回调，后面的公式全卡住
+                let target = NSSize(width: max(webView.frame.width, snapW), height: max(webView.frame.height, snapH))
+                self.window?.setContentSize(target)
+                webView.setFrameSize(target)
+                webView.callAsyncJavaScript("await new Promise(r => setTimeout(r, 60))",
+                                            arguments: [:], in: nil, in: .page) { _ in
+                    MainActor.assumeIsolated { if gen == self.generation { snap() } }
                 }
             }
         }

@@ -20,20 +20,29 @@ enum DocumentTitleSuggester {
         s = s.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // 去掉前导点号避免变成隐藏文件
-        while s.hasPrefix(".") { s.removeFirst() }
-        s = s.trimmingCharacters(in: .whitespacesAndNewlines)
-
         let trailingPunctuation = CharacterSet(charactersIn: "。，、；：！？.,:;!?")
-        s = s.trimmingCharacters(in: trailingPunctuation)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimEdges: (String) -> String = { input in
+            var cur = input
+            // 循环剥离前导点/空白与尾随标点/空白，防止残余点号形成隐藏文件或非法目录名
+            while true {
+                let prev = cur
+                cur = cur.trimmingCharacters(in: .whitespacesAndNewlines)
+                while cur.hasPrefix(".") { cur.removeFirst() }
+                cur = cur.trimmingCharacters(in: .whitespacesAndNewlines)
+                while let last = cur.unicodeScalars.last, trailingPunctuation.contains(last) {
+                    cur.unicodeScalars.removeLast()
+                }
+                cur = cur.trimmingCharacters(in: .whitespacesAndNewlines)
+                if cur == prev { break }
+            }
+            return cur
+        }
+        s = trimEdges(s)
 
         if s.count > maxLength {
-            s = String(s.prefix(maxLength)).trimmingCharacters(in: .whitespacesAndNewlines)
-            s = s.trimmingCharacters(in: trailingPunctuation)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            s = trimEdges(String(s.prefix(maxLength)))
         }
-        return s.isEmpty ? nil : s
+        return (s.isEmpty || s == "." || s == "..") ? nil : s
     }
 
     /// 跨语言通用兜底：一次分析截取片段，返回建议标题与是否含显式标题
@@ -64,9 +73,14 @@ enum DocumentTitleSuggester {
     static func aiTitle(from markdown: String) async -> String? {
         #if canImport(FoundationModels)
         guard SiriAIManager.isLanguageModelAvailable else { return nil }
-        let nonWhitespace = markdown.unicodeScalars.filter { !$0.properties.isWhitespace }.count
-        guard nonWhitespace >= 30 else { return nil }
+        // 仅检查前 2000 字，避免超大文档停顿时扫描并分配整篇标量数组
         let excerpt = String(markdown.prefix(2000))
+        var nonWhitespace = 0
+        for scalar in excerpt.unicodeScalars where !scalar.properties.isWhitespace {
+            nonWhitespace += 1
+            if nonWhitespace >= 30 { break }
+        }
+        guard nonWhitespace >= 30 else { return nil }
         let instructions = """
         Generate a short, natural document filename title in the exact same language as the document text.
         Maximum 15 characters for Chinese/Japanese or 6 words for English.
