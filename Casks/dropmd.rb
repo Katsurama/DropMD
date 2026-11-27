@@ -1,6 +1,6 @@
 cask "dropmd" do
-  version "1.0.0"
-  sha256 "3fc5acdb391a2664abda7e84c4e1643beaa242fd875533a5f4d32c6c43758cec"
+  version "1.1.0"
+  sha256 "49ea38bef3742b0a24160c070316d75a4936af52c71e8b9082f37824ef104d8a"
 
   url "https://github.com/Katsurama/DropMD/releases/download/v#{version}/DropMD-macOS-AppleSilicon.dmg"
   name "DropMD"
