@@ -236,6 +236,8 @@ struct EditorView: View {
         .onDisappear {
             editor.cancelDocumentSummary()
             editor.cancelDocumentQA()
+            editor.cancelDocumentTranslation()
+            editor.cancelMetadataWork()
             editor.closeImagePlayground()
         }
         .onChange(of: document.text) { _, newValue in editor.textChanged(newValue) }
@@ -849,11 +851,11 @@ private struct DocumentTranslationModifier: ViewModifier {
                     }
                     let translated = MarkdownTranslator.applyTranslations(map, to: req.sourceMarkdown)
                     await MainActor.run {
-                        editor.finishDocumentTranslation(translated)
+                        editor.finishDocumentTranslation(translated, id: req.id)
                     }
                 } catch {
                     await MainActor.run {
-                        editor.failDocumentTranslation(error)
+                        editor.failDocumentTranslation(error, id: req.id)
                     }
                 }
             }

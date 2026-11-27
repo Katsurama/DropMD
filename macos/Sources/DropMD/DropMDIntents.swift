@@ -4,15 +4,21 @@ import CoreSpotlight
 import Foundation
 import UniformTypeIdentifiers
 
-enum DropMDIntentError: LocalizedError {
+enum DropMDIntentError: LocalizedError, CustomLocalizedStringResourceConvertible {
     case conversionFailed(String)
+    case documentOpen
 
     var errorDescription: String? {
         switch self {
         case .conversionFailed(let message):
             return message
+        case .documentOpen:
+            return String(localized: "这个文件正在 DropMD 中打开，请先保存并关闭后再追加。")
         }
     }
+
+    /// 快捷指令只显示这里的文字（不看 errorDescription），否则只报“操作无法完成”
+    var localizedStringResource: LocalizedStringResource { LocalizedStringResource(stringLiteral: errorDescription ?? "") }   // 文字已按界面语言取好
 }
 
 /// 在 DropMD 中新建一篇 Markdown 文档（支持传入标题与初始正文）
@@ -65,6 +71,10 @@ struct AppendToMarkdownFileIntent: AppIntent {
     func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
         let addition = text.trimmingCharacters(in: .newlines)
         if let url = file.fileURL, FileManager.default.isWritableFile(atPath: url.path) {
+            // 文件正开着：直接改磁盘，窗口下次保存会用旧内容盖掉追加的文字
+            if NSDocumentController.shared.documents.contains(where: { $0.fileURL?.standardizedFileURL.resolvingSymlinksInPath() == url.standardizedFileURL.resolvingSymlinksInPath() }) {
+                throw DropMDIntentError.documentOpen
+            }
             let rawData = try Data(contentsOf: url)
             var doc = rawData.isEmpty ? MarkdownDocument(text: "") : try MarkdownDocument(data: rawData)
             doc.text = append(addition, to: doc.text)

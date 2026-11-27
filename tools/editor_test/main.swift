@@ -2719,6 +2719,17 @@ do {
         check("文件名不变成隐藏文件", DocumentTitleSuggester.sanitizeFileName(". . .secret") ?? "nil", "secret")
         check("文件名不会只剩点", DocumentTitleSuggester.sanitizeFileName(". . . .") ?? "nil", "nil")
     }
+    // 整篇翻译不送网址文字和 [[双链]]
+    do {
+        let segs = MarkdownTranslator.extractSegments(from: "见 <https://example.com/a> 和 [[项目计划]] 。\n")
+        check("翻译不含自动链接网址和双链", segs.contains { $0.text.contains("https://") || $0.text.contains("[[") } ? "\(segs)" : "ok", "ok")
+        let src = "请看 [[设计文档]] 再开会。\n"
+        let pieces = MarkdownTranslator.extractSegments(from: src)
+        check("双链前后的文字照常翻译", pieces.map(\.text).joined(separator: "|"), "请看|再开会。")
+        var map: [String: String] = [:]
+        for p in pieces { map[p.id] = p.text == "请看" ? "See" : "before the meeting." }
+        check("双链原样保留", MarkdownTranslator.applyTranslations(map, to: src), "See [[设计文档]] before the meeting.\n")
+    }
 print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

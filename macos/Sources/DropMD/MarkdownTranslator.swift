@@ -61,10 +61,29 @@ enum MarkdownTranslator {
 
     private static func visitRuns(_ runs: inout [MDRun], _ visit: (inout String) -> Void) {
         for i in runs.indices {
-            if runs[i].code || runs[i].kbd || runs[i].literal || runs[i].image != nil {
+            // 自动链接（显示的就是网址）和 [[双链]] 不翻译：译了网址文字、链接目标就坏了
+            if runs[i].code || runs[i].kbd || runs[i].literal || runs[i].image != nil
+                || (runs[i].link != nil && runs[i].text == runs[i].link) {
                 continue
             }
-            visit(&runs[i].text)
+            // [[双链]] 原样留着，只翻译它前后的文字
+            let text = runs[i].text
+            guard let wiki = try? NSRegularExpression(pattern: #"\[\[[^\]\n]*\]\]"#),
+                  case let found = wiki.matches(in: text, range: NSRange(text.startIndex..., in: text)), !found.isEmpty else {
+                visit(&runs[i].text)
+                continue
+            }
+            var out = "", cursor = text.startIndex
+            for m in found {
+                guard let r = Range(m.range, in: text) else { continue }
+                var piece = String(text[cursor..<r.lowerBound])
+                if !piece.isEmpty { visit(&piece) }
+                out += piece + text[r]
+                cursor = r.upperBound
+            }
+            var tail = String(text[cursor...])
+            if !tail.isEmpty { visit(&tail) }
+            runs[i].text = out + tail
         }
     }
 

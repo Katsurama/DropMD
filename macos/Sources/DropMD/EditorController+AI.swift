@@ -7,9 +7,18 @@ import ImagePlayground
 extension EditorController {
     // MARK: - 系统智能：全语言命名 / Spotlight / 翻译 / 智能排版 / 图乐园 / 摘要与问答
 
+    /// 关窗口时停掉还没做完的起标题、写索引（模型推理也停）
+    func cancelMetadataWork() {
+        titleWork?.cancel()
+        aiTitleWork?.cancel()
+        aiTitleTask?.cancel()
+        spotlightWork?.cancel()
+    }
+
     func scheduleTitleAndMetadataUpdate(_ text: String) {
         titleWork?.cancel()
         aiTitleWork?.cancel()
+        aiTitleTask?.cancel()   // 又打字了：正在跑的起标题推理作废
 
         if fileURL == nil {
             let capturedVersion = editVersion
@@ -24,9 +33,10 @@ extension EditorController {
                     }
                     if !hasHeading, #available(macOS 26.0, *), SiriAIManager.isLanguageModelAvailable {
                         let work = DispatchWorkItem { [weak self] in
-                            Task { @MainActor [weak self] in
+                            self?.aiTitleTask = Task { @MainActor [weak self] in
                                 guard let self, self.fileURL == nil, self.editVersion == capturedVersion else { return }
-                                guard let generated = await DocumentTitleSuggester.aiTitle(from: self.pendingText) else { return }
+                                guard let generated = await DocumentTitleSuggester.aiTitle(from: self.pendingText),
+                                      !Task.isCancelled else { return }
                                 guard self.fileURL == nil, self.editVersion == capturedVersion,
                                       let window = (self.richView ?? self.textView)?.window,
                                       let doc = NSDocumentController.shared.document(for: window),
@@ -47,11 +57,19 @@ extension EditorController {
         let sw = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                let h = self.headings.isEmpty ? extractHeadings(self.pendingText) : self.headings
-                let window = (self.richView ?? self.textView)?.window
-                SpotlightAndActivity.updateWindowActivity(window: window, url: self.fileURL, text: self.pendingText, headings: h)
-                if let url = self.fileURL {
-                    SpotlightAndActivity.indexDocument(url: url, text: self.pendingText, headings: h)
+                let text = self.pendingText, url = self.fileURL
+                // 目录开着时标题已是最新的；关着时在后台找（长文档在主线程找会卡），不用目录关上前留下的旧标题
+                let known: [DocumentHeading]? = self.outlineVisible ? self.headings : nil
+                Task { @MainActor [weak self] in
+                    let h: [DocumentHeading]
+                    if let known { h = known } else { h = await Task.detached(priority: .utility) { extractHeadings(text) }.value }
+                    guard let self, self.pendingText == text else { return }
+                    let window = (self.richView ?? self.textView)?.window
+                    // 只有当前窗口才更新“正在看的文档”，后台窗口不抢
+                    if window?.isKeyWindow == true {
+                        SpotlightAndActivity.updateWindowActivity(window: window, url: url, text: text, headings: h)
+                    }
+                    if let url { SpotlightAndActivity.indexDocument(url: url, text: text, headings: h) }
                 }
             }
         }
@@ -95,9 +113,20 @@ extension EditorController {
             guard let r = richView, let storage = r.textStorage,
                   NSMaxRange(target.range) <= storage.length,
                   (storage.string as NSString).substring(with: target.range) == translationSourceText else { return }
-            let attrs = target.range.location < storage.length
+            var attrs = target.range.location < storage.length
                 ? storage.attributes(at: target.range.location, effectiveRange: nil)
                 : r.typingAttributes
+            // 只沿用段落和文字样式：选区开头若是公式、图片、链接、HTML，带着它们的标记，整段译文保存时会变成那个公式或被丢掉
+            for key in [NSAttributedString.Key.attachment, .link, DMKey.math, DMKey.image, DMKey.imageID, DMKey.alt,
+                        DMKey.imageWidth, DMKey.imageHeight, DMKey.title, DMKey.link, DMKey.linkTitle, DMKey.htmlInline,
+                        DMKey.htmlInlineID, DMKey.callout, DMKey.literal, DMKey.inlineCode, DMKey.softBreak,
+                        DMKey.htmlRaw, DMKey.htmlBlockID, DMKey.htmlHidden] {
+                attrs[key] = nil
+            }
+            if (target.range.location < storage.length ? storage.attribute(DMKey.link, at: target.range.location, effectiveRange: nil) : nil) != nil {
+                attrs[.underlineStyle] = nil   // 链接的下划线不是文字自己的
+            }
+            if attrs[.foregroundColor] == nil { attrs[.foregroundColor] = r.typingAttributes[.foregroundColor] }   // 公式没有文字颜色
             r.replace(target.range, with: NSAttributedString(string: translated, attributes: attrs),
                       caret: target.range.location + (translated as NSString).length)
             r.refreshTypingAttributes()
@@ -380,7 +409,13 @@ extension EditorController {
             lastSummarizedKey = nil
             return
         }
-        if !force, let last = lastSummarizedKey, last.isSelection == isSelection, last.text == source, !summaryBullets.isEmpty {
+        // 同一内容正在重新生成：接着等，不用旧摘要打断它
+        let regenerating = summaryTask != nil && summaryPendingKey.map { $0.isSelection == isSelection && $0.text == source } == true
+        if !force, !regenerating, let last = lastSummarizedKey, last.isSelection == isSelection, last.text == source, !summaryBullets.isEmpty {
+            // 用现成的摘要：停掉别的内容还在跑的摘要、清掉它的错误，免得被迟到的结果盖掉
+            cancelDocumentSummary()
+            summaryIsSelection = isSelection
+            summaryError = nil
             return
         }
         // 切回摘要页时，同一内容的摘要仍在生成：接着等，不重新开始
@@ -511,7 +546,8 @@ extension EditorController {
     }
 
     func translateDocument(to languageID: String) {
-        guard !isTranslatingDocument, SiriAIManager.isDocumentTranslationAvailable else { return }
+        // 不因“正在翻译”拒绝：取消下载语言包时系统可能不回调，标记会一直留着；新的请求直接替换旧的
+        guard SiriAIManager.isDocumentTranslationAvailable else { return }
         flushPendingEdits()
         let source = currentText
         let segments = MarkdownTranslator.extractSegments(from: source)
@@ -527,7 +563,9 @@ extension EditorController {
         )
     }
 
-    func finishDocumentTranslation(_ translatedMarkdown: String) {
+    /// id：只有当前这次请求的结果才算（被新请求替换、关了窗口的旧请求不再打开新文档、不清掉新请求）
+    func finishDocumentTranslation(_ translatedMarkdown: String, id: UUID) {
+        guard documentTranslationRequest?.id == id else { return }
         isTranslatingDocument = false
         documentTranslationRequest = nil
         PendingDraftStore.store(translatedMarkdown)
@@ -539,7 +577,13 @@ extension EditorController {
         }
     }
 
-    func failDocumentTranslation(_ error: Error) {
+    func cancelDocumentTranslation() {
+        isTranslatingDocument = false
+        documentTranslationRequest = nil
+    }
+
+    func failDocumentTranslation(_ error: Error, id: UUID) {
+        guard documentTranslationRequest?.id == id else { return }
         isTranslatingDocument = false
         documentTranslationRequest = nil
         if error is CancellationError { return }

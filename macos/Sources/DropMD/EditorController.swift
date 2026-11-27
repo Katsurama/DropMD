@@ -176,6 +176,7 @@ final class EditorController: ObservableObject {
     var spotlightWork: DispatchWorkItem?
     var titleWork: DispatchWorkItem?
     var aiTitleWork: DispatchWorkItem?
+    var aiTitleTask: Task<Void, Never>?
     var editVersion: Int = 0
     var isAIFormatting = false
     @Published var summaryBullets: [String] = []
