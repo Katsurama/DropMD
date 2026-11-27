@@ -87,9 +87,11 @@ struct MarkdownTextView: NSViewRepresentable {
         }
         controller.textView = tv
         // 仅当外部修改了文本（单页中的编辑、“恢复到上一版本”）时才整体替换
-        if !context.coordinator.isEditing, tv.string != text {
+        // 自己刚写回的那份（同一个字符串，比较很快）不再和整篇原文逐字比较
+        if !context.coordinator.isEditing, text != context.coordinator.lastPushed, tv.string != text {
             let sel = tv.selectedRange()
             tv.string = text
+            context.coordinator.lastPushed = text
             // 整篇换掉后，左边以前的撤销记录按旧位置改字会把文档改乱（单页重排时也是这样清的）
             if let storage = tv.textStorage { tv.undoManager?.removeAllActions(withTarget: storage) }
             tv.setSelectedRange(NSRange(location: min(sel.location, (text as NSString).length), length: 0))
@@ -112,13 +114,16 @@ struct MarkdownTextView: NSViewRepresentable {
         var parent: MarkdownTextView
         var isEditing = false
         var wasActive = false
+        var lastPushed: String?
 
         init(_ parent: MarkdownTextView) { self.parent = parent }
 
         func textDidChange(_ notification: Notification) {
             guard let tv = notification.object as? NSTextView else { return }
             isEditing = true
-            parent.text = tv.string
+            let text = tv.string
+            lastPushed = text
+            parent.text = text
             isEditing = false
             MainActor.assumeIsolated { parent.controller.scheduleHighlight() }
         }
@@ -152,11 +157,20 @@ struct EditorView: View {
     let fileURL: URL?
 
     @StateObject private var editor = EditorController()
-    @AppStorage("editorMode") private var mode: EditorMode = .rich
-    @AppStorage("showInspector") private var showInspector = false
+    @AppStorage("editorMode") private var storedMode: EditorMode = .rich
+    @AppStorage("showInspector") private var storedShowInspector = false
+    /// 正在看历史版本：这个窗口临时用单页、收起面板，不改存下的设置（别的窗口不跟着变）
+    @State private var inVersionBrowser = false
+    private var mode: EditorMode {
+        get { inVersionBrowser ? .rich : storedMode }
+        nonmutating set { if !inVersionBrowser { storedMode = newValue } }   // 看历史版本时不改存下的设置
+    }
+    private var showInspector: Bool {
+        get { inVersionBrowser ? false : storedShowInspector }
+        nonmutating set { if !inVersionBrowser { storedShowInspector = newValue } }
+    }
     @AppStorage("inspectorPane") private var inspectorPaneRaw = ""
     @AppStorage("inspectorWidth") private var inspectorWidth: Double = 280
-    @State private var stateBeforeVersionBrowser: (mode: EditorMode, showInspector: Bool)?
     /// 双页时左边原文占的比例：每次打开都从正中开始，拖动中间的分隔线调整
     @State private var splitFraction = 0.5
     /// 双页在窗口打开后于后台预先加载，第一次切换也不卡
@@ -216,7 +230,8 @@ struct EditorView: View {
         }
         .task {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
-            sourceLoaded = true
+            // 长文档不预先加载双页的原文（排版加高亮会卡一下），切到双页时再加载
+            if document.text.utf16.count < 300_000 { sourceLoaded = true }
         }
         .onDisappear {
             editor.cancelDocumentSummary()
@@ -238,20 +253,8 @@ struct EditorView: View {
         .hidesToolbarTitle()
         .onReceive(NotificationCenter.default.publisher(for: .showUpdates)) { _ in SettingsPage.open(.updates, openSettings) }
         .background(WindowSizeKeeper { entering in
-            if entering {
-                if stateBeforeVersionBrowser == nil {
-                    stateBeforeVersionBrowser = (mode, showInspector)
-                }
-                showInspector = false
-                if mode != .rich {
-                    editor.flushPendingEdits()
-                    mode = .rich
-                }
-            } else if let saved = stateBeforeVersionBrowser {
-                stateBeforeVersionBrowser = nil
-                showInspector = saved.showInspector
-                mode = saved.mode
-            }
+            if entering, mode != .rich { editor.flushPendingEdits() }
+            inVersionBrowser = entering
         })
         .modifier(EditorAIFeaturesModifier(editor: editor))
     }
@@ -633,17 +636,25 @@ struct WindowSizeKeeper: NSViewRepresentable {
         private var observer: NSObjectProtocol?
         private var versionEnterObserver: NSObjectProtocol?
         private var versionExitObserver: NSObjectProtocol?
+        private weak var observedWindow: NSWindow?
+        private var sizeApplied = false   // 只在第一次放进窗口时改大小，合并标签页后不再改
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            guard let window else { return }
+            guard let window else { return removeObservers() }
             if NSDocumentController.shared.document(for: window)?.isInViewingMode == true {
                 DispatchQueue.main.async { [weak self] in self?.onVersionBrowserChange?(true) }
             }
             DispatchQueue.main.async { WindowSizeKeeper.applyToolbarToolTips(to: window) }
-            guard observer == nil else { return }
+            // 标签页合并、拖出成新窗口后要改看新窗口
+            guard window !== observedWindow else { return }
+            removeObservers()
+            observedWindow = window
             // 等系统恢复完窗口位置再改大小；全屏的窗口不动
-            DispatchQueue.main.async { if !window.styleMask.contains(.fullScreen) { WindowSizeKeeper.apply(to: window) } }
+            if !sizeApplied {
+                sizeApplied = true
+                DispatchQueue.main.async { if !window.styleMask.contains(.fullScreen) { WindowSizeKeeper.apply(to: window) } }
+            }
             observer = NotificationCenter.default.addObserver(forName: NSWindow.didEndLiveResizeNotification, object: window, queue: .main) { note in
                 guard let w = note.object as? NSWindow else { return }
                 UserDefaults.standard.set(NSStringFromSize(w.frame.size), forKey: WindowSizeKeeper.key)
@@ -656,10 +667,16 @@ struct WindowSizeKeeper: NSViewRepresentable {
             }
         }
 
+        private func removeObservers() {
+            for o in [observer, versionEnterObserver, versionExitObserver].compactMap({ $0 }) { NotificationCenter.default.removeObserver(o) }
+            observer = nil
+            versionEnterObserver = nil
+            versionExitObserver = nil
+            observedWindow = nil
+        }
+
         deinit {
-            if let observer { NotificationCenter.default.removeObserver(observer) }
-            if let versionEnterObserver { NotificationCenter.default.removeObserver(versionEnterObserver) }
-            if let versionExitObserver { NotificationCenter.default.removeObserver(versionExitObserver) }
+            for o in [observer, versionEnterObserver, versionExitObserver].compactMap({ $0 }) { NotificationCenter.default.removeObserver(o) }
         }
     }
 

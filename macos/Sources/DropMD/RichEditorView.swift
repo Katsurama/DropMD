@@ -88,11 +88,11 @@ struct RichTextEditor: NSViewRepresentable {
         }
         // 在线图片下载完成或“显示在线图片”开关改变：重新排版（连续多张只排一次）
         context.coordinator.remoteImageObserver = NotificationCenter.default.addObserver(
-            forName: RemoteImages.changed, object: nil, queue: .main) { [weak coordinator = context.coordinator, weak tv] _ in
+            forName: RemoteImages.changed, object: nil, queue: .main) { [weak tv] _ in
             MainActor.assumeIsolated {
-                // 已经编辑过就不重排：重排会清掉撤销记录。图片在下次载入（重新打开、切换显示）时出现
-                guard let coordinator, let tv, tv.undoManager?.canUndo != true else { return }
-                coordinator.scheduleReload(tv, force: true)
+                // 只换图片，不整篇重排：重排会清掉撤销记录
+                guard let tv, let storage = tv.textStorage else { return }
+                RichBridge.refreshRemoteImages(in: storage, baseURL: tv.baseURL)
             }
         }
         return scroll
@@ -375,7 +375,24 @@ extension RichTextEditor.Coordinator: NSEditor {
         flush()
     }
 
-    func discardEditing() {}
+    /// 复原到已存版本等：放弃还没写回的修改，否则停顿到点后又把它们写回去，盖掉复原的内容
+    func discardEditing() {
+        work?.cancel()
+        work = nil
+        document?.objectDidEndEditing(self)
+        document = nil
+        let tv = pendingView as? RichTextView
+        pendingView = nil
+        lastMarkdown = nil
+        MainActor.assumeIsolated {
+            parent.controller.richTextEdited = false
+            // 屏幕上马上换回文档里的内容：文档没变时界面不会再来刷新
+            if let tv {
+                forceReload = true
+                reload(tv)
+            }
+        }
+    }
 
     func commitEditing(withDelegate delegate: Any?, didCommit didCommitSelector: Selector?, contextInfo: UnsafeMutableRawPointer?) {
         flush()

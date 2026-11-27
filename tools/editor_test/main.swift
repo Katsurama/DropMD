@@ -2672,6 +2672,17 @@ do {
             check("HTML 块复制贴在原块后面：两份都保存", "\(md(tv).components(separatedBy: "<p>First</p>").count - 1)", "2")
         }
     }
+    // 在线图片下载好或开关改变：只换图片，文字和撤销记录都不动
+    do {
+        let tv = makeView("![a](https://example.com/a.png) 尾\n")
+        let host = UndoHost(); tv.delegate = host
+        tv.setSelectedRange(NSRange(location: (tv.string as NSString).length - 1, length: 0))
+        step(host) { tv.insertText("巴", replacementRange: tv.selectedRange()) }
+        let before = tv.string
+        RichBridge.refreshRemoteImages(in: tv.textStorage!, baseURL: nil)
+        check("在线图片就地刷新不改文字", tv.string == before && md(tv) == "![a](https://example.com/a.png) 尾巴\n" ? "ok" : md(tv), "ok")
+        check("在线图片就地刷新保留撤销", host.um.canUndo ? "ok" : "lost", "ok")
+    }
 print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }

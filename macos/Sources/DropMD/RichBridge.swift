@@ -413,6 +413,30 @@ enum RichBridge {
 
     static let maxImageWidth: CGFloat = 560
 
+    /// 在线图片下载好或开关改变：只换图片本身（占位框 ⇄ 图片），文字、撤销记录都不动
+    static func refreshRemoteImages(in storage: NSTextStorage, baseURL: URL?) {
+        let ns = storage.string as NSString
+        var jobs: [(Int, NSAttributedString)] = []
+        // 逐个字符看：相邻两张同一地址的图片各有自己的大小和说明，不能当成一张
+        storage.enumerateAttribute(DMKey.image, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+            guard let path = value as? String, RemoteImages.isRemote(path) else { return }
+            for i in range.location..<NSMaxRange(range) where ns.character(at: i) == 0xFFFC {
+                var a = storage.attributes(at: i, effectiveRange: nil)
+                let fresh = imageString(path: path, alt: a[DMKey.alt] as? String ?? "", title: a[DMKey.title] as? String,
+                                        link: a[DMKey.link] as? String, linkTitle: a[DMKey.linkTitle] as? String,
+                                        htmlWidth: a[DMKey.imageWidth] as? String, htmlHeight: a[DMKey.imageHeight] as? String, baseURL: baseURL)
+                guard let attachment = fresh.attribute(.attachment, at: 0, effectiveRange: nil) else { continue }
+                a[.attachment] = attachment
+                jobs.append((i, NSAttributedString(string: "\u{FFFC}", attributes: a)))
+            }
+        }
+        guard !jobs.isEmpty else { return }
+        // 按“改了字”通知排版（长度不变，撤销记录的位置仍然对）：表格里图片变高时整行一起重排
+        storage.beginEditing()
+        for (i, s) in jobs { storage.replaceCharacters(in: NSRange(location: i, length: 1), with: s) }
+        storage.endEditing()
+    }
+
     static func imageString(path: String, alt: String, title: String? = nil, link: String? = nil, linkTitle: String? = nil,
                             htmlWidth: String? = nil, htmlHeight: String? = nil, baseURL: URL?) -> NSAttributedString {
         var image: NSImage?

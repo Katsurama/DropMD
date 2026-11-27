@@ -180,7 +180,10 @@ struct ContentView: View {
             .contextMenu(forSelectionType: FileItem.ID.self) { ids in
                 Button("用编辑器打开") { model.openInEditor(ids) }
                 Button("在访达中显示") { model.reveal(ids) }
-                Button("从列表中移除") { model.remove(ids) }
+                Button("从列表中移除") {
+                    selection.subtract(ids)
+                    model.remove(ids)
+                }
                     .disabled(model.running)
             } primaryAction: { ids in
                 model.openInEditor(ids)

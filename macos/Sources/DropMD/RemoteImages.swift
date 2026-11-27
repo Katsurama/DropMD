@@ -40,8 +40,8 @@ enum RemoteImages {
     static func settingChanged() {
         lock.lock()
         attempted.removeAll()
-        lock.unlock()
         if !enabled { cache.removeAllObjects() }
+        lock.unlock()
     }
 
     static func url(for path: String) -> URL? {
@@ -52,34 +52,40 @@ enum RemoteImages {
 
     private static func fetch(_ path: String, _ url: URL) async {
         guard let (image, bytes) = await download(url) else { return }
-        cache.setObject(image, forKey: path as NSString, cost: bytes)
+        // 下载期间关掉了开关：丢掉，不显示（和关开关清缓存用同一把锁，不会清完又放回去）
+        let keep = lock.withLock {
+            if enabled { cache.setObject(image, forKey: path as NSString, cost: bytes) }
+            return enabled
+        }
+        guard keep else { return }
         await MainActor.run { NotificationCenter.default.post(name: changed, object: nil) }
     }
 
     /// 超过大小上限、超时或不是图片就放弃，返回 nil
     static func download(_ url: URL) async -> (NSImage, Int)? {
         do {
-            let (data, response) = try await session.data(for: URLRequest(url: url, timeoutInterval: timeout))
+            // 边下边数：声明的大小不可信（可能没有或是假的），超过上限马上停
+            let (bytes, response) = try await session.bytes(for: URLRequest(url: url, timeoutInterval: timeout))
             guard (response as? HTTPURLResponse).map({ 200..<300 ~= $0.statusCode }) ?? false,
-                  data.count <= maxBytes,
-                  let image = NSImage(data: data), image.size.width > 0, image.size.height > 0 else { return nil }
+                  response.expectedContentLength <= Int64(maxBytes) else { return nil }
+            var data = Data()
+            for try await byte in bytes {
+                data.append(byte)
+                if data.count > maxBytes { return nil }
+            }
+            guard let image = NSImage(data: data), image.size.width > 0, image.size.height > 0 else { return nil }
             return (image, data.count)
         } catch {
             return nil
         }
     }
 
-    /// 只跟随到 http / https 的重定向；声明的大小超过上限时不下载
-    private final class RedirectGuard: NSObject, URLSessionDataDelegate {
+    /// 只跟随到 http / https 的重定向
+    private final class RedirectGuard: NSObject, URLSessionTaskDelegate {
         func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                         newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
             let scheme = request.url?.scheme?.lowercased()
             completionHandler(scheme == "http" || scheme == "https" ? request : nil)
-        }
-
-        func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
-                        completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-            completionHandler(response.expectedContentLength > Int64(RemoteImages.maxBytes) ? .cancel : .allow)
         }
     }
 }
