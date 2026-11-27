@@ -231,11 +231,19 @@ struct RichTextEditor: NSViewRepresentable {
                 doc.objectDidBeginEditing(self)
             }
             // 停顿片刻再转换为 Markdown，连续输入时不卡顿（自动保存会在之后写入）
-            work?.cancel()
-            let item = DispatchWorkItem { [weak self] in self?.flush() }
-            work = item
             // 文档越大转换越久：等待时间跟着上次的耗时变长，长文档里不会每次停顿都卡一下（保存、关窗前仍立刻写回）
-            DispatchQueue.main.asyncAfter(deadline: .now() + max(0.25, min(3, lastFlushSeconds * 8)), execute: item)
+            scheduleFlush(after: max(0.25, min(3, lastFlushSeconds * 8)))
+        }
+
+        /// 停顿后写回；输入法还有没确认的拼音时再等等（按 Esc 取消拼音不会通知改了字，先写回就会把拼音存进文件）
+        private func scheduleFlush(after delay: Double) {
+            work?.cancel()
+            let item = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                if let tv = self.pendingView, tv.hasMarkedText() { self.scheduleFlush(after: 0.25) } else { self.flush() }
+            }
+            work = item
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
         }
 
         func textDidEndEditing(_ notification: Notification) {

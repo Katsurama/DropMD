@@ -59,11 +59,18 @@ final class EditorController: ObservableObject {
         let exists = FileManager.default.fileExists(atPath: url.path)
         // 系统保存时用新文件替换了旧文件，旧文件的监视随之失效：换成监视新文件
         if exists { return watchDeletion() }
-        guard let doc = NSDocumentController.shared.document(for: url), let type = doc.fileType,
-              FileDeletionWatch.shouldWriteBack(fileExists: exists, edited: doc.isDocumentEdited,
-                                                text: pendingText, diskText: diskText) else { return }
-        doc.save(to: url, ofType: type, for: .saveOperation) { [weak self] _ in
-            MainActor.assumeIsolated { self?.watchDeletion() }
+        // 单页里刚打、还没写回的字先交给文档；文档要到下一轮才拿到新内容，所以下一轮再存
+        flushPendingEdits()
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.fileURL == url, !FileManager.default.fileExists(atPath: url.path),
+                      let doc = NSDocumentController.shared.document(for: url), let type = doc.fileType,
+                      FileDeletionWatch.shouldWriteBack(fileExists: false, edited: doc.isDocumentEdited,
+                                                        text: self.currentText, diskText: self.diskText) else { return }
+                doc.save(to: url, ofType: type, for: .saveOperation) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.watchDeletion() }
+                }
+            }
         }
     }
 
@@ -115,6 +122,8 @@ final class EditorController: ObservableObject {
             richView?.sourceCaretLocation = nil
             lastCursorLine = -1
             lastSyncedRichLine = -1
+            // 双页左边刚打的字还在等着排到右边：先排好，免得马上用工具栏时改的是旧内容
+            if isRichMode { reloadRichIfPending?() }
             updateSelectionState()
         }
     }

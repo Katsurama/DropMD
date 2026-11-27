@@ -329,8 +329,8 @@ extension MarkdownCodec {
             if heading { r.bold = false }
             return r
         }
-        let back = merged(MarkdownCodec.parseInline(light).map(plain))
-        let want = merged(runs.map(plain))
+        let back = merged(MarkdownCodec.parseInline(light).map(plain), mergeLiterals: true)
+        let want = merged(runs.map(plain), mergeLiterals: true)
         return back == want ? light : render(runs, heading: heading, inCell: inCell, minimal: false)
     }
 
@@ -419,15 +419,16 @@ extension MarkdownCodec {
             .replacingOccurrences(of: #" +\n"#, with: "\n", options: .regularExpression)   // 换行前的空格会变成强制换行
     }
 
-    /// 合并样式完全相同的相邻文字
-    private static func merged(_ runs: [MDRun]) -> [MDRun] {
+    /// 合并样式完全相同的相邻文字；比对时也合并相邻且链接相同的原样片段
+    private static func merged(_ runs: [MDRun], mergeLiterals: Bool = false) -> [MDRun] {
         var out: [MDRun] = []
         for r in runs where !r.text.isEmpty || r.image != nil {
             // 行内代码不写其他样式，相邻两段代码要合成一段，否则写成 `a``b` 重开就变了
-            if var last = out.last, last.image == nil, r.image == nil, !last.literal, !r.literal,
-               last.code == r.code, last.code || (last.bold == r.bold && last.italic == r.italic &&
+            if var last = out.last, last.image == nil, r.image == nil,
+               last.literal == r.literal,
+               (mergeLiterals && last.literal) || (!last.literal && last.code == r.code && (last.code || (last.bold == r.bold && last.italic == r.italic &&
                last.underline == r.underline && last.strike == r.strike && last.highlight == r.highlight &&
-               last.sup == r.sup && last.sub == r.sub && last.kbd == r.kbd),
+               last.sup == r.sup && last.sub == r.sub && last.kbd == r.kbd))),
                last.link == r.link, last.title == r.title {
                 last.text += r.text
                 out[out.count - 1] = last

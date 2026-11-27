@@ -254,7 +254,7 @@ enum RichBridge {
                 i += 1
                 continue
             }
-            if r.literal, let c = MDCallout(header: r.text) {
+            if r.literal, kind == .quote, runs.count == 1, let c = MDCallout(header: r.text) {
                 // 提示框标题行显示为中文标题，保存时写回原文
                 var a = RichStyle.attributes(for: r, kind: kind)
                 a[DMKey.callout] = r.text.trimmingCharacters(in: .whitespaces)
@@ -266,9 +266,14 @@ enum RichBridge {
             if r.literal, !kind.isMonospaced, let anchor = RichHTML.parseAnchorOpenTag(r.text),
                let close = ((i + 1)..<runs.count).first(where: { runs[$0].literal && RichHTML.isAnchorCloseTag(runs[$0].text) }) {
                 let inner = Array(runs[(i + 1)..<close])
-                // 若内部仅含单张/多张 <img> 或普通文字（不含复杂未知块标签），直接渲染为带链接富文本并整段记住原文
+                // 仅当内部全是单行纯文字或 <img> 标签时渲染为带链接富文本，其余回退原样标签
                 let canRenderInner = inner.allSatisfy { sub in
-                    sub.image != nil || !sub.literal || RichHTML.renderImageTag(sub.text, baseURL: baseURL) != nil
+                    if sub.literal {
+                        return RichHTML.renderImageTag(sub.text, baseURL: baseURL) != nil
+                    }
+                    return sub.image == nil && !sub.bold && !sub.italic && !sub.underline && !sub.strike
+                        && !sub.highlight && !sub.sup && !sub.sub && !sub.kbd && !sub.code
+                        && sub.link == nil && !sub.text.contains("\n")
                 }
                 if !inner.isEmpty, canRenderInner {
                     let rawJoined = runs[i...close].map(\.text).joined()
@@ -276,8 +281,6 @@ enum RichBridge {
                     for sub in inner {
                         if sub.literal, let img = RichHTML.renderImageTag(sub.text, link: anchor.href, linkTitle: anchor.title, baseURL: baseURL) {
                             rendered.append(img)
-                        } else if let src = sub.image {
-                            rendered.append(imageString(path: src, alt: sub.text, title: sub.title, link: anchor.href, linkTitle: anchor.title, baseURL: baseURL))
                         } else {
                             var linked = sub
                             linked.link = anchor.href
@@ -308,7 +311,7 @@ enum RichBridge {
             }
             // 普通文字中的 &nbsp;：在单页中显示为不换行空格，保存时无损还原为 &nbsp;
             let a = RichStyle.attributes(for: r, kind: kind)
-            if !r.code, !r.literal, !kind.isMonospaced, r.text.contains("&nbsp;") {
+            if !r.code, !r.literal, !kind.isMonospaced, kind != .summary, r.text.contains("&nbsp;") {
                 var soft = a
                 soft[DMKey.softBreak] = true
                 for (k, part) in r.text.components(separatedBy: "\n").enumerated() {
@@ -483,7 +486,17 @@ enum RichBridge {
             return s
         }
         let attachment = NSTextAttachment()
-        let (size, widthFraction) = fittedImageSize(natural: loaded.size, htmlWidth: htmlWidth, htmlHeight: htmlHeight)
+        // 按最大位图表示的像素尺寸计算，无位图表示时退回 loaded.size
+        let natural: NSSize
+        if let rep = loaded.representations
+            .compactMap({ $0 as? NSBitmapImageRep })
+            .filter({ $0.pixelsWide > 0 && $0.pixelsHigh > 0 })
+            .max(by: { Double($0.pixelsWide) * Double($0.pixelsHigh) < Double($1.pixelsWide) * Double($1.pixelsHigh) }) {
+            natural = NSSize(width: rep.pixelsWide, height: rep.pixelsHigh)
+        } else {
+            natural = loaded.size
+        }
+        let (size, widthFraction) = fittedImageSize(natural: natural, htmlWidth: htmlWidth, htmlHeight: htmlHeight)
         let cell = ImageAttachmentCell(image: loaded, size: size, widthFraction: widthFraction)
         attachment.attachmentCell = cell
         let s = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
@@ -672,6 +685,7 @@ enum RichBridge {
             let item = classify(storage, ns, content: content, attrs: attrs, seen: &seen)
             // 提示框的标题要单独一行才算提示框：这一行里打的别的字另起一行，放进提示框的内容里
             if case .line(let l) = item, l.kind == .quote, l.runs.count > 1,
+               hasCallout(storage, content),
                let h = l.runs.firstIndex(where: { $0.literal && MDCallout(header: $0.text) != nil }) {
                 var rest = l.runs
                 let header = rest.remove(at: h)
@@ -704,6 +718,18 @@ enum RichBridge {
             items.removeLast()
         }
         return group(items)
+    }
+
+    /// 段落内是否带有无标题提示框标记
+    private static func hasCallout(_ storage: NSAttributedString, _ content: NSRange) -> Bool {
+        var found = false
+        storage.enumerateAttribute(DMKey.callout, in: content, options: []) { value, _, stop in
+            if value != nil {
+                found = true
+                stop.pointee = true
+            }
+        }
+        return found
     }
 
     /// 段落里的分隔线或公式块（占一个字符）

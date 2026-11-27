@@ -227,6 +227,8 @@ enum RichHTML {
             if m.range.location > cursor {
                 let between = ns.substring(with: NSRange(location: cursor, length: m.range.location - cursor))
                 if !between.isEmpty {
+                    // 若匹配间含有非空白字符（如未匹配的多图 <a> 标签），回退整块原样处理
+                    guard between.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
                     out.append(NSAttributedString(string: between, attributes: RichStyle.attributes(for: MDRun(), kind: .body)))
                 }
             }
@@ -260,6 +262,8 @@ enum RichHTML {
         if cursor < ns.length {
             let tail = ns.substring(from: cursor)
             if !tail.isEmpty {
+                // 尾部残留非空白字符时同样回退整块原样处理
+                guard tail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
                 out.append(NSAttributedString(string: tail, attributes: RichStyle.attributes(for: MDRun(), kind: .body)))
             }
         }

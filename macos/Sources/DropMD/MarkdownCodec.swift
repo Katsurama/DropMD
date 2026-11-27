@@ -287,10 +287,13 @@ enum MarkdownCodec {
                 continue
             }
             if indents.isEmpty, groups(listPattern, line) != nil, let end = complexListEnd(lines, i) {
-                // 只是列表项里带代码块：拆成列表项和代码块，单页里可以编辑
-                if let parts = listWithCode(Array(lines[i..<end])) {
-                    blocks += parts
+                // 只是列表项里带代码块：拆成列表项和代码块，单页里可以编辑，并保留每块的原文范围
+                if let parts = listWithCode(Array(lines[i..<end]), lineOffset: i, blockOffset: blocks.count) {
+                    blocks += parts.blocks
+                    sources += parts.groups
                     i = end
+                    firstBlock = blocks.count
+                    firstLine = i
                     continue
                 }
                 // 列表项里有续段、引用等单页表示不了的内容：整个列表原样保存
@@ -503,9 +506,20 @@ enum MarkdownCodec {
     private static func complexListEnd(_ lines: [String], _ start: Int) -> Int? {
         var j = start
         var complex = false
+        var fence: Fence?
+        var afterFence = false
         while j < lines.count {
             let l = lines[j]
+            if let f = fence {
+                if isFenceClosing(l, f) {
+                    fence = nil
+                    afterFence = true
+                }
+                j += 1
+                continue
+            }
             if isBlank(l) {
+                afterFence = false
                 var k = j + 1
                 while k < lines.count && isBlank(lines[k]) { k += 1 }
                 guard k < lines.count else { break }
@@ -517,30 +531,52 @@ enum MarkdownCodec {
                 continue
             }
             if groups(listPattern, l) == nil {
-                if leadingWidth(l) == 0 && startsBlock(l) { break }
+                let w = leadingWidth(l)
+                // 缩进代码块刚结束且下一行无缩进时结束列表
+                if w == 0 && (afterFence || startsBlock(l)) { break }
+                if w > 0, let f = fenceOpening(dropIndent(l, w)) {
+                    fence = f
+                    complex = true
+                    afterFence = false
+                    j += 1
+                    continue
+                }
                 if startsBlock(l.trimmingCharacters(in: .whitespaces)) { complex = true }
             }
+            afterFence = false
             j += 1
         }
         return complex ? j : nil
     }
 
-    /// 列表项里只有代码块时（AI 常写“1. 安装：”下面跟代码）拆成列表项和代码块；还有续段等其他内容时返回 nil
-    private static func listWithCode(_ lines: [String]) -> [MDBlock]? {
+    /// 列表项里只有代码块时（AI 常写“1. 安装：”下面跟代码）拆成列表项和代码块，并保留各自的原文分组；还有续段等其他内容时返回 nil
+    private static func listWithCode(_ lines: [String], lineOffset: Int, blockOffset: Int) -> (blocks: [MDBlock], groups: [SourceGroup])? {
         var out: [MDBlock] = []
-        var chunk: [String] = []   // 连续的列表行，交给 parse
+        var outGroups: [SourceGroup] = []
+        var chunkStart: Int?       // 当前连续列表片段在 lines 中的起点
+        var chunkEnd = 0
         var contentCol = 0         // 上一个列表项文字开始的列
         var lastChunk: [String] = []   // 代码块前的列表行：代码块后的嵌套项要连着它解析，层级才对
         func flush() -> Bool {
-            guard !chunk.isEmpty else { return true }
-            let context = !out.isEmpty && leadingWidth(chunk[0]) > 0 ? lastChunk : []
+            guard let start = chunkStart else { return true }
+            let slice = Array(lines[start..<chunkEnd])
+            let context = !out.isEmpty && leadingWidth(slice[0]) > 0 ? lastChunk : []
             // 这几行自己还是“复杂列表”（列表项下面缩进写了引用、标题、HTML 等）：交给 parse 会回到这里，没完没了直到崩溃。整块原样保存
-            guard complexListEnd(context + chunk, 0) == nil else { return false }
-            let parsed = Array(parse((context + chunk).joined(separator: "\n")).dropFirst(context.isEmpty ? 0 : parse(context.joined(separator: "\n")).count))
-            lastChunk = context + chunk
-            chunk = []
-            guard !parsed.isEmpty, parsed.allSatisfy({ if case .line(let l) = $0 { return l.kind.listDepth != nil } else { return false } }) else { return false }
-            out += parsed
+            guard complexListEnd(context + slice, 0) == nil else { return false }
+            let contextBlocks = context.isEmpty ? 0 : parse(context.joined(separator: "\n")).count
+            let parsed = parseWithSource((context + slice).joined(separator: "\n"))
+            let newBlocks = Array(parsed.blocks.dropFirst(contextBlocks))
+            lastChunk = context + slice
+            chunkStart = nil
+            guard !newBlocks.isEmpty, newBlocks.allSatisfy({ if case .line(let l) = $0 { return l.kind.listDepth != nil } else { return false } }) else { return false }
+            let baseBlock = blockOffset + out.count - contextBlocks
+            let baseLine = lineOffset + start - context.count
+            for g in parsed.groups where g.blocks.lowerBound >= contextBlocks {
+                outGroups.append(SourceGroup(
+                    blocks: (g.blocks.lowerBound + baseBlock)..<(g.blocks.upperBound + baseBlock),
+                    lines: (g.lines.lowerBound + baseLine)..<(g.lines.upperBound + baseLine)))
+            }
+            out += newBlocks
             return true
         }
         var j = 0
@@ -551,13 +587,15 @@ enum MarkdownCodec {
             if let m = groups(listPattern, l) {
                 let gap = l.dropFirst(m[1].count + m[2].count).prefix(while: { $0 == " " }).count
                 contentCol = indentWidth(m[1]) + m[2].count + min(max(gap, 1), 4)
-                chunk.append(l)
+                if chunkStart == nil { chunkStart = j }
+                chunkEnd = j + 1
                 j += 1
                 continue
             }
-            if let fence = fenceOpening(dropIndent(l, w)), w >= contentCol, !(chunk.isEmpty && out.isEmpty) {
+            if let fence = fenceOpening(dropIndent(l, w)), w >= contentCol, !(chunkStart == nil && out.isEmpty) {
                 guard flush() else { return nil }
                 let gap = isBlank(lines[j - 1])
+                let fenceStart = j
                 var body: [String] = []
                 j += 1
                 while j < lines.count, !isFenceClosing(dropIndent(lines[j], w), fence) {
@@ -566,22 +604,33 @@ enum MarkdownCodec {
                 }
                 guard j < lines.count else { return nil }   // 没有结尾的 ```
                 j += 1
+                let b = blockOffset + out.count
                 out.append(.code(lang: fence.lang, lines: body, listGap: gap))
+                outGroups.append(SourceGroup(blocks: b..<(b + 1), lines: (lineOffset + fenceStart)..<(lineOffset + j)))
                 continue
             }
             // 紧跟在列表行后的续行
-            if !chunk.isEmpty, !isBlank(lines[j - 1]) {
-                chunk.append(l)
+            if chunkStart != nil, !isBlank(lines[j - 1]) {
+                chunkEnd = j + 1
                 j += 1
                 continue
             }
             // 代码块后面紧跟不缩进的正文：列表到这里结束（代码块后面不能续行）
-            if chunk.isEmpty, !out.isEmpty, w == 0 {
-                return out + parse(lines[j...].joined(separator: "\n"))
+            if chunkStart == nil, !out.isEmpty, w == 0 {
+                let rest = parseWithSource(lines[j...].joined(separator: "\n"))
+                let baseBlock = blockOffset + out.count
+                let baseLine = lineOffset + j
+                out += rest.blocks
+                for g in rest.groups {
+                    outGroups.append(SourceGroup(
+                        blocks: (g.blocks.lowerBound + baseBlock)..<(g.blocks.upperBound + baseBlock),
+                        lines: (g.lines.lowerBound + baseLine)..<(g.lines.upperBound + baseLine)))
+                }
+                return (out, outGroups)
             }
             return nil
         }
-        return flush() ? out : nil
+        return flush() ? (out, outGroups) : nil
     }
 
     private static let detailsTokenPattern = re(
@@ -675,6 +724,7 @@ enum MarkdownCodec {
                 String(inner[r]).replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression),
                 nbspAsSpace: true
             ).trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: #"[ \t]*[\r\n]+[ \t\r\n]*"#, with: " ", options: .regularExpression)   // 折叠摘要内部换行与空白
             inner.removeSubrange(r)
         }
         return .details(summary: summary, body: parse(inner), open: open)

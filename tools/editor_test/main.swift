@@ -2743,6 +2743,83 @@ do {
         let cell = (s.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)?.attachmentCell
         check("大图不再固定压到 560", "\(Int(cell?.cellSize().width ?? 0))", "900")
     }
+    // 单页往返：没改的块保持原文（<a> 包内容、带标题提示框、多图链接、相邻脚注、多行摘要、带代码块的列表、按像素显示图片）
+    do {
+        @MainActor func checkRoundTrip(_ name: String, _ src: String) {
+            let tv = makeView(src)
+            check(name, MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src), src)
+            let full = "Edit me\n\n" + src
+            let tvEdit = makeView(full)
+            tvEdit.setSelectedRange(NSRange(location: 7, length: 0))
+            type(tvEdit, "x")
+            check(name + " (edit)", MarkdownCodec.serialize(RichBridge.blocks(from: tvEdit.textStorage!), preserving: full), "Edit mex\n\n" + src)
+        }
+
+        checkRoundTrip("A1 <a><img> markdown", "<a href=\"https://example.com\">![logo](a.png)</a>\n")
+        checkRoundTrip("A1 <a><b>", "<a href=\"https://example.com\"><b>DropMD</b></a>\n")
+        checkRoundTrip("A1 <a> multiline", "<a href=\"https://example.com\">line 1\nline 2</a> tail\n")
+        checkRoundTrip("A2 titled callout", "> [!TIP] Custom Title\n> Body line\n")
+        checkRoundTrip("A3 multi-img <a>", "<img src=\"a.png\"><a href=\"https://example.com\"><img src=\"b.png\"><img src=\"c.png\"></a>\n")
+        checkRoundTrip("A5 summary nbsp", "<details>\n<summary>Use &amp;nbsp; here</summary>\n\nBody\n\n</details>\n")
+
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("DropMDA4-\(UUID().uuidString)", isDirectory: true)
+        try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 600, pixelsHigh: 200, bitsPerSample: 8, samplesPerPixel: 4,
+                                   hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        rep.size = NSSize(width: 300, height: 100)
+        try! rep.representation(using: .png, properties: [:])!.write(to: dir.appendingPathComponent("retina.png"))
+        let s = RichBridge.attributed(markdown: "![a](retina.png)\n", baseURL: dir)
+        let cell = (s.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)?.attachmentCell
+        check("A4 144DPI PNG pixel width", "\(Int(cell?.cellSize().width ?? 0))", "600")
+    }
+    do {
+        @MainActor func rt(_ name: String, _ src: String) {
+            let tv = makeView(src)
+            check(name, MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src), src)
+        }
+        @MainActor func editFirst(_ name: String, _ tail: String) {
+            let src = "Edit me\n\n" + tail
+            let tv = makeView(src)
+            tv.setSelectedRange(NSRange(location: 7, length: 0))
+            type(tv, "x")
+            check(name, MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src), "Edit mex\n\n" + tail)
+        }
+
+        let b1a = "See ~/a/*.md[^1][^2]\n\n[^1]: a\n[^2]: b\n"
+        rt("B1a 脚注相邻不转义", b1a)
+        editFirst("B1a 改首段不波及脚注", b1a)
+
+        let b1b = "See ~/a/*.md <!-- note\ncontinued -->\n"
+        rt("B1b 跨行注释不转义", b1b)
+        editFirst("B1b 改首段不波及注释", b1b)
+
+        rt("B1c 相邻行内标签不转义", "See ~/a/*.md <span><small>x</small></span>\n")
+
+        let b2 = "<details class=\"note\">\n<summary>\n<b>Click to expand</b>\nDetails\n</summary>\n\nSome _italic_ text.\n\n</details>\n"
+        rt("B2 多行 summary 往返不变", b2)
+        editFirst("B2 改首段不波及多行 summary", b2)
+
+        do {
+            let src = "1. Install with _pip_:\n\n   ~~~bash\n   pip install foo\n   ~~~\n\n2. Check __status__\n\n3. Configure settings\n\n4. Edit this line\n"
+            let tv = makeView(src)
+            let caret = (tv.string as NSString).range(of: "Edit this line").location + 14
+            tv.setSelectedRange(NSRange(location: caret, length: 0))
+            type(tv, "x")
+            check("B3a 带代码块列表仅改一项", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src),
+                  src.replacingOccurrences(of: "Edit this line", with: "Edit this linex"))
+        }
+
+        do {
+            let src = "1. Install with _pip_:\n   ~~~bash\n   pip install foo\n   ~~~\nEdit this paragraph.\n\n2. Distant item with __bold__\n"
+            let tv = makeView(src)
+            let caret = (tv.string as NSString).range(of: "Edit this paragraph.").location + 20
+            tv.setSelectedRange(NSRange(location: caret, length: 0))
+            type(tv, "x")
+            check("B3b 代码块后紧跟正文仅改正文", MarkdownCodec.serialize(RichBridge.blocks(from: tv.textStorage!), preserving: src),
+                  src.replacingOccurrences(of: "Edit this paragraph.", with: "Edit this paragraph.x"))
+        }
+    }
 print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }
