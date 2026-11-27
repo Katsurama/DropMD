@@ -82,6 +82,7 @@ final class RichTextView: NSTextView {
     /// 在“显示 → 页边距”或设置里改了页边距：马上重新排版
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        updateDragTypeRegistration()   // 让 acceptableDragTypes 里 DropMD 自己的格式生效
         scaleObservers.forEach { NotificationCenter.default.removeObserver($0) }
         scaleObservers = window == nil ? [] : TextScale.observe(self)   // 窗口换了屏幕：字号“自动”重新计算
         guard marginObserver == nil, window != nil else { return }

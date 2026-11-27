@@ -149,6 +149,11 @@ extension RichTextView {
         [Self.richType] + super.readablePasteboardTypes
     }
 
+    // 拖放也先认 DropMD 自己的格式：否则单页里拖图片只能读 RTF，图片变成看不见的占位符
+    override var acceptableDragTypes: [NSPasteboard.PasteboardType] {
+        [Self.richType] + super.acceptableDragTypes
+    }
+
     override func writeSelection(to pboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Bool {
         guard type == Self.richType else { return super.writeSelection(to: pboard, type: type) }
         guard let storage = textStorage else { return false }
@@ -161,9 +166,50 @@ extension RichTextView {
         return pboard.setData(data, forType: type)
     }
 
+    /// 选区碰到展示型 HTML 块就不让拖：块里的内容删不掉，拖走只会在落点多出一份；
+    /// 只拖走多段块里的一段，落点也会带着整块的原文，保存时整块写两次
+    override func dragSelection(with event: NSEvent, offset mouseOffset: NSSize, slideBack: Bool) -> Bool {
+        if let storage = textStorage, selectedRanges.contains(where: { value in
+            let r = NSIntersectionRange(value.rangeValue, NSRange(location: 0, length: storage.length))
+            var hit = false
+            storage.enumerateAttribute(DMKey.htmlRaw, in: r) { v, _, stop in if v != nil { hit = true; stop.pointee = true } }
+            return hit
+        }) {
+            NSSound.beep()
+            return false
+        }
+        return super.dragSelection(with: event, offset: mouseOffset, slideBack: slideBack)
+    }
+
+    /// 单页内部拖动：一律按移动处理（按住 Option 复制会复用块编号，保存时副本被合并掉）。
+    /// 落点在展示型 HTML 块里，或把图片、公式拖进代码块、折叠块标题（那里只存文字，图会丢）：不能放
+    override func dragOperation(for dragInfo: NSDraggingInfo, type: NSPasteboard.PasteboardType) -> NSDragOperation {
+        let index = characterIndexForInsertion(at: convert(dragInfo.draggingLocation, from: nil))
+        let text = dragInfo.draggingPasteboard.string(forType: .string) ?? "x"
+        if Self.editsInsideHTMLBlock(textStorage, NSRange(location: index, length: 0), text) { return [] }
+        let fromSelf = (dragInfo.draggingSource as? NSTextView) === self
+        if fromSelf, let storage = textStorage, storage.length > 0 {
+            let dest = paragraphAttributes(paragraphRange(at: min(index, storage.length - 1)))
+            if Self.isCodeBlock(dest) || dest[DMKey.summary] != nil, selectionHasAttachment { return [] }
+        }
+        let op = super.dragOperation(for: dragInfo, type: type)
+        return fromSelf && !op.isEmpty ? .move : op
+    }
+
+    private var selectionHasAttachment: Bool {
+        guard let storage = textStorage else { return false }
+        return selectedRanges.contains { value in
+            let r = NSIntersectionRange(value.rangeValue, NSRange(location: 0, length: storage.length))
+            var hit = false
+            storage.enumerateAttribute(.attachment, in: r) { v, _, stop in if v != nil { hit = true; stop.pointee = true } }
+            return hit
+        }
+    }
+
     override func readSelection(from pboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Bool {
         // 落点在展示型 HTML 块里：整次粘贴、拖放都不接受。返回 false，拖动时原处的内容不会被删掉
-        if Self.editsInsideHTMLBlock(textStorage, selectedRange(), "x") {
+        // 用真正要放进来的文字判断：块前贴一整段（以换行结尾）、块后另起一段照常可以
+        if Self.editsInsideHTMLBlock(textStorage, selectedRange(), pboard.string(forType: .string) ?? "x") {
             NSSound.beep()
             return false
         }
@@ -425,3 +471,4 @@ extension RichTextView {
         }
     }
 }
+

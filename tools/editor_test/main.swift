@@ -287,12 +287,12 @@ MainActor.assumeIsolated {
         check("跨格选中后打字", save(tv, s).contains("1") && save(tv, s).contains("字") ? "都在" : save(tv, s), "都在")
     }
     // 页边距：窗口窄时最少留 32；自动时窗口越宽文字栏越宽，但不超过 900；最窄时铺满
-    for (m, w, want) in [(PageMargin.auto, 700, 32), (.auto, 1000, 164), (.auto, 1357, 258), (.auto, 1700, 400), (.auto, 2400, 750),
+    for (m, w, want) in [(PageMargin.auto, 700, 32), (.auto, 1000, 164), (.auto, 1357, 258), (.auto, 1700, 338), (.auto, 2400, 688),
                          (.wide, 1700, 514), (.standard, 1700, 450), (.narrow, 1700, 370), (.none, 1700, 32), (.wide, 500, 32)] as [(PageMargin, CGFloat, CGFloat)] {
         check("页边距 \(m.rawValue) \(Int(w))", "\(Int(m.margin(for: w)))", "\(Int(want))")
     }
     // 屏幕显示宽度：1920 及以上不变，14 寸（1512）约八成，再小最少七成；只影响“自动”
-    check("自动页边距 1920 屏", "\(Int(PageMargin.auto.margin(for: 1700, screenWidth: 1920)))", "400")
+    check("自动页边距 1920 屏", "\(Int(PageMargin.auto.margin(for: 1700, screenWidth: 1920)))", "338")
     check("自动页边距 1512 屏", "\(Int(PageMargin.auto.margin(for: 1400, screenWidth: 1512)))", "\(Int((266 * 1512.0 / 1920).rounded()))")
     check("自动页边距 1024 屏", "\(Int(PageMargin.auto.margin(for: 1000, screenWidth: 1024)))", "\(Int((164 * 0.7).rounded()))")
     check("标准页边距不受屏幕影响", "\(Int(PageMargin.standard.margin(for: 1700, screenWidth: 1280)))", "450")
@@ -2593,6 +2593,31 @@ do {
     t2.insertImage(path: "gen.png", alt: "生成")
     let md2 = md(t2)
     check("光标在 HTML 块里插图：插到块后面", "\(md2.contains("gen.png")) \(md2.hasPrefix("<p align=\"right\">"))", "true true")
+}
+
+// 单页里拖图片：拖放先认 DropMD 自己的格式，图片完整带到落点（以前只读 RTF，落点变成看不见的占位符）
+do {
+    let rich = NSPasteboard.PasteboardType("io.github.dropmd.rich")
+    let tv = makeView("<p align=\"center\"><a href=\"https://x\"><img src=\"a.png\" alt=\"s\" height=\"80\"></a></p>\n\n后文\n")
+    check("拖放先认 DropMD 自己的格式", tv.acceptableDragTypes.first?.rawValue ?? "无", rich.rawValue)
+    let ns = tv.string as NSString
+    tv.setSelectedRange(NSRange(location: ns.range(of: "\u{FFFC}").location, length: 1))
+    let pb = NSPasteboard(name: .init("dropmd-test-\(UUID().uuidString)")); pb.clearContents()
+    _ = tv.writeSelection(to: pb, type: rich)
+    tv.setSelectedRange(NSRange(location: (tv.string as NSString).range(of: "后文").location + 2, length: 0))
+    _ = tv.readSelection(from: pb, type: rich)
+    check("HTML 块里的图片拖到正文：落点有图片", md(tv).components(separatedBy: "a.png").count - 1 >= 2 ? "有" : "无", "有")
+    pb.releaseGlobally()
+}
+
+// HTML 块前面贴一整段（以换行结尾）照常可以，不被当成贴进块里
+do {
+    let tv = makeView("<p align=\"right\">🌐 <b>English</b></p>\n\n正文\n")
+    let pb = NSPasteboard(name: .init("dropmd-test-\(UUID().uuidString)"))
+    pb.clearContents(); pb.setString("新的一段\n", forType: .string)
+    tv.setSelectedRange(NSRange(location: 0, length: 0))
+    check("HTML 块前贴一整段", "\(tv.readSelection(from: pb, type: .string)) \(tv.string.hasPrefix("新的一段\n"))", "true true")
+    pb.releaseGlobally()
 }
 
 print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
