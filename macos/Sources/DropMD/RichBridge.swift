@@ -411,7 +411,7 @@ enum RichBridge {
 
     // MARK: 图片与分隔线
 
-    static let maxImageWidth: CGFloat = 560
+    static let maxImageWidth: CGFloat = 560   // 只用于找不到的图片的占位框
 
     /// 在线图片下载好或开关改变：只换图片本身（占位框 ⇄ 图片），文字、撤销记录都不动
     static func refreshRemoteImages(in storage: NSTextStorage, baseURL: URL?) {
@@ -473,7 +473,7 @@ enum RichBridge {
             let attachment = NSTextAttachment()
             // 找不到的本地图片写了宽或高：和快速查看一样，按图片原本的大小留出一个框
             let sized = !RemoteImages.isRemote(path) && (htmlWidth?.isEmpty == false || htmlHeight?.isEmpty == false)
-                ? fittedImageSize(natural: NSSize(width: 4, height: 3), htmlWidth: htmlWidth, htmlHeight: htmlHeight) : nil
+                ? fittedImageSize(natural: NSSize(width: 4, height: 3), htmlWidth: htmlWidth, htmlHeight: htmlHeight, cap: maxImageWidth) : nil
             let cell = PlaceholderAttachmentCell(label: sized == nil ? label : name, font: base.withSize(base.pointSize * 0.85),
                                                  frameSize: sized?.0, widthFraction: sized?.1)
             cell.setAccessibilityLabel(label)   // 旁白读出“找不到图片：…”
@@ -491,27 +491,30 @@ enum RichBridge {
         return s
     }
 
-    private static func fittedImageSize(natural: NSSize, htmlWidth: String?, htmlHeight: String?) -> (NSSize, CGFloat?) {
+    /// 图片显示大小，和 GitHub 一样：没写宽高按原图大小；写了像素照写的；写了百分比按正文宽的百分比。
+    /// 最宽不超过正文宽（排版时在 ImageAttachmentCell 里按当前栏宽再缩）。cap 只给占位框用
+    private static func fittedImageSize(natural: NSSize, htmlWidth: String?, htmlHeight: String?, cap placeholderCap: CGFloat? = nil) -> (NSSize, CGFloat?) {
         let ratio = natural.height / max(natural.width, 1)
+        let cap = placeholderCap ?? .greatestFiniteMagnitude
         if let rawW = htmlWidth?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !rawW.isEmpty {
             if rawW.hasSuffix("%"), let pct = Double(rawW.dropLast().trimmingCharacters(in: .whitespaces)),
                pct > 0, pct <= 100 {
                 let frac = CGFloat(pct / 100)
-                let w = max(40, (maxImageWidth * frac).rounded())
+                let w = max(40, ((placeholderCap ?? natural.width) * frac).rounded())   // 排版时再按栏宽算
                 return (NSSize(width: w, height: max(1, (w * ratio).rounded())), frac)
             }
             if let px = parsePixelValue(rawW) {
-                let w = min(max(px, 16), maxImageWidth)
-                let h = htmlHeight.flatMap(parsePixelValue).map { max(16, min($0, maxImageWidth * 2)) } ?? max(1, (w * ratio).rounded())
+                let w = min(max(px, 16), cap)
+                let h = htmlHeight.flatMap(parsePixelValue).map { max(16, min($0, cap * 2)) } ?? max(1, (w * ratio).rounded())
                 return (NSSize(width: w, height: h), nil)
             }
         }
         if let h = htmlHeight.flatMap(parsePixelValue) {
-            let clampedH = max(16, min(h, maxImageWidth * 2))
-            let w = min(maxImageWidth, max(16, (clampedH / max(ratio, 0.01)).rounded()))
+            let clampedH = max(16, min(h, cap * 2))
+            let w = min(cap, max(16, (clampedH / max(ratio, 0.01)).rounded()))
             return (NSSize(width: w, height: max(1, (w * ratio).rounded())), nil)
         }
-        let scale = min(1, maxImageWidth / natural.width)
+        let scale = min(1, cap / max(natural.width, 1))
         return (NSSize(width: natural.width * scale, height: natural.height * scale), nil)
     }
 

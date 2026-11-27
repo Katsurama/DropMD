@@ -2731,6 +2731,18 @@ do {
         for p in pieces { map[p.id] = p.text == "请看" ? "See" : "before the meeting." }
         check("双链原样保留", MarkdownTranslator.applyTranslations(map, to: src), "See [[设计文档]] before the meeting.\n")
     }
+    // 图片按 GitHub 的规则：没写宽度按原图大小（只在排版时按栏宽缩），不再固定压到 560
+    do {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("DropMDImgSize-\(UUID().uuidString)", isDirectory: true)
+        try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 900, pixelsHigh: 300, bitsPerSample: 8, samplesPerPixel: 4,
+                                   hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        try! rep.representation(using: .png, properties: [:])!.write(to: dir.appendingPathComponent("wide.png"))
+        let s = RichBridge.attributed(markdown: "![a](wide.png)\n", baseURL: dir)
+        let cell = (s.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)?.attachmentCell
+        check("大图不再固定压到 560", "\(Int(cell?.cellSize().width ?? 0))", "900")
+    }
 print(failures == 0 ? "全部通过" : "失败 \(failures) 项")
     if failures > 0 { exit(1) }
 }
