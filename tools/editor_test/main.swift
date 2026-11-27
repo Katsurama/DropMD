@@ -2709,6 +2709,7 @@ do {
     do {
         let twoBlocks = "```\necho one\n```\n\n说明\n\n```python\nprint(2)\n```"
         check("去外层围栏不拆首尾两个代码块", SiriAIManager.stripOuterMarkdownFence(twoBlocks), twoBlocks)
+        check("去外层 markdown 围栏，里面有不带语言的代码块", SiriAIManager.stripOuterMarkdownFence("```markdown\n# T\n\n```\ncode\n```\n```"), "# T\n\n```\ncode\n```")
         check("去外层围栏（CRLF）", SiriAIManager.stripOuterMarkdownFence("```markdown\r\n# 标题\r\n```"), "# 标题")
         check("转表格左上角空表头不删列",
               SiriAIManager.formatMarkdownTable(headers: ["", "Q1", "Q2"], rows: [["收入", "100", "200"]]),

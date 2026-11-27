@@ -430,7 +430,10 @@ enum RichBridge {
                 let fresh = imageString(path: path, alt: a[DMKey.alt] as? String ?? "", title: a[DMKey.title] as? String,
                                         link: a[DMKey.link] as? String, linkTitle: a[DMKey.linkTitle] as? String,
                                         htmlWidth: a[DMKey.imageWidth] as? String, htmlHeight: a[DMKey.imageHeight] as? String, baseURL: baseURL)
-                guard let attachment = fresh.attribute(.attachment, at: 0, effectiveRange: nil) else { continue }
+                guard let attachment = fresh.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment else { continue }
+                // 已显示的在线图片被系统清出缓存时会拿到占位框（记着下载过，不会再下）：保留原来的图片，开关关掉时才换回占位框
+                if attachment.attachmentCell is PlaceholderAttachmentCell, RemoteImages.enabled,
+                   (a[.attachment] as? NSTextAttachment)?.attachmentCell is ImageAttachmentCell { continue }
                 a[.attachment] = attachment
                 jobs.append((i, NSAttributedString(string: "\u{FFFC}", attributes: a)))
             }

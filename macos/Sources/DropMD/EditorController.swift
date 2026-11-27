@@ -207,6 +207,8 @@ final class EditorController: ObservableObject {
             }
         }
         statsWork = stats
+        // 刚打开时马上定字体语言，不然先用上一篇的字形显示再跳
+        if !languageApplied, language == .auto { updateLanguage() }
         DispatchQueue.main.asyncAfter(deadline: .now() + (text.utf16.count > 100_000 ? 0.3 : 0), execute: stats)
         if outlineVisible {
             headingsWork?.cancel()

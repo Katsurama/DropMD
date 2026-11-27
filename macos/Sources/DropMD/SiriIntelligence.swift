@@ -222,6 +222,10 @@ enum SiriAIManager {
         guard (first == "```" || first == "```markdown" || first == "```md"), last == "```" else {
             return text
         }
+        // 写明 markdown / md 的一定是包在外面的一层：里面不带语言的代码块不影响
+        if first != "```" {
+            return lines.dropFirst().dropLast().joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
         // 扫描内部围栏配对，防止首尾两个独立代码块被误拆
         var innerFenceTicks: Int?
         for line in lines.dropFirst().dropLast() {
