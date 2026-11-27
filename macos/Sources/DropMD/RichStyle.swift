@@ -61,17 +61,18 @@ enum PageMargin: String, CaseIterable, Identifiable {
         }
     }
 
-    /// 编辑区这么宽时，左右各留多少。自动：窗口越大文字栏越宽，但一行不超过 1024
+    /// 编辑区这么宽时，左右各留多少：正文栏按编辑区宽度的比例算，再限定上下限；“宽”留白最多，“最窄”铺满。
+    /// 自动 = 标准，屏幕显示宽度小于 1920 时留白再少一些
     /// screenWidth：屏幕显示宽度（点）。只影响“自动”：屏幕小于 1920 时留白按比例减少，最少七成
     func margin(for width: CGFloat, screenWidth: CGFloat? = nil) -> CGFloat {
-        let column: CGFloat
+        let ratio: CGFloat, lower: CGFloat, upper: CGFloat
         switch self {
-        case .auto: column = min(max(672, width * 0.62), 1024)   // 大窗口正文放宽，参照 Typora（窗口 1400 以上最宽 1024）
-        case .wide: column = 672
-        case .standard: column = 800
-        case .narrow: column = 960
-        case .none: column = .greatestFiniteMagnitude
+        case .wide: (ratio, lower, upper) = (0.62, 640, 960)
+        case .auto, .standard: (ratio, lower, upper) = (0.70, 672, 1100)
+        case .narrow: (ratio, lower, upper) = (0.80, 720, 1280)
+        case .none: return 32
         }
+        let column = min(max(lower, width * ratio), upper)
         let factor = self == .auto ? Self.screenFactor(screenWidth) : 1
         return max(32, ((width - column) / 2 * factor).rounded())   // 窗口再窄也留 32
     }

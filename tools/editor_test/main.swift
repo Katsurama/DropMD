@@ -287,15 +287,15 @@ MainActor.assumeIsolated {
         check("跨格选中后打字", save(tv, s).contains("1") && save(tv, s).contains("字") ? "都在" : save(tv, s), "都在")
     }
     // 页边距：窗口窄时最少留 32；自动时窗口越宽文字栏越宽，但不超过 900；最窄时铺满
-    for (m, w, want) in [(PageMargin.auto, 700, 32), (.auto, 1000, 164), (.auto, 1357, 258), (.auto, 1700, 338), (.auto, 2400, 688),
-                         (.wide, 1700, 514), (.standard, 1700, 450), (.narrow, 1700, 370), (.none, 1700, 32), (.wide, 500, 32)] as [(PageMargin, CGFloat, CGFloat)] {
+    for (m, w, want) in [(PageMargin.auto, 700, 32), (.auto, 1000, 150), (.auto, 1357, 204), (.auto, 1700, 300), (.auto, 2400, 650),
+                         (.wide, 1700, 370), (.standard, 1700, 300), (.narrow, 1700, 210), (.none, 1700, 32), (.wide, 500, 32)] as [(PageMargin, CGFloat, CGFloat)] {
         check("页边距 \(m.rawValue) \(Int(w))", "\(Int(m.margin(for: w)))", "\(Int(want))")
     }
     // 屏幕显示宽度：1920 及以上不变，14 寸（1512）约八成，再小最少七成；只影响“自动”
-    check("自动页边距 1920 屏", "\(Int(PageMargin.auto.margin(for: 1700, screenWidth: 1920)))", "338")
-    check("自动页边距 1512 屏", "\(Int(PageMargin.auto.margin(for: 1400, screenWidth: 1512)))", "\(Int((266 * 1512.0 / 1920).rounded()))")
-    check("自动页边距 1024 屏", "\(Int(PageMargin.auto.margin(for: 1000, screenWidth: 1024)))", "\(Int((164 * 0.7).rounded()))")
-    check("标准页边距不受屏幕影响", "\(Int(PageMargin.standard.margin(for: 1700, screenWidth: 1280)))", "450")
+    check("自动页边距 1920 屏", "\(Int(PageMargin.auto.margin(for: 1700, screenWidth: 1920)))", "300")
+    check("自动页边距 1512 屏", "\(Int(PageMargin.auto.margin(for: 1400, screenWidth: 1512)))", "165")
+    check("自动页边距 1024 屏", "\(Int(PageMargin.auto.margin(for: 1000, screenWidth: 1024)))", "105")
+    check("标准页边距不受屏幕影响", "\(Int(PageMargin.standard.margin(for: 1700, screenWidth: 1280)))", "300")
     // 双页原文的列表按钮：缩进保留，空行不加标记，勾选状态不丢
     for (name, lines, prefix, numbered, want) in [
         ("加列表", ["a", "", "b"], "- ", false, ["- a", "", "- b"]),
