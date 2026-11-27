@@ -221,6 +221,7 @@ struct EditorView: View {
         .onDisappear {
             editor.cancelDocumentSummary()
             editor.cancelDocumentQA()
+            editor.closeImagePlayground()
         }
         .onChange(of: document.text) { _, newValue in editor.textChanged(newValue) }
         .onChange(of: fileURL) { _, newValue in

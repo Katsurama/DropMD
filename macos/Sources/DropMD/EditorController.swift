@@ -170,6 +170,8 @@ final class EditorController: ObservableObject {
     @Published var documentTranslationRequest: DocumentTranslationRequest?
     var isTranslatingDocument = false
     var imagePlaygroundDelegate: AnyObject?
+    /// 点窗口别处收起图乐园时留着它，再打开回到原来的页面；插入图片或取消后清掉
+    var imagePlaygroundController: NSViewController?
     var spotlightWork: DispatchWorkItem?
     var titleWork: DispatchWorkItem?
     var aiTitleWork: DispatchWorkItem?

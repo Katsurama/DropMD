@@ -554,6 +554,11 @@ extension EditorController {
               let presenter = window.contentViewController,
               let view = window.contentView else { return }
         flushPendingEdits()
+        // 收起过的图乐园：原样再弹出来（正在显示时不重复打开）
+        if let kept = imagePlaygroundController {
+            if kept.presentingViewController == nil { presentImagePlayground(kept, presenter: presenter, window: window, view: view) }
+            return
+        }
         var seed = ""
         if let r = rich, let storage = r.textStorage {
             let sel = r.selectedRange()
@@ -579,14 +584,28 @@ extension EditorController {
             },
             onDone: { [weak self] in
                 self?.imagePlaygroundDelegate = nil
+                self?.imagePlaygroundController = nil
             }
         )
         imagePlaygroundDelegate = proxy
+        imagePlaygroundController = vc
         vc.delegate = proxy
+        presentImagePlayground(vc, presenter: presenter, window: window, view: view)
+        #endif
+    }
+
+    /// 关窗口时收起图乐园并清掉留着的页面
+    func closeImagePlayground() {
+        if let kept = imagePlaygroundController, kept.presentingViewController != nil { kept.dismiss(nil) }
+        imagePlaygroundController = nil
+        imagePlaygroundDelegate = nil
+    }
+
+    private func presentImagePlayground(_ vc: NSViewController, presenter: NSViewController, window: NSWindow, view: NSView) {
+        // 从窗口顶部正中弹出；点窗口别处不收起，生成不会被打断，点“取消”或插入图片后才关闭
         let top = view.safeAreaInsets.top
         let anchor = NSRect(x: view.bounds.midX, y: view.isFlipped ? top - 1 : view.bounds.maxY - top, width: 1, height: 1)
-        presenter.present(vc, asPopoverRelativeTo: anchor, of: view, preferredEdge: view.isFlipped ? .maxY : .minY, behavior: .semitransient)
-        #endif
+        presenter.present(vc, asPopoverRelativeTo: anchor, of: view, preferredEdge: view.isFlipped ? .maxY : .minY, behavior: .applicationDefined)
     }
 
     func insertGeneratedImage(from tempURL: URL, concept: String) {
