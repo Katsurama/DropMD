@@ -5,7 +5,6 @@
 #   pyinstaller packaging/dropmd.spec --noconfirm
 # 若 packaging/pandoc/ 下有 pandoc 可执行文件，会一并打包。
 
-import os
 import sys
 from pathlib import Path
 
@@ -27,7 +26,9 @@ hiddenimports = []
 pandoc_dir = ROOT / "packaging" / "pandoc"
 if pandoc_dir.is_dir():
     for f in pandoc_dir.iterdir():
-        binaries.append((str(f), "pandoc"))
+        # 跳过 .DS_Store 等隐藏文件和子目录，只打包实际可执行文件
+        if f.is_file() and not f.name.startswith("."):
+            binaries.append((str(f), "pandoc"))
 
 freeze_list = ROOT / "build" / "requirements-frozen.txt"
 if freeze_list.is_file():

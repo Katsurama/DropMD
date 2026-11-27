@@ -32,6 +32,10 @@ for name, src, want in [
     ("同段两张表：表间文字不丢、不合成一张", "<fcel>A<fcel>B<nl><fcel>1<fcel>2<nl>中间说明文字\n<fcel>C<fcel>D<nl><fcel>3<fcel>4<nl>",
      "| A | B |\n| --- | --- |\n| 1 | 2 |\n\n中间说明文字\n\n| C | D |\n| --- | --- |\n| 3 | 4 |"),
     ("行内公式", r"设 \( x+1 \) 和 $\(y\)$ 成立", "设 $x+1$ 和 $y$ 成立"),
+    ("相邻公式不粘连", r"$a$ \(b\) $c$", "$a$ $b$ $c$"),
+    ("紧贴美元符号", r"$\(y\)$", "$y$"),
+    ("前后有公式的独立公式", "$a$\n\\[b\\]\n$c$", "$a$\n$$b$$\n$c$"),
+    ("跨行行内公式", "\\(\na+b\n\\)", "$a+b$"),
     ("独立公式", "\\[\na=b\n\\]", "$$a=b$$"),
     ("代码块不动", "```\n\\(x\\) <fcel>a\n\n<nl>\n```", "```\n\\(x\\) <fcel>a\n\n<nl>\n```"),
     ("无空行代码块不动", "```\n\\(x\\) <fcel>a<nl>\n```", "```\n\\(x\\) <fcel>a<nl>\n```"),
@@ -49,6 +53,8 @@ for cls, msg, want in [
     ("ConversionError", "Conversion failed for: a.pdf with status: failure. Errors: docling-parse could not load document abc", "PDF 文件已损坏或格式无效。"),
     ("PdfiumError", "Failed to load document (PDFium: Data format error).", "PDF 文件已损坏或格式无效。"),
     ("PdfiumError", "Failed to load document (PDFium: Incorrect password error).", "文件已加密或设有密码，无法转换。请先解除密码保护。"),
+    ("BadZipFile", "File '/x/passwords/a.docx' is not a zip file", "文件已损坏或不是有效的 Office 文档（.docx/.xlsx/.pptx 本质上是 ZIP 压缩包）。"),
+    ("ConversionError", "Conversion failed for: /x/encrypted/a.pdf with status: failure. Errors: docling-parse could not load document abc", "PDF 文件已损坏或格式无效。"),
 ]:
     got = describe(type(cls, (Exception,), {})(msg))
     ok = got == want

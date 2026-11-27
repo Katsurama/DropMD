@@ -1,10 +1,13 @@
 """Lightweight tests for conversion commits (no OCR models or Pandoc installed)."""
 
+import ctypes
+import errno
 import json
 import os
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -16,7 +19,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import quote
 
-from dropmd import converters as conv, hq
+from dropmd import converters as conv, hq, netguard
 from dropmd.errors import ConversionError
 
 
@@ -271,6 +274,119 @@ if src.read_bytes() == b'warn':
         self.assertEqual(self.dst.read_text(), IMAGE + "\n")
         self.assertEqual(list(self.root.glob("*_images*")), [])
         self.assert_no_stage()
+
+    def test_publish_media_enotsup_fallback(self):
+        def fail_enotsup(*_a):
+            ctypes.set_errno(errno.ENOTSUP)
+            return -1
+
+        fake_libc = SimpleNamespace(renamex_np=fail_enotsup, renameat2=fail_enotsup)
+        with patch.object(conv.ctypes, "CDLL", return_value=fake_libc):
+            self.run_markitdown(IMAGE * 2)
+            media_dir = self.exported_image().parent
+            self.assertEqual((media_dir / "image1.png").read_bytes(), b"hi")
+            self.assertEqual((media_dir / "image2.png").read_bytes(), b"hi")
+            self.assert_no_stage()
+
+            existing = self.root / "taken"
+            existing.mkdir()
+            existing_ino = existing.lstat().st_ino
+            staged = self.root / "staged"
+            staged.mkdir()
+            (staged / "image1.png").write_bytes(b"new")
+            with self.assertRaises(FileExistsError):
+                conv._publish_media(staged, existing)
+            self.assertEqual(existing.lstat().st_ino, existing_ino)
+            self.assertEqual(list(existing.iterdir()), [])
+            self.assertTrue((staged / "image1.png").is_file())
+
+    def test_images_prefix_sanitizes_colon_and_caps_utf8_bytes(self):
+        self.assertEqual(conv._images_prefix(Path("Q1:Q2.md")), "Q1_Q2_images")
+        long_stem = "汉" * 83
+        prefix = conv._images_prefix(Path(f"{long_stem}.md"))
+        self.assertTrue(prefix.endswith("_images"))
+        stem = prefix[:-len("_images")]
+        self.assertLessEqual(len(stem.encode("utf-8")), 200)
+        self.assertTrue(long_stem.startswith(stem))
+        self.assertLessEqual(len(f"{prefix}_999".encode("utf-8")), 255)
+        self.dst = self.root / f"{long_stem}.md"
+        self.run_markitdown()
+        self.assertEqual(self.exported_image().read_bytes(), b"hi")
+        self.assert_no_stage()
+
+
+class NetguardTests(unittest.TestCase):
+    def setUp(self):
+        saved = (
+            socket.socket.connect,
+            socket.socket.connect_ex,
+            socket.socket.sendto,
+            getattr(socket.socket, "sendmsg", None),
+            socket.getaddrinfo,
+            socket.gethostbyname,
+            socket.gethostbyname_ex,
+            socket.gethostbyaddr,
+            socket.getnameinfo,
+            netguard._installed,
+        )
+
+        def restore():
+            (
+                socket.socket.connect,
+                socket.socket.connect_ex,
+                socket.socket.sendto,
+                orig_sendmsg,
+                socket.getaddrinfo,
+                socket.gethostbyname,
+                socket.gethostbyname_ex,
+                socket.gethostbyaddr,
+                socket.getnameinfo,
+                netguard._installed,
+            ) = saved
+            if orig_sendmsg is not None:
+                socket.socket.sendmsg = orig_sendmsg
+
+        self.addCleanup(restore)
+        netguard.install()
+
+    def test_blocks_remote_calls_and_allows_loopback(self):
+        self.assertFalse(hasattr(netguard, "is_installed"))
+        self.assertFalse(netguard._is_loopback_host(b"localhost\xff"))
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp:
+            with self.assertRaises(netguard.NetworkBlockedError):
+                tcp.connect(("1.1.1.1", 80))
+
+        with self.assertRaises(netguard.NetworkBlockedError):
+            socket.getaddrinfo("example.com", 80)
+        with self.assertRaises(netguard.NetworkBlockedError):
+            socket.gethostbyname("example.com")
+        with self.assertRaises(netguard.NetworkBlockedError):
+            socket.gethostbyname(b"localhost\xff")
+        with self.assertRaises(netguard.NetworkBlockedError):
+            socket.gethostbyname_ex("example.com")
+        with self.assertRaises(netguard.NetworkBlockedError):
+            socket.gethostbyaddr("1.1.1.1")
+        with self.assertRaises(netguard.NetworkBlockedError):
+            socket.getnameinfo(("1.1.1.1", 80), 0)
+
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp:
+            with self.assertRaises(netguard.NetworkBlockedError):
+                udp.sendto(b"x", ("1.1.1.1", 53))
+            if hasattr(socket.socket, "sendmsg"):
+                with self.assertRaises(netguard.NetworkBlockedError):
+                    udp.sendmsg([b"x"], [], 0, ("1.1.1.1", 53))
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
+            srv.bind(("127.0.0.1", 0))
+            port = srv.getsockname()[1]
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as cli:
+                try:
+                    cli.connect(("127.0.0.1", port))
+                except netguard.NetworkBlockedError:
+                    self.fail("loopback connect should not be blocked by netguard")
+                except OSError:
+                    pass
 
 
 @unittest.skipUnless(sys.platform == "darwin" and shutil.which("swiftc"), "requires macOS Swift SDK")

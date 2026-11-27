@@ -18,7 +18,13 @@ _installed = False
 
 _orig_connect = socket.socket.connect
 _orig_connect_ex = socket.socket.connect_ex
+_orig_sendto = socket.socket.sendto
+_orig_sendmsg = getattr(socket.socket, "sendmsg", None)
 _orig_getaddrinfo = socket.getaddrinfo
+_orig_gethostbyname = socket.gethostbyname
+_orig_gethostbyname_ex = socket.gethostbyname_ex
+_orig_gethostbyaddr = socket.gethostbyaddr
+_orig_getnameinfo = socket.getnameinfo
 
 
 class NetworkBlockedError(ConnectionRefusedError):
@@ -28,8 +34,12 @@ class NetworkBlockedError(ConnectionRefusedError):
 def _is_loopback_host(host) -> bool:
     if host is None:
         return True
-    if isinstance(host, bytes):
-        host = host.decode("ascii", "ignore")
+    if isinstance(host, (bytes, bytearray)):
+        try:
+            host = host.decode("ascii")
+        except UnicodeDecodeError:
+            # 忽略解码错误会把非法字节剔除成看似回环的地址，必须直接拒绝
+            return False
     host = str(host).strip("[]")
     if host in ("localhost", ""):
         return True
@@ -48,6 +58,11 @@ def _check(sock: socket.socket, address) -> None:
         raise NetworkBlockedError(f"已阻止联网尝试：{host}")
 
 
+def _check_host(host) -> None:
+    if not _is_loopback_host(host):
+        raise NetworkBlockedError(f"已阻止域名解析：{host}")
+
+
 def _guarded_connect(self, address):
     _check(self, address)
     return _orig_connect(self, address)
@@ -58,10 +73,44 @@ def _guarded_connect_ex(self, address):
     return _orig_connect_ex(self, address)
 
 
+def _guarded_sendto(self, *args, **kwargs):
+    if len(args) >= 2:
+        _check(self, args[-1])
+    elif "address" in kwargs:
+        _check(self, kwargs["address"])
+    return _orig_sendto(self, *args, **kwargs)
+
+
+def _guarded_sendmsg(self, buffers, ancdata=(), flags=0, address=None):
+    if address is not None:
+        _check(self, address)
+    return _orig_sendmsg(self, buffers, ancdata, flags, address)
+
+
 def _guarded_getaddrinfo(host, *args, **kwargs):
-    if not _is_loopback_host(host):
-        raise NetworkBlockedError(f"已阻止域名解析：{host}")
+    _check_host(host)
     return _orig_getaddrinfo(host, *args, **kwargs)
+
+
+def _guarded_gethostbyname(host):
+    _check_host(host)
+    return _orig_gethostbyname(host)
+
+
+def _guarded_gethostbyname_ex(host):
+    _check_host(host)
+    return _orig_gethostbyname_ex(host)
+
+
+def _guarded_gethostbyaddr(ip):
+    _check_host(ip)
+    return _orig_gethostbyaddr(ip)
+
+
+def _guarded_getnameinfo(sockaddr, flags):
+    host = sockaddr[0] if isinstance(sockaddr, tuple) and sockaddr else sockaddr
+    _check_host(host)
+    return _orig_getnameinfo(sockaddr, flags)
 
 
 def install() -> None:
@@ -72,10 +121,13 @@ def install() -> None:
             return
         socket.socket.connect = _guarded_connect
         socket.socket.connect_ex = _guarded_connect_ex
+        socket.socket.sendto = _guarded_sendto
+        if _orig_sendmsg is not None:
+            socket.socket.sendmsg = _guarded_sendmsg
         socket.getaddrinfo = _guarded_getaddrinfo
+        socket.gethostbyname = _guarded_gethostbyname
+        socket.gethostbyname_ex = _guarded_gethostbyname_ex
+        socket.gethostbyaddr = _guarded_gethostbyaddr
+        socket.getnameinfo = _guarded_getnameinfo
         _installed = True
-
-
-def is_installed() -> bool:
-    return _installed
 

@@ -11,7 +11,6 @@ OCR 引擎：
 
 from __future__ import annotations
 
-import logging
 import sys
 import threading
 from pathlib import Path
@@ -20,7 +19,6 @@ from .errors import ConversionError, tr
 from .models import missing_components, required_components
 from .paths import models_dir
 
-_log = logging.getLogger(__name__)
 _lock = threading.Lock()
 _cache: dict[tuple[str, bool, str], object] = {}
 

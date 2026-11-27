@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import errno
 import os
+import re
 import subprocess
 
 # 界面语言：App 启动引擎时设置 DROPMD_LANG（zh、zh-Hant、en），给用户看的文字跟着用简体、繁体或英文
@@ -18,6 +19,20 @@ class ConversionError(Exception):
 
 def _name(exc: BaseException) -> str:
     return type(exc).__name__
+
+
+def _without_paths(exc: BaseException, msg: str) -> str:
+    # 去掉异常里的文件路径，避免目录名或文件名含 password/encrypt 时误报加密错误
+    for attr in ("filename", "filename2"):
+        val = getattr(exc, attr, None)
+        if isinstance(val, (str, bytes, os.PathLike)):
+            s = os.fsdecode(val)
+            if s:
+                msg = msg.replace(s, "")
+    msg = re.sub(r"""(['"])[^'"\n]*[/\\][^'"\n]*\1""", "", msg)
+    msg = re.sub(r"""(['"])[^'"\s\n]+\.[A-Za-z0-9]{1,8}\1""", "", msg)
+    msg = re.sub(r"(?:^|(?<=[\s:]))(?:[A-Za-z]:\\|/)[^\s'\"()\[\],;]+", "", msg)
+    return msg
 
 
 def describe(exc: BaseException) -> str:
@@ -47,10 +62,11 @@ def describe(exc: BaseException) -> str:
     name = _name(exc)
     msg = str(exc)
     low = (name + " " + msg).lower()
+    low_no_path = (name + " " + _without_paths(exc, msg)).lower()
 
     if "out of memory" in low:  # PyTorch 在 Mac GPU 上内存不够时报的是 RuntimeError
         return tr("内存不足，文件可能过大。", "Not enough memory. The file may be too large.", "記憶體不足，檔案可能過大。")
-    if "password" in low or "encrypt" in low:
+    if "password" in low_no_path or "encrypt" in low_no_path:
         return tr("文件已加密或设有密码，无法转换。请先解除密码保护。", "The file is encrypted or password-protected and can't be converted. Remove the password first.", "檔案已加密或設有密碼，無法轉換。請先解除密碼保護。")
     if name == "UnsupportedFormatException":
         return tr("不支持此文件格式，或文件内容与扩展名不符。", "This file format isn't supported, or the content doesn't match the extension.", "不支援此檔案格式，或檔案內容與副檔名不符。")

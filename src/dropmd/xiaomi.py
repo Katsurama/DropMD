@@ -30,10 +30,10 @@ _MAX_WIDTH = 2200  # 与官方服务相同：150 dpi，宽度不超过 2200
 _TAG = re.compile(r"<(fcel|ecel|lcel|ucel|xcel|nl)>")
 # 模型有时在 \(…\) 外面再包一层 $，要一起去掉
 _MATH = [
-    (re.compile(r"\$\$?\s*\\\[\s*(.*?)\s*\\\]\s*\$\$?", re.S), r"$$\1$$"),
-    (re.compile(r"\$\s*\\\(\s*(.*?)\s*\\\)\s*\$"), r"$\1$"),
+    (re.compile(r"\$\$?\\\[\s*(.*?)\s*\\\]\$\$?", re.S), r"$$\1$$"),
+    (re.compile(r"\$\\\(\s*(.*?)\s*\\\)\$", re.S), r"$\1$"),
     (re.compile(r"\\\[\s*(.*?)\s*\\\]", re.S), r"$$\1$$"),
-    (re.compile(r"\\\(\s*(.*?)\s*\\\)"), r"$\1$"),
+    (re.compile(r"\\\(\s*(.*?)\s*\\\)", re.S), r"$\1$"),
 ]
 
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import ctypes
+import errno
 import os
 import re
 import shutil
@@ -61,11 +62,18 @@ def _markitdown():
         return _md_instance
 
 
-_UNSAFE_IN_LINK = re.compile(r"[\s#%?\[\]()<>\\]+")
+# 冒号在 macOS 上对应 Finder 的 /，且在 Markdown 链接里会被当成 URL 协议
+_UNSAFE_IN_LINK = re.compile(r"[\s#%?\[\]()<>\\:]+")
+_MAX_STEM_BYTES = 200
 
 
 def _images_prefix(dst: Path) -> str:
-    return _UNSAFE_IN_LINK.sub("_", dst.stem) + "_images"
+    stem = _UNSAFE_IN_LINK.sub("_", dst.stem)
+    raw = stem.encode("utf-8", "ignore")
+    if len(raw) > _MAX_STEM_BYTES:
+        # 按完整 UTF-8 字符截断，为 _images_<n> 留出 255 字节文件名上限余量
+        stem = raw[:_MAX_STEM_BYTES].decode("utf-8", "ignore")
+    return stem + "_images"
 
 
 def _free_images_name(dst: Path) -> str:
@@ -90,7 +98,13 @@ def _publish_media(src: Path, dst: Path) -> None:
         ok = libc.renameat2(-100, os.fsencode(src), -100, os.fsencode(dst), ctypes.c_uint(1))  # AT_FDCWD, RENAME_NOREPLACE
     if ok != 0:
         err = ctypes.get_errno()
-        raise OSError(err, os.strerror(err), str(dst))
+        if err not in (errno.ENOTSUP, errno.EINVAL, errno.ENOSYS):
+            raise OSError(err, os.strerror(err), str(dst))
+        # exFAT / FAT / SMB 不支持排他重命名，建新目录后逐项移入以防覆盖已有目录
+        os.mkdir(dst)
+        for child in src.iterdir():
+            os.rename(child, dst / child.name)
+        os.rmdir(src)
 
 
 def _entry_id(st: os.stat_result) -> list[int] | None:

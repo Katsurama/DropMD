@@ -42,7 +42,8 @@ mkdir -p build
 pip freeze --exclude-editable > build/requirements-frozen.txt
 
 echo "== Pandoc"
-if [ ! -x packaging/pandoc/pandoc ] || ! packaging/pandoc/pandoc --version | grep -q "pandoc $PANDOC_VERSION"; then
+# sed 读完管道输出再取首行，避免 pipefail 下 grep -q 提前关闭管道触发 SIGPIPE
+if [ ! -x packaging/pandoc/pandoc ] || [ "$(packaging/pandoc/pandoc --version | sed -n '1p')" != "pandoc $PANDOC_VERSION" ]; then
   f="build/pandoc-${PANDOC_VERSION}-arm64-macOS.zip"
   curl -fsSL --retry 3 --retry-all-errors -o "$f" "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/$(basename "$f")"
   echo "$PANDOC_SHA256  $f" | shasum -a 256 -c -
@@ -75,20 +76,30 @@ echo "== 检查程序里没有本机路径"
 if grep -r -l -a -F "$HOME" dist/DropMD.app; then echo "程序里含有本机路径（$HOME），不能发布"; exit 1; fi
 echo "== 启动测试"
 cp packaging/samples/editor_sample.md build/示例.md
-asked=$(defaults read "$APP_ID" askedAutoUpdate 2>/dev/null || true)
-defaults write "$APP_ID" askedAutoUpdate -bool true
+restore_bool() {
+  case "$2" in
+    1|true) defaults write "$APP_ID" "$1" -bool true ;;
+    0|false) defaults write "$APP_ID" "$1" -bool false ;;
+    *) defaults delete "$APP_ID" "$1" 2>/dev/null || true ;;
+  esac
+}
 autocheck=$(defaults read "$APP_ID" autoCheckUpdates 2>/dev/null || true)
-defaults write "$APP_ID" autoCheckUpdates -bool false
 guide=$(defaults read "$APP_ID" shownUserGuide 2>/dev/null || true)
+restore_launch_defaults() {
+  restore_bool autoCheckUpdates "$autocheck"
+  restore_bool shownUserGuide "$guide"
+}
+# 启动失败时也要把用户偏好设置按原布尔类型恢复
+trap restore_launch_defaults EXIT
+defaults write "$APP_ID" autoCheckUpdates -bool false
 defaults write "$APP_ID" shownUserGuide -bool true   # 不自动打开使用说明
 open -n -a "$PWD/dist/DropMD.app" build/示例.md
 sleep 10
 pid=$(pgrep -f "$PWD/dist/DropMD.app/Contents/MacOS/" | head -1 || true)
 [ -n "$pid" ] || { echo "DropMD 启动失败"; exit 1; }
 kill "$pid"
-[ -n "$asked" ] || defaults delete "$APP_ID" askedAutoUpdate
-if [ -n "$autocheck" ]; then defaults write "$APP_ID" autoCheckUpdates "$autocheck"; else defaults delete "$APP_ID" autoCheckUpdates || true; fi
-[ -n "$guide" ] || defaults delete "$APP_ID" shownUserGuide
+restore_launch_defaults
+trap - EXIT
 
 echo "== 生成 .dmg 和 .zip"
 rm -f DropMD-macOS-AppleSilicon.*
