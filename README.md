@@ -34,29 +34,25 @@ It also converts Word, Excel, PowerPoint, PDF and other files to Markdown, all o
 - **Split view**: Markdown source with line numbers on the left, Page view on the right; edit either side and the other updates right away. Both sides scroll together, and the right side marks the paragraph your cursor is in
 - **Everyday formatting**: headings, bold, italic, underline, strikethrough, highlight, lists, checklists, tables, images, links, code blocks
 - **More formatting**: callouts (`> [!NOTE]`), collapsible sections, footnotes, math formulas, superscript / subscript, keyboard keys
-- **Outline**: open the Outline pane and click a heading to jump to that section
-- **Images**: animated GIFs play in place; right-click an image and choose **Extract Text from Image** to insert the recognized text below it
+- **Outline**: click a heading to jump to it
+- **Images**: GIFs play in place; right-click to extract text from an image
 - **Tables and the context menu**: right-click to insert or delete rows and columns and set alignment; drag a column edge to resize; the context menu offers common actions for links, images, code blocks and callouts
-- **Text size**: choose Automatic, Large, Medium or Small in Settings; Automatic follows the window width
+- **Text size**: Automatic, Large, Medium or Small
 - **Chinese, Japanese and Korean text**: choose the document language so characters use the right glyph shapes, on screen and in exported files
 - **A native Mac app**: built with SwiftUI, uses Liquid Glass on macOS 26 and later, with colors designed for both light and dark mode
 - **Quick Look**: select a .md file in Finder and press Space to see it formatted without opening it
 - **Export and share**: PDF, Word and HTML, or send the file via AirDrop or Mail with the Share button
-- **Auto save & version history**: changes are saved automatically; choose **File → Version History → Browse All Versions…** to open a Time Machine-style viewer to compare and restore any earlier version
-- **Siri and Shortcuts**: create a Markdown document, append text, or convert a file to Markdown from Shortcuts; documents you've opened show up in Spotlight
+- **Version history**: saves automatically; browse and restore earlier versions any time
+- **Shortcuts**: create documents, append text, convert files
 - **Software updates**: check for new versions in the app; downloads are checked for integrity, then click Restart to finish
 
-### 🆕 Apple Intelligence
+### Apple Intelligence
 
 <p align="center"><img src="docs/images/ai-inspector.en.jpg" alt="The Apple Intelligence pane on the right: a summary and questions about the document" width="80%"></p>
 
-On Macs that support Apple Intelligence (macOS 26 or later), click ✨ at the top right of the toolbar to open the side pane:
-
-- **Summary**: sums up the whole document (or the selected text) in a few bullet points
-- **Ask about this document**: ask things like “What is still left to do?” and get answers based on the document
-- **Document tools**: translate the whole document while keeping its formatting, turn text into a table, pull out a task list, or generate front matter (YAML)
-- **System Writing Tools and translation**: proofreading or rewriting with Writing Tools leaves code and math untouched; **Translate Selection…** replaces the text using the system's offline translation; on supported systems there's also **Smart Format** and **Create Image…**
-- **On-device or private cloud**: the default is Automatic — short documents stay on this Mac, and long ones can use Apple Private Cloud Compute. You can switch to On-Device Only in Settings
+- **Summary**: sums up the whole document or the selected text in a few points
+- **Ask about this document**: answers questions based on the document
+- **Writing tools**: translate the whole document, turn text into a table, pull out tasks
 
 ## 📦 Install
 
@@ -133,9 +129,9 @@ High Accuracy mode can now use [Xiaomi-OCR-0](https://github.com/xiaomi-research
 
 ## 🔒 Privacy
 
-- File conversion runs on this Mac without uploading or modifying the source files. DropMD has no analytics or ads.
-- DropMD’s document AI features default to **Automatic**: on supported Macs, relevant text from long documents may be sent to Apple Private Cloud Compute, and DropMD falls back to the on-device model when the cloud model is unavailable. You can switch to **On-Device Only** in Settings → General → Apple Intelligence. System features such as Writing Tools are managed separately by macOS.
-- DropMD asks for your consent to download the High Accuracy recognition models or check for updates online.
+- All editing and conversion happen on this Mac; your files are never uploaded
+- Apple Intelligence may use Apple Private Cloud Compute for long documents; you can switch to On-Device Only in Settings
+- Goes online only with your consent: to download recognition models and check for updates; no analytics, no ads
 
 ## 🛠️ Build from source
 
