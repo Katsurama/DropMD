@@ -291,10 +291,11 @@ MainActor.assumeIsolated {
                          (.wide, 1700, 370), (.standard, 1700, 300), (.narrow, 1700, 210), (.none, 1700, 32), (.wide, 500, 32)] as [(PageMargin, CGFloat, CGFloat)] {
         check("页边距 \(m.rawValue) \(Int(w))", "\(Int(m.margin(for: w)))", "\(Int(want))")
     }
-    // 屏幕显示宽度：1920 及以上不变，14 寸（1512）约八成，再小最少七成；只影响“自动”
+    // 屏幕显示宽度：1920 及以上占比 70%，屏幕越小占比越高（最多 74.5%）；只影响“自动”
     check("自动页边距 1920 屏", "\(Int(PageMargin.auto.margin(for: 1700, screenWidth: 1920)))", "300")
-    check("自动页边距 1512 屏", "\(Int(PageMargin.auto.margin(for: 1400, screenWidth: 1512)))", "165")
-    check("自动页边距 1024 屏", "\(Int(PageMargin.auto.margin(for: 1000, screenWidth: 1024)))", "105")
+    check("自动页边距 1512 屏放大窗口", "\(Int(PageMargin.auto.margin(for: 1452, screenWidth: 1512)))", "195")
+    check("自动页边距 1512 屏正文不超过上限", "\(Int(PageMargin.auto.margin(for: 1700, screenWidth: 1512)))", "300")
+    check("自动页边距 1024 屏", "\(Int(PageMargin.auto.margin(for: 1000, screenWidth: 1024)))", "128")
     check("标准页边距不受屏幕影响", "\(Int(PageMargin.standard.margin(for: 1700, screenWidth: 1280)))", "300")
     // 双页原文的列表按钮：缩进保留，空行不加标记，勾选状态不丢
     for (name, lines, prefix, numbered, want) in [

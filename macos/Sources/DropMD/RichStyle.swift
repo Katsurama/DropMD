@@ -62,19 +62,19 @@ enum PageMargin: String, CaseIterable, Identifiable {
     }
 
     /// 编辑区这么宽时，左右各留多少：正文栏按编辑区宽度的比例算，再限定上下限；“宽”留白最多，“最窄”铺满。
-    /// 自动 = 标准，屏幕显示宽度小于 1920 时留白再少一些
-    /// screenWidth：屏幕显示宽度（点）。只影响“自动”：屏幕小于 1920 时留白按比例减少，最少七成
+    /// screenWidth：屏幕显示宽度（点）。只影响“自动”：屏幕越小正文占比越高（1920 及以上 70%，最多 74.5%），
+    /// 窗口宽度已经随屏幕变小，这里只微调占比，不再另外削减留白，正文不会超过上限
     func margin(for width: CGFloat, screenWidth: CGFloat? = nil) -> CGFloat {
         let ratio: CGFloat, lower: CGFloat, upper: CGFloat
         switch self {
         case .wide: (ratio, lower, upper) = (0.62, 640, 960)
-        case .auto, .standard: (ratio, lower, upper) = (0.70, 672, 1100)
+        case .auto: (ratio, lower, upper) = (0.70 + 0.15 * (1 - Self.screenFactor(screenWidth)), 672, 1100)
+        case .standard: (ratio, lower, upper) = (0.70, 672, 1100)
         case .narrow: (ratio, lower, upper) = (0.80, 720, 1280)
         case .none: return 32
         }
         let column = min(max(lower, width * ratio), upper)
-        let factor = self == .auto ? Self.screenFactor(screenWidth) : 1
-        return max(32, ((width - column) / 2 * factor).rounded())   // 窗口再窄也留 32
+        return max(32, ((width - column) / 2).rounded())   // 窗口再窄也留 32
     }
 
     static func screenFactor(_ screenWidth: CGFloat?) -> CGFloat {
